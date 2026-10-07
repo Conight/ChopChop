@@ -39,18 +39,11 @@ nonisolated protocol EngineInstallationManaging: Sendable {
 /// Manages installations in the application's own data directory; never changes the app bundle.
 nonisolated struct EngineInstallationManager: EngineInstallationManaging {
     var supportDirectory: URL
-    var bundledInstallation: EngineInstallation?
     private var manifestURL: URL { supportDirectory.appendingPathComponent("installed-engine.json") }
     static let releasesURL = URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/latest")!
 
-    init(supportDirectory: URL? = nil, bundledInstallation: EngineInstallation? = nil, useBundle: Bool = true) {
+    init(supportDirectory: URL? = nil) {
         self.supportDirectory = supportDirectory ?? (try? Aria2NextPaths.supportDirectory()) ?? FileManager.default.temporaryDirectory
-        if useBundle, let url = try? BundledAria2Next.executableURL(),
-           let text = try? BundledAria2Next.version(), let version = EngineVersion(text) {
-            self.bundledInstallation = EngineInstallation(executableURL: url, version: version)
-        } else {
-            self.bundledInstallation = bundledInstallation
-        }
     }
 
     private struct Manifest: Codable {
@@ -62,15 +55,13 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
     @concurrent func localInstallation() async -> EngineInstallation? {
         do {
             let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: manifestURL))
-            guard UUID(uuidString: manifest.directory) != nil else { return bundledInstallation }
+            guard UUID(uuidString: manifest.directory) != nil else { return nil }
             let url = supportDirectory.appendingPathComponent("Engines/\(manifest.directory)/aria2-next")
             guard FileManager.default.isExecutableFile(atPath: url.path),
-                  try EngineDownload.sha256(Data(contentsOf: url)) == manifest.sha256 else { return bundledInstallation }
+                  try EngineDownload.sha256(Data(contentsOf: url)) == manifest.sha256 else { return nil }
             _ = try await EngineDownload.runTool("/usr/bin/codesign", arguments: ["--verify", "--strict", url.path])
-            let managed = EngineInstallation(executableURL: url, version: manifest.version)
-            if let bundledInstallation, bundledInstallation.version >= managed.version { return bundledInstallation }
-            return managed
-        } catch { return bundledInstallation }
+            return EngineInstallation(executableURL: url, version: manifest.version)
+        } catch { return nil }
     }
 
     func latestRelease() async throws -> EngineRelease { try await EngineDownload.latestRelease() }

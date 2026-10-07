@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Exercise the pinned helper using local HTTP only and disposable state.
+"""Download a pinned upstream test engine, then exercise it with local HTTP and disposable state.
 
-The app's inherited sandbox signature cannot run outside a sandboxed parent.
-Re-sign only a temporary copy for this CLI test; UI tests cover app sandboxing.
+No engine executable is kept in the repository or app. This CLI test runs a
+temporary standalone copy; opt-in integration tests cover the app sandbox.
 """
 import argparse
 import hashlib
@@ -85,9 +85,8 @@ def main():
     previous_engine = parser.parse_args().previous_engine
     if previous_engine and not previous_engine.is_file():
         parser.error("--previous-engine must point to an existing executable")
-    config = (ROOT / "Vendor/Aria2Next/Aria2Next.xcconfig").read_text()
-    version = next(line.split("=", 1)[1].strip() for line in config.splitlines()
-                   if line.startswith("ARIA2_NEXT_VERSION ="))
+    config = json.loads((ROOT / "Scripts/engine-test-release.json").read_text())
+    version = config["version"]
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     process = None
@@ -108,6 +107,14 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="chopchop-smoke-") as temporary:
         root = pathlib.Path(temporary)
+        upstream = root / "upstream-engine"
+        asset = f"aria2-next-{version}-macos-arm64"
+        url = f"https://github.com/AnInsomniacy/aria2-next/releases/download/v{version}/{asset}"
+        subprocess.run(["curl", "--fail", "--location", "--silent", "--show-error", "--retry", "2",
+                        "--connect-timeout", "30", "--max-time", "180", url, "--output", str(upstream)], check=True)
+        if hashlib.sha256(upstream.read_bytes()).hexdigest() != config["sha256"]:
+            raise AssertionError("Upstream test engine SHA-256 differs from the pinned release")
+        upstream.chmod(0o755)
         engine = root / "aria2-next"
         entitlements = root / "empty.plist"
         entitlements.write_bytes(plistlib.dumps({}))
@@ -118,7 +125,7 @@ def main():
                             "--entitlements", str(entitlements), str(engine)], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
-        install_test_copy(previous_engine or ROOT / "Vendor/Aria2Next/aria2-next")
+        install_test_copy(previous_engine or upstream)
         downloads = root / "downloads"
         downloads.mkdir()
         session = root / "aria2.session"
@@ -134,7 +141,7 @@ def main():
         def launch(resume=False):
             nonlocal process
             if resume and previous_engine:
-                install_test_copy(ROOT / "Vendor/Aria2Next/aria2-next")
+                install_test_copy(upstream)
             launch_arguments = arguments
             if previous_engine and not resume:
                 # 2.4.9 used per-file control data, predating the state database.

@@ -1,6 +1,6 @@
 # Development and Engine Architecture
 
-Native Apple Silicon download manager built with SwiftUI, SwiftData and a bundled Aria2 Next helper.
+Native Apple Silicon download manager built with SwiftUI, SwiftData and a separately downloaded Aria2 Next engine.
 
 ## Build and test
 
@@ -23,11 +23,11 @@ python3 Scripts/smoke-aria2-next.py
 
 `release-unit` enables testability and debugger injection and disables hardened runtime only for that ad-hoc test invocation. `release` keeps hardened runtime and the distribution configuration's injection restriction. Run test suites sequentially: hosted unit tests and UI tests launch the same application identifier.
 
-The Python smoke test uses only a loopback HTTP server and temporary files. It checks real engine downloads, pause, restart with the original GID and saved progress, final SHA-256, same-name file protection and clean shutdown. It re-signs a **temporary copy** of the helper for standalone execution; the UI suite verifies the bundled helper inside the app sandbox.
+The Python smoke test downloads a pinned official engine into temporary storage, verifies its SHA-256, and then uses a loopback HTTP server and temporary files. It checks real engine downloads, pause, restart with the original GID and saved progress, final SHA-256, same-name file protection and clean shutdown. It re-signs a **temporary copy** of the helper for standalone execution; the opt-in integration tests verify the downloaded engine inside the app sandbox. No engine executable is tracked in the current source tree or included in build products.
 
 ## Engine startup and installation
 
-At launch ChopChop checks for a usable managed or bundled engine, generates and persists a secure RPC token if needed, and starts the engine automatically. Existing token and download-folder settings are preserved. The sidebar shows checking, installation, startup, running, and failure states. Tracker and ED2K network maintenance runs after startup instead of delaying it.
+At launch ChopChop checks for a usable managed engine, generates and persists a secure RPC token if needed, and starts the engine automatically. Existing token and download-folder settings are preserved. The sidebar shows checking, installation, startup, running, and failure states. Tracker and ED2K network maintenance runs after startup instead of delaying it.
 
 A missing engine opens a required installation sheet with **Download and Start**, retry on failure, and quit. Installation is automatic into the app's own data directory:
 
@@ -35,7 +35,7 @@ A missing engine opens a required installation sheet with **Download and Start**
 ~/Library/Containers/com.conight.ChopChop/Data/Library/Application Support/ChopChop/Engines/<installation UUID>/aria2-next
 ```
 
-There is no folder chooser. The embedded `EngineInstaller.xpc` service downloads only an official stable Apple Silicon release, verifies SHA-256, applies sandbox inheritance signing, and writes a fresh installation folder. The parent app verifies that the engine executes inside its sandbox before atomically recording the active installation. Failed attempts do not replace the existing installation or modify the signed `.app` bundle. A valid newer managed engine takes precedence over the bundled fallback.
+There is no folder chooser. The embedded `EngineInstaller.xpc` service downloads only an official stable Apple Silicon release, verifies SHA-256, applies sandbox inheritance signing, and writes a fresh installation folder. The parent app verifies that the engine executes inside its sandbox before atomically recording the active installation. Failed attempts do not replace the existing installation or modify the signed `.app` bundle. The active managed installation is the only engine used; there is no embedded fallback.
 
 The private installer runs on demand without App Sandbox; the main app and running engine remain sandboxed. It checks the caller against the containing app's code-signing requirement, accepts only canonical release versions and the app's own `ChopChop/Engines` folder, and requires no administrator privileges. Directory access is shared with an implicit URL bookmark. This follows Apple's [XPC service separation](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingXPCServices.html) and [cross-process bookmark](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox) mechanisms.
 
@@ -63,18 +63,11 @@ These opt-in tests download official engines into isolated test storage and veri
 
 ## Updating the download engine
 
-The pinned version and SHA-256 values live in `Vendor/Aria2Next/Aria2Next.xcconfig`. The bundled engine, About information and UI tests derive their version from this configuration. Settings and the sidebar display the selected installation’s version.
+The application resolves the latest stable release from the official upstream repository when installing or checking for updates. Its version display comes only from the verified managed installation; an empty installation shows “Unavailable”. App builds do not download or pin an engine version.
 
-```sh
-Scripts/update-aria2-next.sh 2.8.6
-Scripts/check.sh all
-Scripts/check.sh release
-python3 Scripts/smoke-aria2-next.py
-```
+`Scripts/engine-test-release.json` pins an upstream version and SHA-256 **only for the CLI smoke test**. Update this metadata when adopting a new integration-test baseline, then run `python3 Scripts/smoke-aria2-next.py`. The executable is fetched into a temporary directory and removed at the end of the test. The engine's libraries (including libcurl, OpenSSL and libtorrent) remain part of the upstream executable.
 
-The updater downloads the exact official release, verifies its published checksum, applies sandbox inheritance entitlements, and updates the shared configuration and notices. Every build verifies the signed helper's checksum, signature, architecture, version and system-only dynamic library dependencies. The engine's libraries (including libcurl, OpenSSL and libtorrent) ship within that upstream executable.
-
-Do not run the vendored helper directly from Terminal: its inherited sandbox signature expects a sandboxed parent. Use the smoke test or launch it through ChopChop.
+`Scripts/verify-release-app.py` rejects an embedded engine or a bundled-engine version key. The release workflow publishes only the DMG and its checksum; it does not download or mirror engine source.
 
 ## Persistent data and recovery
 

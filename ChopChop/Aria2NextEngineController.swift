@@ -2,9 +2,7 @@ import Darwin
 import Foundation
 
 nonisolated enum EngineError: LocalizedError, Sendable {
-    case bundledExecutableMissing(String)
-    case bundledExecutableNotExecutable(String)
-    case bundledVersionMissing
+    case installationRequired
     case missingDownloadDirectory
     case missingRPCToken
     case invalidRPCPort(Int)
@@ -19,12 +17,8 @@ nonisolated enum EngineError: LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case .bundledExecutableMissing(let path):
-            "The bundled Aria2 Next helper is missing at \(path). Reinstall ChopChop."
-        case .bundledExecutableNotExecutable(let path):
-            "The bundled Aria2 Next helper is not executable at \(path). Reinstall ChopChop."
-        case .bundledVersionMissing:
-            "The ChopChop bundle does not declare its Aria2 Next version."
+        case .installationRequired:
+            "Download and install Aria2 Next before starting the engine."
         case .missingDownloadDirectory:
             "Default download directory has not been selected."
         case .missingRPCToken:
@@ -69,39 +63,6 @@ nonisolated struct EngineRuntimeSnapshot: Equatable, Sendable {
 nonisolated struct EngineRPCConfiguration: Equatable, Sendable {
     var port: Int
     var token: String
-}
-
-nonisolated enum BundledAria2Next {
-    static let executableName = "aria2-next"
-    static let versionInfoKey = "Aria2NextVersion"
-
-    static func executableURL(in bundle: Bundle = .main) throws -> URL {
-        let executableDirectory = bundle.bundleURL
-            .appendingPathComponent("Contents", isDirectory: true)
-            .appendingPathComponent("MacOS", isDirectory: true)
-        let url = executableDirectory.appendingPathComponent(executableName, isDirectory: false)
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw EngineError.bundledExecutableMissing(url.path)
-        }
-        guard FileManager.default.isExecutableFile(atPath: url.path) else {
-            throw EngineError.bundledExecutableNotExecutable(url.path)
-        }
-        return url
-    }
-
-    static func version(in bundle: Bundle = .main) throws -> String {
-        guard let rawValue = bundle.object(forInfoDictionaryKey: versionInfoKey) as? String else {
-            throw EngineError.bundledVersionMissing
-        }
-        let version = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !version.isEmpty else { throw EngineError.bundledVersionMissing }
-        return version
-    }
-
-    static func sourceURL(in bundle: Bundle = .main) throws -> URL? {
-        URL(string: "https://github.com/AnInsomniacy/aria2-next/tree/")?
-            .appendingPathComponent("v" + (try version(in: bundle)))
-    }
 }
 
 nonisolated enum Aria2NextPaths {
@@ -353,7 +314,6 @@ extension Aria2EngineControlling {
 
 @MainActor
 final class Aria2NextEngineController: Aria2EngineControlling {
-    private let executableURLProvider: () throws -> URL
     private var installation: EngineInstallation?
     private var process: Process?
     private var lifecycleInput: FileHandle?
@@ -363,10 +323,6 @@ final class Aria2NextEngineController: Aria2EngineControlling {
     private var scopedURLs: [URL] = []
     private var isStopping = false
     private var isStarting = false
-
-    init(executableURLProvider: @escaping () throws -> URL = { try BundledAria2Next.executableURL() }) {
-        self.executableURLProvider = executableURLProvider
-    }
 
     func selectInstallation(_ installation: EngineInstallation) {
         self.installation = installation
@@ -396,7 +352,8 @@ final class Aria2NextEngineController: Aria2EngineControlling {
             isStarting = false
             if !didLaunch { stopSecurityScopedAccess() }
         }
-        let executableURL = try installation?.executableURL ?? executableURLProvider()
+        guard let installation else { throw EngineError.installationRequired }
+        let executableURL = installation.executableURL
         let downloadDirectory = try downloadDirectoryURL(from: settings)
         try ensureLaunchPortsAvailable(settings: settings)
         let support = try Aria2NextPaths.supportDirectory()
@@ -406,7 +363,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         let sessionExists = FileManager.default.fileExists(atPath: sessionURL.path)
         let sessionBackupURL = try EngineSessionMigration.prepare(
             supportDirectory: support,
-            version: try installation?.version.description ?? BundledAria2Next.version()
+            version: installation.version.description
         )
         try? FileManager.default.removeItem(at: pidFileURL)
 

@@ -3,6 +3,42 @@ import XCTest
 @testable import ChopChop
 
 final class ManagedEngineTests: XCTestCase {
+    func testAppDoesNotShipAnEngineOrDeclareAnInstalledVersion() {
+        XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "Aria2NextVersion"))
+        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/aria2-next")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: executable.path))
+    }
+
+    @MainActor
+    func testFreshAppRequiresDownloadBeforeAnyEngineCanStart() async throws {
+        let support = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true),
+                                  engineInstallationManager: EngineInstallationManager(supportDirectory: support))
+        defer { store.shutdown() }
+        XCTAssertEqual(store.engineVersionDescription, "Unavailable")
+        await store.prepareEngineOnLaunch()
+        XCTAssertEqual(store.engineSetupState, .required)
+        XCTAssertNil(store.installedEngine)
+        XCTAssertEqual(store.runtime.phase, .stopped)
+        XCTAssertFalse(store.isCheckingEngineUpdate)
+    }
+
+    @MainActor
+    func testControllerRequiresAnExplicitlySelectedInstallation() async {
+        let controller = Aria2NextEngineController()
+        var settings = EngineSettings()
+        settings.rpcToken = "test-token"
+        do {
+            _ = try await controller.start(settings: settings)
+            XCTFail("Must not implicitly launch an embedded engine")
+        } catch {
+            guard case EngineError.installationRequired = error else {
+                return XCTFail("Expected installationRequired, got \(error)")
+            }
+        }
+        XCTAssertFalse(controller.hasLaunchedProcess)
+    }
+
     func testProgressUsesMeasuredBytesAndDoesNotInventInstallationPercentages() throws {
         let unknown = EngineInstallationProgress(stage: .downloading, completedBytes: 512, totalBytes: -1)
         XCTAssertNil(unknown.fractionCompleted)
@@ -24,7 +60,7 @@ final class ManagedEngineTests: XCTestCase {
             .appendingPathComponent("ChopChop/Installation Tests/\(UUID().uuidString)")
         let support = try Aria2NextPaths.supportDirectory(applicationSupportBase: base)
         defer { try? FileManager.default.removeItem(at: base) }
-        let manager = EngineInstallationManager(supportDirectory: support, useBundle: false)
+        let manager = EngineInstallationManager(supportDirectory: support)
         let release = try await manager.latestRelease()
         let recorder = InstallationProgressRecorder()
         do {
@@ -73,19 +109,16 @@ final class ManagedEngineTests: XCTestCase {
         XCTAssertThrowsError(try EngineDownload.verifyDownload(html, checksums: htmlChecksum, release: release))
     }
 
-    func testMissingAndCorruptManagedInstallationsFallBackToBundle() async throws {
+    func testMissingAndCorruptManagedInstallationsRequireDownload() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let bundled = EngineInstallation(executableURL: URL(fileURLWithPath: "/fake/bundled"), version: try XCTUnwrap(EngineVersion("2.8.6")))
-        let manager = EngineInstallationManager(supportDirectory: directory, bundledInstallation: bundled, useBundle: false)
+        let manager = EngineInstallationManager(supportDirectory: directory)
         let first = await manager.localInstallation()
-        XCTAssertEqual(first, bundled)
+        XCTAssertNil(first)
         try Data("broken manifest".utf8).write(to: directory.appendingPathComponent("installed-engine.json"))
         let second = await manager.localInstallation()
-        XCTAssertEqual(second, bundled)
-        let missing = await EngineInstallationManager(supportDirectory: directory, useBundle: false).localInstallation()
-        XCTAssertNil(missing)
+        XCTAssertNil(second)
     }
 
     func testInstallerRejectsInvalidVersionsAndForeignDirectoriesWithoutDownloading() async throws {
@@ -115,7 +148,7 @@ final class ManagedEngineTests: XCTestCase {
     func testAutomaticInstallAndRPCStartupInsideSandbox() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["CHOPCHOP_TEST_ENGINE_DOWNLOAD"] == "1", "Live engine download is opt-in")
         let support = try Aria2NextPaths.supportDirectory()
-        let manager = EngineInstallationManager(supportDirectory: support, useBundle: false)
+        let manager = EngineInstallationManager(supportDirectory: support)
         let release = try await manager.latestRelease()
         let installation = try await manager.install(release) { _ in }
         defer { try? FileManager.default.removeItem(at: installation.executableURL.deletingLastPathComponent()) }
@@ -147,7 +180,7 @@ final class ManagedEngineTests: XCTestCase {
     func testManualUpgradeFrom285ThroughSandboxedStore() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["CHOPCHOP_TEST_ENGINE_DOWNLOAD"] == "1", "Live engine download is opt-in")
         let support = try Aria2NextPaths.supportDirectory()
-        let manager = EngineInstallationManager(supportDirectory: support, useBundle: false)
+        let manager = EngineInstallationManager(supportDirectory: support)
         let oldVersion = "2.8.5"
         let oldRelease = EngineRelease(version: try XCTUnwrap(EngineVersion(oldVersion)),
             downloadURL: URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(oldVersion)/aria2-next-\(oldVersion)-macos-arm64")!,

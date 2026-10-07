@@ -39,7 +39,7 @@ trap cleanup EXIT
 if [[ -z "$app_path" ]]; then
     xcodebuild -project "$repo_root/ChopChop.xcodeproj" -scheme ChopChop \
         -configuration Release -destination 'generic/platform=macOS' \
-        -derivedDataPath "$repo_root/build/ReleaseDerivedData" \
+        -derivedDataPath "$temp_dir/DerivedData" \
         -archivePath "$temp_dir/ChopChop.xcarchive" \
         CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ARCHS=arm64 archive
     app_path="$temp_dir/ChopChop.xcarchive/Products/Applications/ChopChop.app"

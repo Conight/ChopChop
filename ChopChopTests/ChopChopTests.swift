@@ -137,65 +137,6 @@ final class ChopChopTests: XCTestCase {
         XCTAssertTrue(EngineSettings.isDefaultDownloadDirectoryPath(canonicalPath))
     }
 
-    func testBundledEngineResolvesExecutableAndVersionFromAppBundle() throws {
-        let bundleURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            .appendingPathExtension("app")
-        let contentsURL = bundleURL.appendingPathComponent("Contents", isDirectory: true)
-        let executableDirectory = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
-        let executableURL = executableDirectory.appendingPathComponent(BundledAria2Next.executableName)
-        defer { try? FileManager.default.removeItem(at: bundleURL) }
-
-        try FileManager.default.createDirectory(at: executableDirectory, withIntermediateDirectories: true)
-        try Data("#!/bin/sh\n".utf8).write(to: executableURL)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
-        let info: [String: Any] = [
-            "Aria2NextVersion": "2.4.9",
-            "CFBundleExecutable": "Fixture",
-            "CFBundleIdentifier": "com.conight.ChopChopTests.EngineFixture",
-            "CFBundleName": "EngineFixture",
-            "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleVersion": "1"
-        ]
-        let infoData = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
-        try infoData.write(to: contentsURL.appendingPathComponent("Info.plist"))
-
-        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
-        XCTAssertEqual(try BundledAria2Next.executableURL(in: bundle), executableURL)
-        XCTAssertEqual(try BundledAria2Next.version(in: bundle), "2.4.9")
-        XCTAssertEqual(try BundledAria2Next.sourceURL(in: bundle)?.absoluteString,
-                       "https://github.com/AnInsomniacy/aria2-next/tree/v2.4.9")
-    }
-
-    func testBundledEngineReportsMissingExecutable() throws {
-        let bundleURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            .appendingPathExtension("app")
-        let contentsURL = bundleURL.appendingPathComponent("Contents", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: bundleURL) }
-
-        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
-        let info: [String: Any] = [
-            "Aria2NextVersion": "2.4.9",
-            "CFBundleIdentifier": "com.conight.ChopChopTests.MissingEngineFixture",
-            "CFBundleName": "MissingEngineFixture",
-            "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleVersion": "1"
-        ]
-        let infoData = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
-        try infoData.write(to: contentsURL.appendingPathComponent("Info.plist"))
-        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
-
-        XCTAssertThrowsError(try BundledAria2Next.executableURL(in: bundle)) { error in
-            guard case EngineError.bundledExecutableMissing(let path) = error else {
-                return XCTFail("Expected bundledExecutableMissing, got \(error)")
-            }
-            XCTAssertTrue(path.hasSuffix("/Contents/MacOS/aria2-next"))
-        }
-    }
-
     func testSystemProxyDetectorPrefersHTTPProxyAndBuildsBypassList() {
         let info = SystemProxyDetector.proxyInfo(from: [
             kSCPropNetProxiesHTTPEnable as String: 1,
@@ -1717,7 +1658,7 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testBundledEngineCanOpenRuntimeStartWhenInputsAreMissing() {
+    func testEngineCanOpenRuntimeStartWhenInputsAreMissing() {
         let store = DownloadStore()
 
         XCTAssertFalse(store.engineSettings.canLaunch)

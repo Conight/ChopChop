@@ -205,9 +205,7 @@ final class DownloadStore: ObservableObject {
             loadedPreferences = AppPreferences()
         }
 
-        self.engineInstallationManager = engineInstallationManager ?? EngineInstallationManager(
-            useBundle: !(AppLaunchConfiguration.isUITesting && ProcessInfo.processInfo.environment["CHOPCHOP_UI_MISSING_ENGINE"] == "1")
-        )
+        self.engineInstallationManager = engineInstallationManager ?? EngineInstallationManager()
         self.settingsStore = resolvedSettingsStore
         self.engineController = engineController ?? Aria2NextEngineController()
         self.trackerFetcher = trackerFetcher ?? URLSessionBitTorrentTrackerSourceFetcher()
@@ -279,7 +277,6 @@ final class DownloadStore: ObservableObject {
 
     var engineVersionDescription: String {
         if let installedEngine { return installedEngine.version.description }
-        if engineSetupState == .unchecked { return (try? BundledAria2Next.version()) ?? "Unavailable" }
         return "Unavailable"
     }
 

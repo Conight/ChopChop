@@ -9,10 +9,6 @@ import AppKit
 import XCTest
 
 final class ChopChopUITests: XCTestCase {
-    private func expectedEngineVersion() throws -> String {
-        try XCTUnwrap(Bundle(for: Self.self).object(forInfoDictionaryKey: "Aria2NextVersion") as? String)
-    }
-
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -49,59 +45,27 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(engineStatus.waitForExistence(timeout: 8))
         XCTAssertEqual(textValue(of: title), "No Downloads")
         XCTAssertEqual(textValue(of: message), "Add a download link to get started. Your downloads in this category will appear here.")
-        XCTAssertEqual(textValue(of: engineVersion), try expectedEngineVersion())
+        XCTAssertEqual(textValue(of: engineVersion), "Unavailable")
         XCTAssertEqual(textValue(of: engineStatus), "Stopped")
     }
 
     @MainActor
-    func testSettingsShowsInstalledEngineAndAutomaticStartup() throws {
+    func testSettingsShowsUnavailableEngineBeforeSetup() throws {
         let app = launchApp(openSettings: true)
         let enginePane = sidebarDestination(in: app, id: "settings-pane-engine", label: "Engine")
         XCTAssertTrue(enginePane.waitForExistence(timeout: 4))
         enginePane.click()
 
         XCTAssertTrue(app.staticTexts["Installed version"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts[try expectedEngineVersion()].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Apple Silicon"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Unavailable"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.buttons["Check for Updates"].exists)
         XCTAssertFalse(app.buttons["Download for This Mac"].exists)
         XCTAssertFalse(app.buttons["Download Latest"].exists)
     }
 
     @MainActor
-    func testBundledSandboxEngineStartsAndPublishesRuntimeState() throws {
-        let app = launchApp(openSettings: true)
-        let enginePane = sidebarDestination(in: app, id: "settings-pane-engine", label: "Engine")
-        XCTAssertTrue(enginePane.waitForExistence(timeout: 4))
-        enginePane.click()
-        let generateToken = app.buttons["Generate Token"]
-        let startEngine = app.buttons["Start Engine"]
-
-        XCTAssertTrue(generateToken.waitForExistence(timeout: 8))
-        generateToken.click()
-        XCTAssertTrue(startEngine.waitForExistence(timeout: 4))
-        XCTAssertTrue(waitForEnabled(startEngine, timeout: 4))
-        startEngine.click()
-
-        let runningState = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH 'Running, PID' OR value BEGINSWITH 'Running, PID'")
-        ).firstMatch
-        XCTAssertTrue(runningState.waitForExistence(timeout: 20))
-    }
-
-    @MainActor
-    func testLaunchAutomaticallyStartsEngineWithoutManualSetup() throws {
-        let app = launchApp(autoStart: true)
-        let running = app.descendants(matching: .any).matching(identifier: "sidebar-quick-stats-engine-status-row").firstMatch
-        XCTAssertTrue(running.waitForExistence(timeout: 8))
-        let predicate = NSPredicate { [weak self] _, _ in self?.textValue(of: running).hasPrefix("Running · PID") == true }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 20), .completed)
-        XCTAssertFalse(app.buttons["engine-install-button"].exists)
-    }
-
-    @MainActor
     func testMissingEngineRequiresInstallationAndCannotBeDismissed() throws {
-        let app = launchApp(autoStart: true, missingEngine: true)
+        let app = launchApp(autoStart: true)
         let install = app.buttons["engine-install-button"]
         XCTAssertTrue(install.waitForExistence(timeout: 8))
         app.typeKey(.escape, modifierFlags: [])
@@ -442,11 +406,10 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchApp(withTaskFixtures: Bool = false, openSettings: Bool = false, autoStart: Bool = false, missingEngine: Bool = false) -> XCUIApplication {
+    private func launchApp(withTaskFixtures: Bool = false, openSettings: Bool = false, autoStart: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CHOPCHOP_UI_TESTING"] = "1"
         if autoStart { app.launchEnvironment["CHOPCHOP_UI_AUTO_START"] = "1" }
-        if missingEngine { app.launchEnvironment["CHOPCHOP_UI_MISSING_ENGINE"] = "1" }
         if withTaskFixtures {
             app.launchEnvironment["CHOPCHOP_UI_FIXTURE_TASKS"] = "1"
         }

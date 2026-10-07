@@ -23,7 +23,6 @@
 		60B00000000000000000000D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000D /* SettingsView.swift */; };
 		60B00000000000000000000E /* TaskInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000E /* TaskInspectorView.swift */; };
 		60B00000000000000000000F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000F /* Assets.xcassets */; };
-		60B000000000000000000010 /* aria2-next in Embed Helper Tools */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000010 /* aria2-next */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		60B000000000000000000011 /* Aria2Next-COPYING.txt in Resources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000012 /* Aria2Next-COPYING.txt */; };
 		60B000000000000000000012 /* Aria2Next-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000013 /* Aria2Next-NOTICE.txt */; };
 		60B000000000000000000016 /* EngineInstallation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000016 /* EngineInstallation.swift */; };
@@ -62,17 +61,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		60D000000000000000000001 /* Embed Helper Tools */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 6;
-			files = (
-				60B000000000000000000010 /* aria2-next in Embed Helper Tools */,
-			);
-			name = "Embed Helper Tools";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 
         61D000000000000000000001 /* Embed XPC Services */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = Contents/XPCServices; dstSubfolderSpec = 1; files = (61B000000000000000000001, ); name = "Embed XPC Services"; runOnlyForDeploymentPostprocessing = 0; };
 
@@ -99,11 +87,8 @@
 		60A00000000000000000000E /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
 		60A00000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		60A000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		60A000000000000000000010 /* aria2-next */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = "aria2-next"; sourceTree = "<group>"; };
-		60A000000000000000000011 /* Aria2Next.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Aria2Next.entitlements; sourceTree = "<group>"; };
 		60A000000000000000000012 /* Aria2Next-COPYING.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Aria2Next-COPYING.txt"; sourceTree = "<group>"; };
 		60A000000000000000000013 /* Aria2Next-NOTICE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Aria2Next-NOTICE.txt"; sourceTree = "<group>"; };
-		60A000000000000000000015 /* Aria2Next.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Aria2Next.xcconfig; sourceTree = "<group>"; };
 		60A000000000000000000016 /* EngineInstallation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstallation.swift; sourceTree = "<group>"; };
 		60A000000000000000000017 /* EngineSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineSetupView.swift; sourceTree = "<group>"; };
 		60A000000000000000000018 /* EngineRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineRelease.swift; sourceTree = "<group>"; };
@@ -219,9 +204,6 @@
 		60C000000000000000000002 /* Aria2Next */ = {
 			isa = PBXGroup;
 			children = (
-				60A000000000000000000015 /* Aria2Next.xcconfig */,
-				60A000000000000000000010 /* aria2-next */,
-				60A000000000000000000011 /* Aria2Next.entitlements */,
 				60A000000000000000000012 /* Aria2Next-COPYING.txt */,
 				60A000000000000000000013 /* Aria2Next-NOTICE.txt */,
 			);
@@ -239,11 +221,9 @@
 			buildConfigurationList = 59DBECC02FCFE0DA005075E1 /* Build configuration list for PBXNativeTarget "ChopChop" */;
 			buildPhases = (
 				61D000000000000000000001 /* Embed XPC Services */,
-				60E000000000000000000001 /* Validate Aria2 Next */,
 				59DBEC9B2FCFE0DA005075E1 /* Sources */,
 				59DBEC9C2FCFE0DA005075E1 /* Frameworks */,
 				59DBEC9D2FCFE0DA005075E1 /* Resources */,
-				60D000000000000000000001 /* Embed Helper Tools */,
 			);
 			buildRules = (
 			);
@@ -378,30 +358,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		60E000000000000000000001 /* Validate Aria2 Next */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/Scripts/validate-aria2-next.sh",
-				"$(SRCROOT)/Vendor/Aria2Next/aria2-next",
-			);
-			name = "Validate Aria2 Next";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"$SRCROOT/Scripts/validate-aria2-next.sh\" \"$SRCROOT/Vendor/Aria2Next/aria2-next\" \"$ARIA2_NEXT_VERSION\" \"$ARIA2_NEXT_BUNDLED_SHA256\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		59DBEC9B2FCFE0DA005075E1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -469,7 +425,6 @@
 /* Begin XCBuildConfiguration section */
 		59DBECBE2FCFE0DA005075E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 60A000000000000000000015 /* Aria2Next.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -533,7 +488,6 @@
 		};
 		59DBECBF2FCFE0DA005075E1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 60A000000000000000000015 /* Aria2Next.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -727,7 +681,6 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				INFOPLIST_FILE = "Configuration/UITests-Info.plist";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Debug;
@@ -747,7 +700,6 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				INFOPLIST_FILE = "Configuration/UITests-Info.plist";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Release;

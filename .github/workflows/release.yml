@@ -53,8 +53,6 @@ jobs:
         run: python3 Scripts/smoke-aria2-next.py
       - name: Build and verify release DMG
         run: Scripts/create-dmg.sh --output-dir "${OUTPUT_DIR}" --dmg-name "ChopChop-${GITHUB_REF_NAME}-macos-arm64"
-      - name: Include pinned engine source
-        run: python3 Scripts/package-engine-source.py "${OUTPUT_DIR}"
       - name: Verify checksums
         run: |
           cd "${OUTPUT_DIR}"
@@ -64,12 +62,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          flags=(--verify-tag --notes-from-tag --title "ChopChop ${GITHUB_REF_NAME}")
+          flags=(--title "ChopChop ${GITHUB_REF_NAME}")
           if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
             flags+=(--prerelease --latest=false)
           fi
-          gh release create "${GITHUB_REF_NAME}" "${flags[@]}" \
-            "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg#ChopChop for Apple Silicon" \
-            "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg.sha256#DMG SHA-256 checksum" \
-            "${OUTPUT_DIR}"/aria2-next-*-source.tar.gz \
-            "${OUTPUT_DIR}"/aria2-next-*-source.tar.gz.sha256
+          assets=(
+            "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg#ChopChop for Apple Silicon"
+            "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg.sha256#DMG SHA-256 checksum"
+          )
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+            git for-each-ref --format='%(contents)' "${GITHUB_REF}" > "${RUNNER_TEMP}/release-notes.md"
+            gh release edit "${GITHUB_REF_NAME}" "${flags[@]}" --notes-file "${RUNNER_TEMP}/release-notes.md"
+          else
+            gh release create "${GITHUB_REF_NAME}" "${flags[@]}" --verify-tag --notes-from-tag "${assets[@]}"
+          fi

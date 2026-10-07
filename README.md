@@ -21,7 +21,7 @@ ChopChop is an early-stage project. Beta releases are intended for testing; data
    ```
 
 3. Open the disk image and drag **ChopChop.app** into **Applications**.
-4. Open ChopChop. The download engine starts automatically.
+4. Open ChopChop. On first launch, choose **Download and Start** to install Aria2 Next directly from its official release. Once installed, the engine starts automatically on subsequent launches.
 
 These beta builds are ad-hoc signed and **not notarized by Apple**, matching the experimental distribution model used by [RemoteDock](https://github.com/Conight/RemoteDock). Gatekeeper may block a downloaded copy. After verifying its source and checksum, experienced testers can explicitly remove quarantine from this app:
 
@@ -47,11 +47,11 @@ Browser capture and system protocol association are not implemented yet. Their s
 
 ## Engine
 
-The app bundles **Aria2 Next 2.8.6** as a separately executed helper. Engine updates are downloaded into ChopChop's own application data directory; there is no installation-folder chooser. Click the **Engine** area in the sidebar to open its management page.
+ChopChop does not bundle an engine. On first launch it requires installation of **Aria2 Next**, downloaded directly from the [official upstream releases](https://github.com/AnInsomniacy/aria2-next/releases). The engine runs as a separate process and is stored in ChopChop's own application data directory; there is no installation-folder chooser. Click the **Engine** area in the sidebar to open its management page and update it manually.
 
 The main app and engine use App Sandbox and Hardened Runtime. A private XPC installer service downloads, verifies, and signs official engine releases. The signed app bundle is not modified by an engine update.
 
-Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Each binary release also includes the pinned upstream engine source archive and its checksum.
+Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Engine source is available from the upstream repository. Release downloads contain only the ChopChop DMG and its checksum; engine binaries and source archives are obtained from upstream.
 
 ## Build and test
 
@@ -74,7 +74,7 @@ Like RemoteDock, ChopChop publishes a DMG and SHA-256 checksum from an annotated
 Scripts/create-dmg.sh
 ```
 
-The packaging dependencies are version- and hash-pinned and installed into a temporary virtual environment. Finder layout metadata is generated with [dmgbuild](https://dmgbuild.readthedocs.io/), without UI automation. The script checks the app, engine, XPC service, entitlements, signatures, architecture, license notices, and Applications shortcut.
+The packaging dependencies are version- and hash-pinned and installed into a temporary virtual environment. Finder layout metadata is generated with [dmgbuild](https://dmgbuild.readthedocs.io/), without UI automation. The script checks the app, XPC service, entitlements, signatures, architecture, notices, and Applications shortcut, and rejects any embedded engine payload.
 
 Before a release, update `MARKETING_VERSION` in the app target to match the tag's base version. Write complete release notes in an annotated tag:
 
