@@ -1,0 +1,15 @@
+Aria2 Next 2.8.6
+Copyright (C) the aria2 and Aria2 Next contributors
+
+Source: https://github.com/AnInsomniacy/aria2-next/tree/v2.8.6
+Source archive: https://github.com/AnInsomniacy/aria2-next/archive/refs/tags/v2.8.6.tar.gz
+Release: https://github.com/AnInsomniacy/aria2-next/releases/tag/v2.8.6
+License: GNU General Public License, version 2 or later
+Upstream arm64 SHA-256: 6767bc6e79e22dbc491fe7bbcd36daca9dc0fb3b28abca7b9a9cfb8e6e67ece5
+Bundled arm64 SHA-256: 9e875966edc75bf6a25f96c97ca6e44a162762382ce4c258f2eaa2d294f3ef95
+
+The macOS arm64 release executable is embedded as a separately executed
+helper tool. Its code signature is replaced with an ad-hoc signature with
+ChopChop's sandbox inheritance entitlements; executable code is unchanged.
+See Aria2Next-COPYING.txt for the license text and upstream source for
+the engine's bundled libraries and their notices.

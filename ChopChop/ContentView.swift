@@ -8,17 +8,21 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var store: DownloadStore
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        DownloadConsoleView()
+            .sheet(isPresented: Binding(
+                get: { store.engineSetupState.requiresInstallation },
+                set: { _ in }
+            )) {
+                EngineSetupView().environmentObject(store)
+            }
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(DownloadStore())
+    }
 }

@@ -1,0 +1,17 @@
+.DS_Store
+.codex/
+DerivedData/
+build/
+*.xcresult/
+xcuserdata/
+*.xcuserstate
+dist/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile

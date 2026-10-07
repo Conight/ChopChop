@@ -6,6 +6,41 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		60B00000000000000000001C /* DownloadCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001C /* DownloadCommands.swift */; };
+		60B00000000000000000001D /* AddDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001D /* AddDownloadView.swift */; };
+		60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000001 /* Aria2NextEngineController.swift */; };
+		60B000000000000000000002 /* Aria2RPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000002 /* Aria2RPCClient.swift */; };
+		60B000000000000000000003 /* ChopChopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000003 /* ChopChopApp.swift */; };
+		60B000000000000000000004 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000004 /* ContentView.swift */; };
+		60B000000000000000000005 /* DownloadConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000005 /* DownloadConsoleView.swift */; };
+		60B000000000000000000006 /* DownloadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000006 /* DownloadStore.swift */; };
+		60B000000000000000000007 /* LiquidGlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000007 /* LiquidGlassComponents.swift */; };
+		60B000000000000000000008 /* MenuBarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000008 /* MenuBarPanel.swift */; };
+		60B000000000000000000009 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000009 /* Models.swift */; };
+		60B00000000000000000000A /* PersistentSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000A /* PersistentSettingsStore.swift */; };
+		60B00000000000000000000B /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000B /* PreferencesStore.swift */; };
+		60B00000000000000000000D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000D /* SettingsView.swift */; };
+		60B00000000000000000000E /* TaskInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000E /* TaskInspectorView.swift */; };
+		60B00000000000000000000F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000000F /* Assets.xcassets */; };
+		60B000000000000000000010 /* aria2-next in Embed Helper Tools */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000010 /* aria2-next */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		60B000000000000000000011 /* Aria2Next-COPYING.txt in Resources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000012 /* Aria2Next-COPYING.txt */; };
+		60B000000000000000000012 /* Aria2Next-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000013 /* Aria2Next-NOTICE.txt */; };
+		60B000000000000000000016 /* EngineInstallation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000016 /* EngineInstallation.swift */; };
+		60B000000000000000000017 /* EngineSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000017 /* EngineSetupView.swift */; };
+		60B000000000000000000018 /* EngineRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000018; };
+		61B000000000000000000018 /* EngineRelease.swift in Installer Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000018; };
+		60B000000000000000000019 /* EngineDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000019; };
+		61B000000000000000000019 /* EngineDownload.swift in Installer Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000019; };
+		60B00000000000000000001A /* EngineInstallerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001A; };
+		61B00000000000000000001A /* EngineInstallerProtocol.swift in Installer Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001A; };
+		60B00000000000000000001B /* EngineInstallerRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001B; };
+
+        61B000000000000000000001 /* EngineInstaller.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 61A000000000000000000001; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+        61B000000000000000000002 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A000000000000000000002; };
+
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		59DBECAD2FCFE0DA005075E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,20 +56,68 @@
 			remoteGlobalIDString = 59DBEC9E2FCFE0DA005075E1;
 			remoteInfo = ChopChop;
 		};
+
+        61E000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = 59DBEC972FCFE0DA005075E1; proxyType = 1; remoteGlobalIDString = 61F000000000000000000001; remoteInfo = EngineInstaller; };
+
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		60D000000000000000000001 /* Embed Helper Tools */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				60B000000000000000000010 /* aria2-next in Embed Helper Tools */,
+			);
+			name = "Embed Helper Tools";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+        61D000000000000000000001 /* Embed XPC Services */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = Contents/XPCServices; dstSubfolderSpec = 1; files = (61B000000000000000000001, ); name = "Embed XPC Services"; runOnlyForDeploymentPostprocessing = 0; };
+
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		60A00000000000000000001C /* DownloadCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadCommands.swift; sourceTree = "<group>"; };
+		60A00000000000000000001D /* AddDownloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDownloadView.swift; sourceTree = "<group>"; };
 		59DBEC9F2FCFE0DA005075E1 /* ChopChop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChopChop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59DBECAC2FCFE0DA005075E1 /* ChopChopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChopChopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		59DBECB62FCFE0DA005075E1 /* ChopChopUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChopChopUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		60A000000000000000000001 /* Aria2NextEngineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2NextEngineController.swift; sourceTree = "<group>"; };
+		60A000000000000000000002 /* Aria2RPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2RPCClient.swift; sourceTree = "<group>"; };
+		60A000000000000000000003 /* ChopChopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChopChopApp.swift; sourceTree = "<group>"; };
+		60A000000000000000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		60A000000000000000000005 /* DownloadConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadConsoleView.swift; sourceTree = "<group>"; };
+		60A000000000000000000006 /* DownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStore.swift; sourceTree = "<group>"; };
+		60A000000000000000000007 /* LiquidGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassComponents.swift; sourceTree = "<group>"; };
+		60A000000000000000000008 /* MenuBarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPanel.swift; sourceTree = "<group>"; };
+		60A000000000000000000009 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		60A00000000000000000000A /* PersistentSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentSettingsStore.swift; sourceTree = "<group>"; };
+		60A00000000000000000000B /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
+		60A00000000000000000000D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		60A00000000000000000000E /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
+		60A00000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		60A000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		60A000000000000000000010 /* aria2-next */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = "aria2-next"; sourceTree = "<group>"; };
+		60A000000000000000000011 /* Aria2Next.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Aria2Next.entitlements; sourceTree = "<group>"; };
+		60A000000000000000000012 /* Aria2Next-COPYING.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Aria2Next-COPYING.txt"; sourceTree = "<group>"; };
+		60A000000000000000000013 /* Aria2Next-NOTICE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Aria2Next-NOTICE.txt"; sourceTree = "<group>"; };
+		60A000000000000000000015 /* Aria2Next.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Aria2Next.xcconfig; sourceTree = "<group>"; };
+		60A000000000000000000016 /* EngineInstallation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstallation.swift; sourceTree = "<group>"; };
+		60A000000000000000000017 /* EngineSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineSetupView.swift; sourceTree = "<group>"; };
+		60A000000000000000000018 /* EngineRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineRelease.swift; sourceTree = "<group>"; };
+		60A000000000000000000019 /* EngineDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDownload.swift; sourceTree = "<group>"; };
+		60A00000000000000000001A /* EngineInstallerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstallerProtocol.swift; sourceTree = "<group>"; };
+		60A00000000000000000001B /* EngineInstallerRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstallerRequest.swift; sourceTree = "<group>"; };
+
+        61A000000000000000000001 /* EngineInstaller.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = EngineInstaller.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+        61A000000000000000000002 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstaller/main.swift; sourceTree = SOURCE_ROOT; };
+        61A000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = EngineInstaller/Info.plist; sourceTree = SOURCE_ROOT; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		59DBECA12FCFE0DA005075E1 /* ChopChop */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ChopChop;
-			sourceTree = "<group>";
-		};
 		59DBECAF2FCFE0DA005075E1 /* ChopChopTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ChopChopTests;
@@ -75,7 +158,9 @@
 		59DBEC962FCFE0DA005075E1 = {
 			isa = PBXGroup;
 			children = (
+				61C000000000000000000001 /* EngineInstaller */,
 				59DBECA12FCFE0DA005075E1 /* ChopChop */,
+				60C000000000000000000001 /* Vendor */,
 				59DBECAF2FCFE0DA005075E1 /* ChopChopTests */,
 				59DBECB92FCFE0DA005075E1 /* ChopChopUITests */,
 				59DBECA02FCFE0DA005075E1 /* Products */,
@@ -85,6 +170,7 @@
 		59DBECA02FCFE0DA005075E1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				61A000000000000000000001 /* EngineInstaller.xpc */,
 				59DBEC9F2FCFE0DA005075E1 /* ChopChop.app */,
 				59DBECAC2FCFE0DA005075E1 /* ChopChopTests.xctest */,
 				59DBECB62FCFE0DA005075E1 /* ChopChopUITests.xctest */,
@@ -92,6 +178,59 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		59DBECA12FCFE0DA005075E1 /* ChopChop */ = {
+			isa = PBXGroup;
+			children = (
+				60A000000000000000000018 /* EngineRelease.swift */,
+				60A000000000000000000019 /* EngineDownload.swift */,
+				60A00000000000000000001A /* EngineInstallerProtocol.swift */,
+				60A00000000000000000001B /* EngineInstallerRequest.swift */,
+				60A000000000000000000016 /* EngineInstallation.swift */,
+				60A000000000000000000017 /* EngineSetupView.swift */,
+				60A000000000000000000001 /* Aria2NextEngineController.swift */,
+				60A000000000000000000002 /* Aria2RPCClient.swift */,
+				60A000000000000000000003 /* ChopChopApp.swift */,
+				60A000000000000000000004 /* ContentView.swift */,
+				60A000000000000000000005 /* DownloadConsoleView.swift */,
+				60A00000000000000000001C /* DownloadCommands.swift */,
+				60A00000000000000000001D /* AddDownloadView.swift */,
+				60A000000000000000000006 /* DownloadStore.swift */,
+				60A000000000000000000007 /* LiquidGlassComponents.swift */,
+				60A000000000000000000008 /* MenuBarPanel.swift */,
+				60A000000000000000000009 /* Models.swift */,
+				60A00000000000000000000A /* PersistentSettingsStore.swift */,
+				60A00000000000000000000B /* PreferencesStore.swift */,
+				60A00000000000000000000D /* SettingsView.swift */,
+				60A00000000000000000000E /* TaskInspectorView.swift */,
+				60A00000000000000000000F /* Assets.xcassets */,
+				60A000000000000000000014 /* Info.plist */,
+			);
+			path = ChopChop;
+			sourceTree = "<group>";
+		};
+		60C000000000000000000001 /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				60C000000000000000000002 /* Aria2Next */,
+			);
+			path = Vendor;
+			sourceTree = "<group>";
+		};
+		60C000000000000000000002 /* Aria2Next */ = {
+			isa = PBXGroup;
+			children = (
+				60A000000000000000000015 /* Aria2Next.xcconfig */,
+				60A000000000000000000010 /* aria2-next */,
+				60A000000000000000000011 /* Aria2Next.entitlements */,
+				60A000000000000000000012 /* Aria2Next-COPYING.txt */,
+				60A000000000000000000013 /* Aria2Next-NOTICE.txt */,
+			);
+			path = Aria2Next;
+			sourceTree = "<group>";
+		};
+
+        61C000000000000000000001 /* EngineInstaller */ = {isa = PBXGroup; children = (61A000000000000000000002, 61A000000000000000000003, ); name = EngineInstaller; sourceTree = "<group>"; };
+
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -99,16 +238,17 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 59DBECC02FCFE0DA005075E1 /* Build configuration list for PBXNativeTarget "ChopChop" */;
 			buildPhases = (
+				61D000000000000000000001 /* Embed XPC Services */,
+				60E000000000000000000001 /* Validate Aria2 Next */,
 				59DBEC9B2FCFE0DA005075E1 /* Sources */,
 				59DBEC9C2FCFE0DA005075E1 /* Frameworks */,
 				59DBEC9D2FCFE0DA005075E1 /* Resources */,
+				60D000000000000000000001 /* Embed Helper Tools */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				59DBECA12FCFE0DA005075E1 /* ChopChop */,
+				61E000000000000000000002 /* EngineInstaller dependency */,
 			);
 			name = ChopChop;
 			packageProductDependencies = (
@@ -163,6 +303,9 @@
 			productReference = 59DBECB62FCFE0DA005075E1 /* ChopChopUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+
+        61F000000000000000000001 /* EngineInstaller */ = {isa = PBXNativeTarget; buildConfigurationList = 61F000000000000000000002; buildPhases = (61D000000000000000000002, ); buildRules = (); dependencies = (); name = EngineInstaller; productName = EngineInstaller; productReference = 61A000000000000000000001; productType = "com.apple.product-type.xpc-service"; };
+
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,8 +313,8 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					59DBEC9E2FCFE0DA005075E1 = {
 						CreatedOnToolsVersion = 26.5;
@@ -200,6 +343,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				61F000000000000000000001 /* EngineInstaller */,
 				59DBEC9E2FCFE0DA005075E1 /* ChopChop */,
 				59DBECAB2FCFE0DA005075E1 /* ChopChopTests */,
 				59DBECB52FCFE0DA005075E1 /* ChopChopUITests */,
@@ -212,6 +356,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60B00000000000000000000F /* Assets.xcassets in Resources */,
+				60B000000000000000000011 /* Aria2Next-COPYING.txt in Resources */,
+				60B000000000000000000012 /* Aria2Next-NOTICE.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -231,11 +378,56 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		60E000000000000000000001 /* Validate Aria2 Next */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/validate-aria2-next.sh",
+				"$(SRCROOT)/Vendor/Aria2Next/aria2-next",
+			);
+			name = "Validate Aria2 Next";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/Scripts/validate-aria2-next.sh\" \"$SRCROOT/Vendor/Aria2Next/aria2-next\" \"$ARIA2_NEXT_VERSION\" \"$ARIA2_NEXT_BUNDLED_SHA256\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		59DBEC9B2FCFE0DA005075E1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60B000000000000000000018 /* EngineRelease.swift in Sources */,
+				60B000000000000000000019 /* EngineDownload.swift in Sources */,
+				60B00000000000000000001A /* EngineInstallerProtocol.swift in Sources */,
+				60B00000000000000000001B /* EngineInstallerRequest.swift in Sources */,
+				60B000000000000000000016 /* EngineInstallation.swift in Sources */,
+				60B000000000000000000017 /* EngineSetupView.swift in Sources */,
+				60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */,
+				60B000000000000000000002 /* Aria2RPCClient.swift in Sources */,
+				60B000000000000000000003 /* ChopChopApp.swift in Sources */,
+				60B000000000000000000004 /* ContentView.swift in Sources */,
+				60B000000000000000000005 /* DownloadConsoleView.swift in Sources */,
+				60B00000000000000000001C /* DownloadCommands.swift in Sources */,
+				60B00000000000000000001D /* AddDownloadView.swift in Sources */,
+				60B000000000000000000006 /* DownloadStore.swift in Sources */,
+				60B000000000000000000007 /* LiquidGlassComponents.swift in Sources */,
+				60B000000000000000000008 /* MenuBarPanel.swift in Sources */,
+				60B000000000000000000009 /* Models.swift in Sources */,
+				60B00000000000000000000A /* PersistentSettingsStore.swift in Sources */,
+				60B00000000000000000000B /* PreferencesStore.swift in Sources */,
+				60B00000000000000000000D /* SettingsView.swift in Sources */,
+				60B00000000000000000000E /* TaskInspectorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +445,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+        61D000000000000000000002 /* Installer Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (61B000000000000000000002, 61B000000000000000000018, 61B000000000000000000019, 61B00000000000000000001A, ); runOnlyForDeploymentPostprocessing = 0; };
+
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -266,11 +461,15 @@
 			target = 59DBEC9E2FCFE0DA005075E1 /* ChopChop */;
 			targetProxy = 59DBECB72FCFE0DA005075E1 /* PBXContainerItemProxy */;
 		};
+
+        61E000000000000000000002 = {isa = PBXTargetDependency; target = 61F000000000000000000001; targetProxy = 61E000000000000000000001; };
+
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		59DBECBE2FCFE0DA005075E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 60A000000000000000000015 /* Aria2Next.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -334,6 +533,7 @@
 		};
 		59DBECBF2FCFE0DA005075E1 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 60A000000000000000000015 /* Aria2Next.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -390,21 +590,25 @@
 		59DBECC12FCFE0DA005075E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_SHORTCUTS_ENABLE_FLEXIBLE_MATCHING = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ChopChop/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -412,29 +616,35 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
 		59DBECC22FCFE0DA005075E1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_SHORTCUTS_ENABLE_FLEXIBLE_MATCHING = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ChopChop/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -442,48 +652,63 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
 		59DBECC42FCFE0DA005075E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@loader_path/../../../ChopChop.app/Contents/MacOS",
+					"@loader_path/../../../ChopChop.app/Contents/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/Contents/MacOS/ChopChop";
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChopTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChopChop";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
 		59DBECC52FCFE0DA005075E1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@loader_path/../../../ChopChop.app/Contents/MacOS",
+					"@loader_path/../../../ChopChop.app/Contents/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/Contents/MacOS/ChopChop";
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChopTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChopChop";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -499,8 +724,10 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
+				INFOPLIST_FILE = "Configuration/UITests-Info.plist";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Debug;
@@ -517,12 +744,50 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
+				INFOPLIST_FILE = "Configuration/UITests-Info.plist";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Release;
 		};
+
+        61F000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+            ARCHS = arm64;
+            CODE_SIGN_STYLE = Automatic;
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+            DEVELOPMENT_TEAM = 8J75L9A3BN;
+            ENABLE_APP_SANDBOX = NO;
+            ENABLE_HARDENED_RUNTIME = YES;
+            GENERATE_INFOPLIST_FILE = NO;
+            INFOPLIST_FILE = EngineInstaller/Info.plist;
+            LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@executable_path/../../../../Frameworks", );
+            PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop.EngineInstaller;
+            PRODUCT_NAME = "$(TARGET_NAME)";
+            SKIP_INSTALL = YES;
+            SWIFT_VERSION = 6.0;
+            SWIFT_STRICT_CONCURRENCY = complete;
+        }; name = Debug; };
+
+
+        61F000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+            ARCHS = arm64;
+            CODE_SIGN_STYLE = Automatic;
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+            DEVELOPMENT_TEAM = 8J75L9A3BN;
+            ENABLE_APP_SANDBOX = NO;
+            ENABLE_HARDENED_RUNTIME = YES;
+            GENERATE_INFOPLIST_FILE = NO;
+            INFOPLIST_FILE = EngineInstaller/Info.plist;
+            LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@executable_path/../../../../Frameworks", );
+            PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop.EngineInstaller;
+            PRODUCT_NAME = "$(TARGET_NAME)";
+            SKIP_INSTALL = YES;
+            SWIFT_VERSION = 6.0;
+            SWIFT_STRICT_CONCURRENCY = complete;
+        }; name = Release; };
+
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -562,6 +827,9 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+
+        61F000000000000000000002 /* EngineInstaller configurations */ = {isa = XCConfigurationList; buildConfigurations = (61F000000000000000000003, 61F000000000000000000004, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+
 /* End XCConfigurationList section */
 	};
 	rootObject = 59DBEC972FCFE0DA005075E1 /* Project object */;
