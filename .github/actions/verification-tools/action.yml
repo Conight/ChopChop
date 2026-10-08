@@ -33,7 +33,8 @@ runs:
         # rather than accepting whichever FFmpeg version Homebrew serves today.
         brew tap-new --no-git conight/chopchop-verification
         tap_root="$(brew --repository conight/chopchop-verification)"
-        trap 'brew untap --force conight/chopchop-verification' EXIT
+        # Keep the tap installed for the entire job. On current Homebrew,
+        # untap --force also uninstalls its formulae. Hosted runners are ephemeral.
         formula="$tap_root/Formula/ffmpeg.rb"
         curl --fail --silent --show-error --location \
           https://raw.githubusercontent.com/Homebrew/homebrew-core/df0f5973faba506285051a1a21b1baa1e166719a/Formula/f/ffmpeg.rb \
@@ -46,4 +47,7 @@ runs:
         path.write_text(path.read_text().replace('  bottle do\n', '  bottle do\n    root_url "https://ghcr.io/v2/homebrew/core"\n', 1))
         PY
         brew install --force-bottle conight/chopchop-verification/ffmpeg
-        echo "$(brew --prefix conight/chopchop-verification/ffmpeg)/bin" >> "$GITHUB_PATH"
+        ffmpeg_bin="$(brew --prefix conight/chopchop-verification/ffmpeg)/bin"
+        "$ffmpeg_bin/ffmpeg" -version
+        "$ffmpeg_bin/ffprobe" -version
+        echo "$ffmpeg_bin" >> "$GITHUB_PATH"
