@@ -3,6 +3,14 @@ import SwiftUI
 import XCTest
 @testable import ChopChop
 
+// Snapshot canvases must not shrink to the runner's display resolution.
+// Screen-edge behavior is tested separately with an ordinary NSWindow.
+private final class LayoutPreviewWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+}
+
 final class DesignPreviewTests: XCTestCase {
     @MainActor
     func testAddDownloadSheetKeepsFieldBordersInsideDisclosure() async throws {
@@ -529,7 +537,7 @@ final class DesignPreviewTests: XCTestCase {
         // Main-window fixtures use the same sizing and full-size content behavior as WindowGroup.
         controller.sizingOptions = usesWindowChrome ? [.minSize] : []
         controller.view.frame = NSRect(origin: .zero, size: size)
-        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        let window = LayoutPreviewWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: usesWindowChrome ? [.titled, .closable, .resizable, .fullSizeContentView] : [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
