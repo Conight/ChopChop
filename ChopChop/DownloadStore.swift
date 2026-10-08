@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Combine
 import IOKit.pwr_mgt
 import Security
@@ -25,7 +26,7 @@ nonisolated enum PowerAssertionError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .acquisitionFailed(let result):
-            "Could not prevent idle sleep. IOKit returned \(result)."
+            String(localized: "Could not prevent idle sleep. IOKit returned \(result).")
         }
     }
 }
@@ -65,7 +66,7 @@ nonisolated final class DownloadPowerAssertionController: PowerAssertionControll
         let result = IOPMAssertionCreateWithName(
             kIOPMAssertionTypeNoIdleSleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "Active ChopChop downloads" as CFString,
+            String(localized: "Active ChopChop downloads") as CFString,
             &newAssertionID
         )
         guard result == kIOReturnSuccess else {
@@ -84,13 +85,38 @@ final class DownloadStore: ObservableObject {
     @Published var preferences: AppPreferences {
         didSet {
             persistAppPreferences()
+            if oldValue.notifyOnDownloadCompletion != preferences.notifyOnDownloadCompletion {
+                notifications.setEnabled(preferences.notifyOnDownloadCompletion)
+            }
+            if oldValue.browserCaptureEnabled != preferences.browserCaptureEnabled || oldValue.browserCaptureToken != preferences.browserCaptureToken {
+                configureBrowserCapture()
+            }
             updatePowerAssertion()
         }
     }
+    let inputCoordinator = DownloadInputCoordinator()
+    let notifications: DownloadNotificationCoordinator
+    let mediaDownloads = MediaDownloadCoordinator()
+    let browserCapture = BrowserCaptureServer()
+    let downloadWindowRequests = PassthroughSubject<Void, Never>()
+    private var inputTask: Task<Void, Never>?
+    @Published private(set) var importIssues: [String] = []
+    @Published private(set) var notificationNavigationRevision = 0
     @Published var runtime = EngineRuntimeSnapshot()
+    @Published private(set) var engineCapabilities: EngineCapabilities?
+    @Published private(set) var connectionIssue: String?
+    @Published private(set) var historyIssue: String?
+    @Published private(set) var addDraftNotice: String?
+    private let historyStore: DownloadHistoryStore?
+    private var hiddenTaskIDs: Set<String> = []
+    private var sessionProtectedTorrentIDs: Set<String> = []
+    private var taskRevision = 0
+    private var refreshSequence = 0
+    private var taskMutationDepth = 0
+
     @Published private(set) var engineSetupState: EngineSetupState = .unchecked
     @Published private(set) var installedEngine: EngineInstallation?
-    @Published private(set) var engineUpdateStatus = "Checks automatically at launch"
+    @Published private(set) var engineUpdateStatus = String(localized: "Checks automatically at launch")
     @Published private(set) var availableEngineUpdate: EngineRelease?
     @Published private(set) var engineSettingsRequested = false
     @Published private(set) var isCheckingEngineUpdate = false
@@ -107,7 +133,7 @@ final class DownloadStore: ObservableObject {
         didSet { updatePowerAssertion() }
     }
     @Published var speedSamples: [SpeedSample] = []
-    @Published var selectedDestination: SidebarDestination = .today
+    @Published var selectedDestination: SidebarDestination = .all
     @Published var selectedTaskID: DownloadTask.ID?
     @Published var searchQuery = ""
     @Published var addDraft = AddDownloadDraft()
@@ -143,6 +169,13 @@ final class DownloadStore: ObservableObject {
     private var ed2kSearchSession: ED2KSearchSession?
     private var engineSessionID = UUID()
     private var isShuttingDown = false
+    @Published private(set) var armedScheduledTaskIDs: Set<String> = []
+    @Published var downloadPlanIssue: String?
+    @Published var bandwidthPlanIssue: String?
+    private var applyingDownloadPlans = false
+    private var scheduleRequests: [String: UUID] = [:]
+    private var lastBandwidthOptions: [String: String]?
+
 
     init(
         settingsStore: PersistentSettingsStore? = nil,
@@ -151,7 +184,8 @@ final class DownloadStore: ObservableObject {
         ed2kBootstrapFetcher: (any ED2KBootstrapFetching)? = nil,
         ed2kBootstrapApplicationSupportBase: URL? = nil,
         powerAssertionController: (any PowerAssertionControlling)? = nil,
-        engineInstallationManager: (any EngineInstallationManaging)? = nil
+        engineInstallationManager: (any EngineInstallationManaging)? = nil,
+        notificationCoordinator: DownloadNotificationCoordinator? = nil
     ) {
         var startupAlerts: [UserFacingAlert] = []
         let resolvedSettingsStore: PersistentSettingsStore?
@@ -164,7 +198,7 @@ final class DownloadStore: ObservableObject {
         } catch {
             startupAlerts.append(
                 UserFacingAlert(
-                    title: "Settings Store Failed",
+                    title: String(localized: "Settings Store Failed"),
                     message: error.localizedDescription
                 )
             )
@@ -178,7 +212,7 @@ final class DownloadStore: ObservableObject {
             } catch {
                 startupAlerts.append(
                     UserFacingAlert(
-                        title: "Engine Settings Load Failed",
+                        title: String(localized: "Engine Settings Load Failed"),
                         message: error.localizedDescription
                     )
                 )
@@ -195,7 +229,7 @@ final class DownloadStore: ObservableObject {
             } catch {
                 startupAlerts.append(
                     UserFacingAlert(
-                        title: "App Settings Load Failed",
+                        title: String(localized: "App Settings Load Failed"),
                         message: error.localizedDescription
                     )
                 )
@@ -205,6 +239,21 @@ final class DownloadStore: ObservableObject {
             loadedPreferences = AppPreferences()
         }
 
+        var loadedHistory: [DownloadTask] = []
+        var resolvedHistory: DownloadHistoryStore?
+        var loadHistoryIssue: String?
+        do {
+            resolvedHistory = try resolvedSettingsStore?.makeHistoryStore()
+            loadedHistory = try resolvedHistory?.load() ?? []
+            if resolvedHistory == nil { loadHistoryIssue = String(localized: "Download history storage is unavailable.") }
+        } catch {
+            loadHistoryIssue = String(localized: "Could not load download history: \(DownloadPrivacy.redact(error.localizedDescription))")
+        }
+        self.notifications = notificationCoordinator ?? DownloadNotificationCoordinator()
+        self.historyStore = resolvedHistory
+        self.hiddenTaskIDs = resolvedHistory?.deletedIDs ?? []
+        self.historyIssue = loadHistoryIssue
+        self.tasks = loadedHistory
         self.engineInstallationManager = engineInstallationManager ?? EngineInstallationManager()
         self.settingsStore = resolvedSettingsStore
         self.engineController = engineController ?? Aria2NextEngineController()
@@ -217,12 +266,26 @@ final class DownloadStore: ObservableObject {
         self.addDraft = defaultAddDraft()
         self.ed2kBootstrapStatus = ED2KBootstrapCache.status(applicationSupportBase: ed2kBootstrapApplicationSupportBase)
         self.pendingStartupAlerts = startupAlerts
+        self.notifications.setEnabled(loadedPreferences.notifyOnDownloadCompletion)
+        self.notifications.onOpenDownloads = { [weak self] ids in self?.showNotifiedDownloads(ids) }
+        browserCapture.onImport = { [weak self] urls in
+            self?.importDownloads(urls.map(DownloadImportInput.text))
+            self?.downloadWindowRequests.send()
+        }
+        configureBrowserCapture()
+        mediaDownloads.onAdded = { [weak self] gid, draft in self?.rememberSubmittedTasks([gid], draft: draft) }
+        mediaDownloads.onDiscarded = { [weak self] gid in
+            do { try self?.hideHistory([gid]) }
+            catch { self?.postError(error, title: String(localized: "Save History Failed")) }
+        }
+        mediaDownloads.onSaveError = { [weak self] message in self?.postError(message, title: String(localized: "Media Task")) }
         if AppLaunchConfiguration.usesUITestFixtures {
             seedUITestFixtures()
         }
     }
 
     deinit {
+        inputTask?.cancel()
         startupTask?.cancel()
         engineUpdateTask?.cancel()
         engineInstallTask?.cancel()
@@ -234,6 +297,8 @@ final class DownloadStore: ObservableObject {
 
     func shutdown() {
         isShuttingDown = true
+        browserCapture.stop()
+        inputTask?.cancel()
         startupTask?.cancel()
         engineUpdateTask?.cancel()
         engineInstallTask?.cancel()
@@ -277,12 +342,12 @@ final class DownloadStore: ObservableObject {
 
     var engineVersionDescription: String {
         if let installedEngine { return installedEngine.version.description }
-        return "Unavailable"
+        return String(localized: "Unavailable")
     }
 
     var engineSidebarVersionDescription: String {
         guard let release = availableEngineUpdate else { return engineVersionDescription }
-        return "\(engineVersionDescription) → \(release.version)"
+        return "\(engineVersionDescription) → \(release.version.description)"
     }
 
     func requestEngineSettings() { engineSettingsRequested = true }
@@ -298,7 +363,7 @@ final class DownloadStore: ObservableObject {
     var canUpdateEngine: Bool {
         !isShuttingDown && !isUpdatingEngine && !isCheckingEngineUpdate && !isEngineTransitioning
             && installedEngine != nil && availableEngineUpdate != nil
-            && !isSearchingED2K && !isResolvingBitTorrentFiles && bitTorrentSelectionSession == nil
+            && !isSearchingED2K && !isResolvingBitTorrentFiles && bitTorrentSelectionSession == nil && !mediaDownloads.isPresented
     }
 
     func updateEngine() {
@@ -333,18 +398,18 @@ final class DownloadStore: ObservableObject {
                     await self.launchEngine(showAlerts: false)
                     try Task.checkCancellation()
                     guard case .running = self.runtime.phase else {
-                        throw EngineError.executableLaunchFailed(path: installation.executableURL.path, reason: self.runtime.lastError ?? "The updated engine did not start.")
+                        throw EngineError.executableLaunchFailed(path: installation.executableURL.path, reason: self.runtime.lastError ?? String(localized: "The updated engine did not start."))
                     }
                 }
                 self.engineUpgradeProgress = .init(stage: .activating)
                 try await self.engineInstallationManager.activate(installation)
                 self.useEngine(installation)
-                self.engineUpdateStatus = "Up to date (\(installation.version))"
-                self.engineUpgradeResult = "Aria2 Next \(installation.version) is installed."
+                self.engineUpdateStatus = String(localized: "Up to date (\(installation.version.description))")
+                self.engineUpgradeResult = String(localized: "Aria2 Next \(installation.version.description) is installed.")
                 await backup?.discard()
             } catch {
                 let failure = error.localizedDescription
-                let failedStage = self.engineUpgradeProgress?.title.replacingOccurrences(of: "…", with: "") ?? "Updating engine"
+                let failedStage = self.engineUpgradeProgress?.title.replacingOccurrences(of: "…", with: "") ?? String(localized: "Updating engine")
                 if switchingEngine {
                     self.suspendEngineMonitoring()
                     do {
@@ -358,17 +423,17 @@ final class DownloadStore: ObservableObject {
                         }
                         await backup?.discard()
                     } catch {
-                        self.engineUpgradeError = "Update failed: \(failure) Recovery failed: \(error.localizedDescription)"
+                        self.engineUpgradeError = String(localized: "Update failed: \(failure) Recovery failed: \(error.localizedDescription)")
                         self.updatePowerAssertion()
                         return
                     }
                 }
                 guard !self.isShuttingDown else { return }
                 if Task.isCancelled {
-                    self.engineUpgradeResult = "Update canceled. Aria2 Next \(previous.version) is still installed."
+                    self.engineUpgradeResult = String(localized: "Update canceled. Aria2 Next \(previous.version.description) is still installed.")
                     return
                 }
-                self.engineUpgradeError = "\(failedStage): \(failure)\nVersion \(previous.version) is still installed. You can retry the update."
+                self.engineUpgradeError = String(localized: "\(failedStage): \(failure)\nVersion \(previous.version.description) is still installed. You can retry the update.")
                 self.updatePowerAssertion()
             }
         }
@@ -411,7 +476,7 @@ final class DownloadStore: ObservableObject {
         // UI automation uses a local engine without contacting GitHub.
         guard !AppLaunchConfiguration.isUITesting else { return }
         isCheckingEngineUpdate = true
-        engineUpdateStatus = "Checking for updates…"
+        engineUpdateStatus = String(localized: "Checking for updates…")
         engineUpdateTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.engineUpdateTask = nil; self.isCheckingEngineUpdate = false }
@@ -419,15 +484,15 @@ final class DownloadStore: ObservableObject {
                 let release = try await self.engineInstallationManager.latestRelease()
                 guard !self.isShuttingDown, !Task.isCancelled else { return }
                 if release.version > installedEngine.version {
-                    self.engineUpdateStatus = "Version \(release.version) available"
+                    self.engineUpdateStatus = String(localized: "Version \(release.version.description) available")
                     self.availableEngineUpdate = release
                 } else {
-                    self.engineUpdateStatus = "Up to date (\(installedEngine.version))"
+                    self.engineUpdateStatus = String(localized: "Up to date (\(installedEngine.version.description))")
                     self.availableEngineUpdate = nil
                 }
             } catch {
                 guard !self.isShuttingDown, !Task.isCancelled else { return }
-                self.engineUpdateStatus = "Could not check for updates. Try again later."
+                self.engineUpdateStatus = String(localized: "Could not check for updates. Try again later.")
             }
         }
     }
@@ -447,7 +512,7 @@ final class DownloadStore: ObservableObject {
                 self.engineSetupState = .installing(.init(stage: .activating))
                 try await self.engineInstallationManager.activate(installation)
                 self.useEngine(installation)
-                self.engineUpdateStatus = "Up to date (\(installation.version))"
+                self.engineUpdateStatus = String(localized: "Up to date (\(installation.version.description))")
                 await self.startEngine(startupSync: true)
             } catch {
                 guard !self.isShuttingDown else { return }
@@ -479,14 +544,16 @@ final class DownloadStore: ObservableObject {
     func visibleTasks(for destination: SidebarDestination) -> [DownloadTask] {
         var filtered = tasks
         switch destination {
-        case .today:
-            filtered = filtered.filter { Calendar.current.isDateInToday($0.addedAt) || $0.status == .active || $0.status == .waiting }
         case .all:
             break
         case .active:
             filtered = filtered.filter { $0.status == .active }
         case .waiting:
             filtered = filtered.filter { $0.status == .waiting || $0.status == .paused }
+            filtered.sort {
+                if $0.queuePosition != $1.queuePosition { return ($0.queuePosition ?? Int.max) < ($1.queuePosition ?? Int.max) }
+                return $0.addedAt < $1.addedAt
+            }
         case .completed:
             filtered = filtered.filter { $0.status == .completed }
         case .failed:
@@ -558,8 +625,6 @@ final class DownloadStore: ObservableObject {
 
     func count(for destination: SidebarDestination) -> Int {
         switch destination {
-        case .today:
-            tasks.filter { Calendar.current.isDateInToday($0.addedAt) || $0.status == .active || $0.status == .waiting }.count
         case .all:
             tasks.count
         case .active:
@@ -588,9 +653,9 @@ final class DownloadStore: ObservableObject {
             if addDraft.savePath.isEmpty {
                 addDraft.savePath = url.path
             }
-            postActivity("Download directory set.")
+            postActivity(String(localized: "Download directory set."))
         } catch {
-            postError(error, title: "Download Folder Failed")
+            postError(error, title: String(localized: "Download Folder Failed"))
         }
     }
 
@@ -598,22 +663,22 @@ final class DownloadStore: ObservableObject {
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
-            postError("Could not generate a secure RPC token.", title: "RPC Token Failed")
+            postError(String(localized: "Could not generate a secure RPC token."), title: String(localized: "RPC Token Failed"))
             return
         }
         engineSettings.rpcToken = bytes.map { String(format: "%02x", $0) }.joined()
-        postActivity("Generated a new RPC token. Restart the engine if it is running.")
+        postActivity(String(localized: "Generated a new RPC token. Restart the engine if it is running."))
     }
 
     @discardableResult
     func addCustomTrackerSource(_ rawValue: String) -> Bool {
         let url = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else {
-            postError("Enter a tracker source URL.", title: "Tracker Source Failed")
+            postError(String(localized: "Enter a tracker source URL."), title: String(localized: "Tracker Source Failed"))
             return false
         }
         guard TrackerSourceURLValidator.isValid(url) else {
-            postError("Enter a valid HTTP or HTTPS tracker source URL.", title: "Tracker Source Failed")
+            postError(String(localized: "Enter a valid HTTP or HTTPS tracker source URL."), title: String(localized: "Tracker Source Failed"))
             return false
         }
 
@@ -629,12 +694,12 @@ final class DownloadStore: ObservableObject {
         }
 
         guard changed else {
-            postActivity("Tracker source already exists.")
+            postActivity(String(localized: "Tracker source already exists."))
             return false
         }
 
         engineSettings = settings
-        postActivity("Tracker source added.")
+        postActivity(String(localized: "Tracker source added."))
         return true
     }
 
@@ -643,7 +708,7 @@ final class DownloadStore: ObservableObject {
         settings.customTrackerSourceURLs.removeAll { $0 == url }
         settings.trackerSourceURLs.removeAll { $0 == url }
         engineSettings = settings
-        postActivity("Tracker source removed.")
+        postActivity(String(localized: "Tracker source removed."))
     }
 
     func setTrackerSource(_ url: String, isSelected: Bool) {
@@ -661,7 +726,78 @@ final class DownloadStore: ObservableObject {
         await syncBitTorrentTrackers(startup: false, reportFailures: true)
     }
 
+    func setBrowserCaptureEnabled(_ enabled: Bool) {
+        var updated = preferences
+        if enabled, updated.browserCaptureToken.isEmpty {
+            updated.browserCaptureToken = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased() + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        }
+        updated.browserCaptureEnabled = enabled
+        preferences = updated
+    }
+
+    func resetBrowserPairing() {
+        preferences.browserCaptureToken = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased() + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+    }
+
+    private func configureBrowserCapture() {
+        guard !AppLaunchConfiguration.isTestAutomation, !isShuttingDown else { return }
+        if preferences.browserCaptureEnabled { browserCapture.start(token: preferences.browserCaptureToken) }
+        else { browserCapture.stop() }
+    }
+
+    func importDownloads(_ inputs: [DownloadImportInput]) {
+        guard !isShuttingDown else { return }
+        let preceding = inputTask
+        let preferences = preferences
+        inputTask = Task { @MainActor [weak self] in
+            await preceding?.value
+            guard !Task.isCancelled else { return }
+            let requests = await DownloadImportReader.prepare(inputs, preferences: preferences)
+            guard !Task.isCancelled else { return }
+            self?.inputCoordinator.enqueue(requests)
+        }
+    }
+
+    func importDroppedItems(_ providers: [NSItemProvider]) {
+        Task { @MainActor [weak self] in
+            let inputs = await DownloadInputCoordinator.droppedInputs(providers)
+            self?.importDownloads(inputs)
+        }
+    }
+
+    func beginImportedDownload(owner: UUID) -> Bool {
+        guard engineSetupState == .ready,
+              let request = inputCoordinator.claimImport(owner: owner, preserving: addDraft) else { return false }
+        addDraft = defaultAddDraft()
+        addDraft.rawInput = request.resources.joined(separator: "\n")
+        addDraft.importedDocuments = request.documents
+        addDraftNotice = nil
+        importIssues = request.issues
+        return true
+    }
+
+    func finishDownloadPanel(owner: UUID) {
+        guard inputCoordinator.owner == owner else { return }
+        if let original = inputCoordinator.finish(owner: owner) { addDraft = original }
+        importIssues = []
+        addDraftNotice = nil
+    }
+
+    func setCompletionNotificationsEnabled(_ enabled: Bool) async {
+        if enabled { preferences.notifyOnDownloadCompletion = await notifications.requestEnable() }
+        else { preferences.notifyOnDownloadCompletion = false }
+    }
+
+    private func showNotifiedDownloads(_ ids: [String]) {
+        searchQuery = ""
+        selectedDestination = .all
+        selectedTaskID = ids.first { id in tasks.contains { $0.id == id } }
+        notificationNavigationRevision += 1
+    }
+
     func requestAddPanel() {
+        addDraftNotice = nil
+        inputCoordinator.requestManualSheet()
         addPanelRequests.send()
     }
 
@@ -682,14 +818,19 @@ final class DownloadStore: ObservableObject {
             try engineSettings.validateLaunchRequirements()
         } catch {
             runtime = EngineRuntimeSnapshot(phase: .failed(error.localizedDescription), lastError: error.localizedDescription)
-            if showAlerts { postError(error, title: "Start Engine Failed") }
+            if showAlerts { postError(error, title: String(localized: "Start Engine Failed")) }
             return
         }
 
         // The controller validates port availability immediately before launching.
         // Keeping that check there also lets injected controllers stay independent of live engines.
         let sessionID = UUID()
+        armedScheduledTaskIDs.removeAll()
+        scheduleRequests.removeAll()
+        lastBandwidthOptions = nil
         engineSessionID = sessionID
+        sessionProtectedTorrentIDs.removeAll()
+        notifications.resetBaseline()
         var launchArguments: [String] = []
         runtime = EngineRuntimeSnapshot(
             phase: .starting,
@@ -711,11 +852,13 @@ final class DownloadStore: ObservableObject {
             try await waitForEngineRPC(port: launchSettings.rpcPort)
             try Task.checkCancellation()
             guard engineSessionID == sessionID else { return }
+            engineCapabilities = try? await engineController.client().getVersion()
+            guard engineSessionID == sessionID, !Task.isCancelled else { return }
             runtime = launchSnapshot
             if showAlerts, let backup = launchSnapshot.sessionBackupURL {
                 userAlerts.send(UserFacingAlert(
-                    title: "Download Engine Updated",
-                    message: "Your previous task list was backed up before updating the engine. Unfinished downloads from older versions may restart from zero; existing partial files are preserved.\n\nBackup: \(backup.path)"
+                    title: String(localized: "Download Engine Updated"),
+                    message: String(localized: "Your previous task list was backed up before updating the engine. Unfinished downloads from older versions may restart from zero; existing partial files are preserved.\n\nBackup: \(backup.path)")
                 ))
             }
             await refreshTasks(reportErrors: showAlerts)
@@ -748,13 +891,13 @@ final class DownloadStore: ObservableObject {
                 lastError: error.localizedDescription
             )
             updatePowerAssertion()
-            if showAlerts { postError(error, title: "Start Engine Failed") }
+            if showAlerts { postError(error, title: String(localized: "Start Engine Failed")) }
         }
     }
 
     func stopEngine() async {
         guard canStopEngine else {
-            postError(EngineError.notRunning, title: "Stop Engine Failed")
+            postError(EngineError.notRunning, title: String(localized: "Stop Engine Failed"))
             return
         }
         engineSessionID = UUID()
@@ -769,6 +912,8 @@ final class DownloadStore: ObservableObject {
                 lastError: runtime.lastError
             )
             runtime = try await engineController.stop()
+            tasks = tasks.map(\.disconnectedSnapshot)
+            engineCapabilities = nil
             updatePowerAssertion()
         } catch {
             runtime = EngineRuntimeSnapshot(
@@ -777,12 +922,14 @@ final class DownloadStore: ObservableObject {
                 lastError: error.localizedDescription
             )
             updatePowerAssertion()
-            postError(error, title: "Stop Engine Failed")
+            postError(error, title: String(localized: "Stop Engine Failed"))
         }
     }
 
     func prepareForAppTermination() async {
         isShuttingDown = true
+        browserCapture.stop()
+        inputTask?.cancel()
         startupTask?.cancel()
         engineUpdateTask?.cancel()
         engineInstallTask?.cancel()
@@ -824,6 +971,8 @@ final class DownloadStore: ObservableObject {
 
         do {
             runtime = try await engineController.stop()
+            tasks = tasks.map(\.disconnectedSnapshot)
+            engineCapabilities = nil
             updatePowerAssertion()
         } catch {
             updateRuntime(lastError: error.localizedDescription)
@@ -838,7 +987,7 @@ final class DownloadStore: ObservableObject {
             try engineSettings.validateLaunchRequirements()
         } catch {
             updateRuntime(lastError: error.localizedDescription)
-            postError(error, title: "Restart Engine Failed")
+            postError(error, title: String(localized: "Restart Engine Failed"))
             return
         }
         if engineController.isRunning {
@@ -851,20 +1000,18 @@ final class DownloadStore: ObservableObject {
     @discardableResult
     func refreshTasks(reportErrors: Bool = true) async -> Error? {
         let sessionID = engineSessionID
-        guard !Task.isCancelled, !isShuttingDown else { return nil }
+        guard !Task.isCancelled, !isShuttingDown, taskMutationDepth == 0 else { return nil }
+        refreshSequence += 1
+        let sequence = refreshSequence
+        let revision = taskRevision
         if let exitStatus = engineController.clearTerminatedProcess() {
-            let error = EngineError.processExited(exitStatus, "Aria2 Next stopped unexpectedly.")
+            let error = EngineError.processExited(exitStatus, String(localized: "Aria2 Next stopped unexpectedly."))
             pollTask?.cancel()
             pollTask = nil
-            runtime = EngineRuntimeSnapshot(
-                phase: .failed(error.localizedDescription),
-                lastLaunchArguments: runtime.lastLaunchArguments,
-                lastError: error.localizedDescription
-            )
-            updatePowerAssertion()
-            if reportErrors {
-                postError(error, title: "Engine Stopped")
-            }
+            runtime = EngineRuntimeSnapshot(phase: .failed(error.localizedDescription),
+                lastLaunchArguments: runtime.lastLaunchArguments, lastError: error.localizedDescription)
+            tasks = tasks.map(\.disconnectedSnapshot)
+            connectionIssue = String(localized: "Engine stopped. Your saved downloads are still available. Restart it in Engine settings.")
             return error
         }
         guard engineController.isRunning else { return nil }
@@ -873,48 +1020,140 @@ final class DownloadStore: ObservableObject {
             async let taskSnapshot = client.pollTasks()
             async let globalStat = client.globalStat()
             let (polledTasks, stat) = try await (taskSnapshot, globalStat)
-            guard !Task.isCancelled, engineSessionID == sessionID, engineController.isRunning else { return nil }
-            tasks = mergePolledTasks(polledTasks)
+            guard !Task.isCancelled, engineSessionID == sessionID, engineController.isRunning,
+                  revision == taskRevision, sequence == refreshSequence else { return nil }
+            let archivedTorrentIDs = Set(tasks.filter { $0.isTorrentLike && $0.status == .completed }.map(\.id))
+            let visibleSnapshot = polledTasks.map { task in
+                var task = task
+                if archivedTorrentIDs.contains(task.id), task.isTorrentLike {
+                    task.status = .completed
+                    task.isSharing = false
+                    task.downloadSpeed = 0
+                    task.uploadSpeed = 0
+                }
+                return task
+            }
+            let previousTasks = tasks
+            tasks = DownloadHistoryStore.merge(visibleSnapshot, existing: tasks, hidden: hiddenTaskIDs)
+            let historySaved = persistTaskHistory()
+            connectionIssue = nil
+            updateRuntime(lastError: nil)
+            var sessionChanged = false
+            // Upgrade existing torrent tasks as well as newly added ones. force-save is needed
+            // for seeding, which the engine session serializer otherwise treats as finished.
+            for task in polledTasks where task.isTorrentLike && task.removalAction == .removeActiveDownload
+                && !archivedTorrentIDs.contains(task.id) && !hiddenTaskIDs.contains(task.id)
+                && !sessionProtectedTorrentIDs.contains(task.id) {
+                try await client.changeOption(gid: task.id, options: ["force-save": "true"])
+                sessionProtectedTorrentIDs.insert(task.id)
+                sessionChanged = true
+            }
+            // Once seeding has ended, keep its result in SwiftData. A force-saved terminal
+            // engine result would otherwise reappear as a paused torrent at the next launch.
+            for task in polledTasks where historySaved && task.isTorrentLike
+                && (task.status == .completed || archivedTorrentIDs.contains(task.id)) && !hiddenTaskIDs.contains(task.id) {
+                // Also handle a crash between archiving a result and pruning its saved session.
+                try await DownloadTaskRPCOperations.remove(task, using: client)
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) { tasks[index].isAvailableInEngine = false }
+                sessionChanged = true
+            }
+            // Clearing history offline must also clear any matching engine records on reconnect.
+            for task in polledTasks where hiddenTaskIDs.contains(task.id) {
+                try await DownloadTaskRPCOperations.remove(task, using: client)
+                sessionChanged = true
+            }
+            if sessionChanged {
+                _ = await saveSessionAfterTaskMutation(using: client)
+            }
             recordSpeed(download: stat.downloadBytesPerSecond, upload: stat.uploadBytesPerSecond)
+            if historySaved { await notifications.observe(tasks, previous: previousTasks, history: historyStore) }
             return nil
         } catch {
-            guard !Task.isCancelled, engineSessionID == sessionID else { return nil }
-            if let exitStatus = engineController.clearTerminatedProcess() {
-                let exitError = EngineError.processExited(exitStatus, "Aria2 Next stopped unexpectedly.")
-                pollTask?.cancel()
-                pollTask = nil
-                runtime = EngineRuntimeSnapshot(
-                    phase: .failed(exitError.localizedDescription),
-                    lastLaunchArguments: runtime.lastLaunchArguments,
-                    lastError: exitError.localizedDescription
-                )
-                updatePowerAssertion()
-                if reportErrors {
-                    postError(exitError, title: "Engine Stopped")
-                }
-                return exitError
-            }
-            guard engineController.isRunning else { return nil }
-            updateRuntime(lastError: error.localizedDescription)
-            if reportErrors {
-                postError(error, title: "Refresh Failed")
-            }
+            guard !Task.isCancelled, engineSessionID == sessionID,
+                  revision == taskRevision, sequence == refreshSequence else { return nil }
+            tasks = tasks.map(\.disconnectedSnapshot)
+            connectionIssue = String(localized: "Unable to refresh engine state. Showing saved downloads; retrying automatically. \(DownloadPrivacy.redact(error.localizedDescription))")
+            updateRuntime(lastError: DownloadPrivacy.redact(error.localizedDescription))
             return error
         }
     }
 
     @discardableResult
+    private func persistTaskHistory() -> Bool {
+        guard let historyStore else { return false }
+        do {
+            try historyStore.save(tasks)
+            historyIssue = nil
+            return true
+        } catch {
+            historyIssue = String(localized: "Download history could not be saved. \(DownloadPrivacy.redact(error.localizedDescription))")
+            return false
+        }
+    }
+
+    private func rememberSubmittedTasks(_ gids: [String], draft: AddDownloadDraft) {
+        taskRevision += 1
+        notifications.noteAdded(gids)
+        let newTasks = DownloadHistoryStore.submittedTasks(gids, draft: draft)
+        let ids = Set(gids)
+        tasks.removeAll { ids.contains($0.id) }
+        tasks.append(contentsOf: newTasks)
+        persistTaskHistory()
+    }
+
+    func editAndAddAgain(_ task: DownloadTask) {
+        guard task.canEditAndAddAgain, inputCoordinator.owner == nil, !inputCoordinator.hasManualRequest else { return }
+        addDraft = defaultAddDraft()
+        addDraft.savePath = task.destination
+        addDraft.rawInput = task.sourceURL ?? ""
+        if addDraft.rawInput.isEmpty, task.isTorrentLike, let hash = task.infoHash, AddDownloadDraft.isBareBitTorrentInfoHash(hash) {
+            addDraft.rawInput = "magnet:?xt=urn:btih:\(hash)"
+        }
+        addDraftNotice = String(localized: "This creates a new download. Review the link and add any required authentication again. Existing partial files are preserved by the engine's filename collision policy.")
+        inputCoordinator.requestManualSheet()
+        addPanelRequests.send()
+    }
+
+    var canClearFinishedRecords: Bool {
+        !isUpdatingEngine && tasks.contains { $0.removalAction == .removeDownloadResult }
+    }
+
+    @discardableResult
     func submitDraft() async -> Bool {
         guard addDraft.isSubmittable else {
-            postError("Enter a valid HTTP, FTP, Magnet, ED2K, torrent, or metalink URL.", title: "Invalid Download")
+            postError(DownloadDraftError.unsupportedProtocol, title: String(localized: "Invalid Download"))
             return false
         }
         guard engineController.isRunning else {
-            postError("Start Aria2 Next before adding downloads.", title: "Engine Not Running")
+            postError(String(localized: "Start Aria2 Next before adding downloads."), title: String(localized: "Engine Not Running"))
             return false
         }
+        if let capabilities = engineCapabilities {
+            do {
+                for source in try addDraft.normalizedResources() {
+                    if let kind = AddDownloadDraft.detectProtocol(for: source), !capabilities.supports(kind) {
+                        postError(String(localized: "The running engine does not support \(kind.rawValue). Check Engine settings."), title: String(localized: "Unsupported Protocol"))
+                        return false
+                    }
+                }
+            } catch {
+                postError(error, title: String(localized: "Invalid Download"))
+                return false
+            }
+        }
         if addDraft.containsBitTorrentResource, !addDraft.shouldResolveBitTorrentFilesBeforeSubmit {
-            postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: "Add Download Failed")
+            postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: String(localized: "Add Download Failed"))
+            return false
+        }
+        if addDraft.shouldInspectMedia {
+            guard engineCapabilities?.supportsMedia == true else {
+                postError(String(localized: "The running engine does not advertise media track selection. Update Aria2 Next in Engine settings."), title: String(localized: "Media Unavailable"))
+                return false
+            }
+            do {
+                try await mediaDownloads.inspect(addDraft, using: engineController.client(), fallbackDirectory: engineSettings.downloadDirectoryPath)
+                _ = await refreshTasks(reportErrors: false)
+            } catch { postError(error, title: String(localized: "Inspect Media Failed")) }
             return false
         }
         if addDraft.shouldResolveBitTorrentFilesBeforeSubmit {
@@ -924,8 +1163,8 @@ final class DownloadStore: ObservableObject {
         if addDraft.resourceLines.contains(where: { AddDownloadDraft.detectProtocol(for: $0) == .ed2k }),
            !ed2kDownloadContext().hasBootstrapOrServer {
             postError(
-                "Sync ED2K bootstrap files or add ED2K servers in Settings before adding ED2K downloads.",
-                title: "Add Download Failed"
+                String(localized: "Sync ED2K bootstrap files or add ED2K servers in Settings before adding ED2K downloads."),
+                title: String(localized: "Add Download Failed")
             )
             return false
         }
@@ -937,99 +1176,133 @@ final class DownloadStore: ObservableObject {
                 autoOrganize: preferences.autoOrganizeFiles,
                 ed2kContext: ed2kDownloadContext()
             )
+            rememberSubmittedTasks(gids, draft: addDraft)
             selectedTaskID = gids.first
+            addDraftNotice = nil
             addDraft = defaultAddDraft()
-            let refreshError = await refreshTasks(reportErrors: false)
             let saveError = await saveSessionAfterTaskMutation(using: client)
-            if let refreshError {
-                postError(refreshError, title: "Refresh Failed")
-            } else if let saveError {
-                postError(saveError, title: "Save Session Failed")
+            _ = await refreshTasks(reportErrors: false)
+            if let saveError {
+                postError(saveError, title: String(localized: "Save Session Failed"))
             } else {
-                postActivity("Added \(gids.count) download \(gids.count == 1 ? "task" : "tasks").")
+                postActivity(String(localized: "Added \(gids.count) downloads."))
             }
             return true
-        } catch {
-            postError(error, title: "Add Download Failed")
+        } catch let partial as PartialDownloadSubmissionError {
+            rememberSubmittedTasks(partial.addedIDs, draft: addDraft)
+            addDraft.rawInput = addDraft.resourceLines.dropFirst(partial.addedIDs.count).joined(separator: "\n")
+            if let client = try? engineController.client() { _ = await saveSessionAfterTaskMutation(using: client) }
+            _ = await refreshTasks(reportErrors: false)
+            postError(partial, title: String(localized: "Some Downloads Were Added"))
             return false
+        } catch {
+            postError(error, title: String(localized: "Add Download Failed"))
+            return false
+        }
+    }
+
+    func confirmMediaSelection() async -> Bool {
+        do {
+            let confirmed = await mediaDownloads.confirm(using: try engineController.client())
+            if confirmed { addDraft = defaultAddDraft(); _ = await refreshTasks(reportErrors: false) }
+            return confirmed
+        } catch { postError(error, title: String(localized: "Start Media Failed")); return false }
+    }
+
+    func cancelMediaSelection() async {
+        guard mediaDownloads.isPresented else { return }
+        inputCoordinator.cancelManualRequest()
+        await mediaDownloads.cancel(using: try? engineController.client())
+        _ = await refreshTasks(reportErrors: false)
+    }
+
+    func finishRecording(_ task: DownloadTask) async {
+        guard task.canFinishRecording, !isUpdatingEngine else { return }
+        await performTaskMutation(alertTitle: String(localized: "Finish Recording Failed")) { client in
+            try await client.finishMedia(task.id)
+        }
+    }
+
+    func retryMedia(_ task: DownloadTask) async {
+        guard task.canRetryMedia, !isUpdatingEngine else { return }
+        await performTaskMutation(alertTitle: String(localized: "Retry Media Failed")) { client in
+            try await client.retryMedia(task.id)
         }
     }
 
     func prepareBitTorrentFileSelection() async {
         guard !isResolvingBitTorrentFiles else { return }
-        guard addDraft.isSubmittable else {
-            postError("Enter a valid Magnet or torrent link.", title: "Invalid Download")
+        guard addDraft.isSubmittable, addDraft.shouldResolveBitTorrentFilesBeforeSubmit else {
+            postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: String(localized: "Add Download Failed"))
             return
         }
-        guard addDraft.shouldResolveBitTorrentFilesBeforeSubmit else {
-            postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: "Add Download Failed")
-            return
-        }
-
-        let source = addDraft.resourceLines.first ?? ""
+        var draft = addDraft
+        let source = draft.resourceLines.first ?? ""
         let requestID = UUID()
         bitTorrentSelectionRequestID = requestID
         isResolvingBitTorrentFiles = true
         clearActivityMessage()
-        bitTorrentSelectionSession = BitTorrentFileSelectionSession(
-            source: source,
-            metadataTaskID: nil,
-            downloadTaskID: nil,
-            taskName: "Loading torrent metadata",
-            files: [],
-            selectedFileIndexes: [],
-            phase: .loading
-        )
-        defer { isResolvingBitTorrentFiles = false }
-
+        if var retained = bitTorrentSelectionSession {
+            retained.phase = .loading; retained.issue = nil
+            bitTorrentSelectionSession = retained
+        } else {
+            bitTorrentSelectionSession = BitTorrentFileSelectionSession(
+                source: source, taskName: TorrentFileTree.sourceName(source), files: [],
+                selectedFileIndexes: [], phase: .loading, destination: draft.savePath)
+        }
+        defer {
+            if bitTorrentSelectionRequestID == requestID { isResolvingBitTorrentFiles = false }
+        }
         do {
             let client = try engineController.client()
-            let metadataGID = try await client.addBitTorrentMetadataDownload(
-                addDraft,
-                fallbackDirectory: engineSettings.downloadDirectoryPath,
-                autoOrganize: preferences.autoOrganizeFiles
-            )
-            updateBitTorrentSelectionSession { session in
-                session.metadataTaskID = metadataGID
+            if let directory = bitTorrentSelectionSession?.torrentDirectory {
+                draft.savePath = directory
+                draft.torrentDirectory = directory
+            } else {
+                let options = try draft.engineOptions(fallbackDirectory: engineSettings.downloadDirectoryPath,
+                                                       autoOrganize: preferences.autoOrganizeFiles)
+                guard let base = options["dir"], base.hasPrefix("/") else { throw EngineError.missingDownloadDirectory }
+                let directory = try TorrentStorage.createDirectory(in: URL(fileURLWithPath: base),
+                                                                   name: TorrentFileTree.sourceName(source).replacingOccurrences(of: "\\.torrent$", with: "", options: [.regularExpression, .caseInsensitive]))
+                draft.savePath = directory.path
+                draft.torrentDirectory = directory.path
+                updateBitTorrentSelectionSession { $0.torrentDirectory = directory.path }
             }
-            guard isCurrentBitTorrentSelection(requestID) else {
-                await cleanupBitTorrentSelection(
-                    BitTorrentFileSelectionSession(
-                        source: source,
-                        metadataTaskID: metadataGID,
-                        downloadTaskID: nil,
-                        taskName: "Loading torrent metadata",
-                        files: [],
-                        selectedFileIndexes: [],
-                        phase: .loading
-                    ),
-                    using: client
-                )
-                return
+            let metadataGID: String
+            if let retained = bitTorrentSelectionSession?.metadataTaskID {
+                metadataGID = retained
+            } else {
+                metadataGID = try await client.addBitTorrentMetadataDownload(
+                    draft, fallbackDirectory: engineSettings.downloadDirectoryPath,
+                    autoOrganize: false)
+                guard isCurrentBitTorrentSelection(requestID) else {
+                    await cleanupBitTorrentSelection(BitTorrentFileSelectionSession(
+                        source: source, metadataTaskID: metadataGID, taskName: "", files: [],
+                        selectedFileIndexes: [], phase: .loading, torrentDirectory: draft.torrentDirectory), using: client)
+                    return
+                }
+                updateBitTorrentSelectionSession { $0.metadataTaskID = metadataGID }
+                rememberSubmittedTasks([metadataGID], draft: draft)
+                _ = await saveSessionAfterTaskMutation(using: client)
             }
-
             let prepared = try await waitForBitTorrentFiles(
-                metadataGID: metadataGID,
-                source: source,
-                client: client,
-                requestID: requestID
-            )
-            guard isCurrentBitTorrentSelection(requestID) else {
-                await cleanupBitTorrentSelection(prepared, using: client)
-                return
+                metadataGID: metadataGID, source: source, client: client, requestID: requestID)
+            guard isCurrentBitTorrentSelection(requestID) else { return }
+            if let contentID = prepared.downloadTaskID, contentID != metadataGID {
+                rememberSubmittedTasks([contentID], draft: draft)
+                try hideHistory([metadataGID])
             }
             bitTorrentSelectionSession = prepared
             selectedTaskID = prepared.downloadTaskID
+            _ = await saveSessionAfterTaskMutation(using: client)
             _ = await refreshTasks(reportErrors: false)
         } catch {
             guard isCurrentBitTorrentSelection(requestID) else { return }
-            let staleSession = bitTorrentSelectionSession
-            bitTorrentSelectionRequestID = nil
-            bitTorrentSelectionSession = nil
-            if let staleSession {
-                await cleanupBitTorrentSelection(staleSession, using: try? engineController.client())
+            // Retain the GID and any acquired metadata so a retry doesn't start discovery over.
+            updateBitTorrentSelectionSession {
+                $0.phase = .failed
+                $0.issue = DownloadPrivacy.redact(error.localizedDescription)
             }
-            postError(error, title: "Load Torrent Files Failed")
         }
     }
 
@@ -1038,11 +1311,11 @@ final class DownloadStore: ObservableObject {
         guard let session = bitTorrentSelectionSession,
               session.phase == .ready,
               let downloadTaskID = session.downloadTaskID else {
-            postError("Torrent files are not ready yet.", title: "Start Download Failed")
+            postError(String(localized: "Torrent files are not ready yet."), title: String(localized: "Start Download Failed"))
             return false
         }
         guard session.hasSelection else {
-            postError("Select at least one file to download.", title: "Start Download Failed")
+            postError(String(localized: "Select at least one file to download."), title: String(localized: "Start Download Failed"))
             return false
         }
 
@@ -1055,10 +1328,19 @@ final class DownloadStore: ObservableObject {
             case .paused:
                 break
             case .completed, .failed, .removed:
-                throw DownloadTaskOperationError.bitTorrentContentNotSelectable(status: snapshot.task.status.rawValue)
+                throw DownloadTaskOperationError.bitTorrentContentNotSelectable(status: snapshot.task.status.localizedTitle)
             }
 
-            try await client.changeOption(gid: downloadTaskID, options: ["select-file": session.selectFileOption])
+            if let directory = session.torrentDirectory, let infoHash = snapshot.task.infoHash {
+                try await client.saveSession()
+                try await saveTorrentCopy(infoHash: infoHash, name: session.taskName,
+                    directory: URL(fileURLWithPath: directory), source: session.source,
+                    metadataFilePath: session.metadataFilePath)
+            }
+            try await client.changeOption(gid: downloadTaskID, options: ["select-file": session.selectFileOption,
+                "bt-file-priority": session.files.sorted { $0.index < $1.index }.map {
+                    "\($0.index)=\(session.selectedFileIndexes.contains($0.index) ? "normal" : "off")"
+                }.joined(separator: ",")])
             try await client.resume(downloadTaskID)
             if let metadataTaskID = session.metadataTaskID, metadataTaskID != downloadTaskID {
                 do {
@@ -1071,29 +1353,43 @@ final class DownloadStore: ObservableObject {
             bitTorrentSelectionRequestID = nil
             bitTorrentSelectionSession = nil
             addDraft = defaultAddDraft()
-            let refreshError = await refreshTasks(reportErrors: false)
             let saveError = await saveSessionAfterTaskMutation(using: client)
-            if let refreshError {
-                postError(refreshError, title: "Refresh Failed")
-                return false
-            }
+            _ = await refreshTasks(reportErrors: false)
             if let saveError {
-                postError(saveError, title: "Save Session Failed")
+                postError(saveError, title: String(localized: "Save Session Failed"))
                 return false
             }
-            postActivity("Started selected torrent files.")
+            postActivity(String(localized: "Started selected torrent files."))
             return true
         } catch {
-            postError(error, title: "Start Download Failed")
+            postError(error, title: String(localized: "Start Download Failed"))
             return false
         }
     }
 
     func cancelBitTorrentFileSelection() async {
         guard let session = bitTorrentSelectionSession else { return }
+        inputCoordinator.cancelManualRequest()
         bitTorrentSelectionRequestID = nil
+        isResolvingBitTorrentFiles = false
         bitTorrentSelectionSession = nil
         await cleanupBitTorrentSelection(session, using: try? engineController.client())
+    }
+
+    private func saveTorrentCopy(infoHash: String, name: String, directory: URL,
+                                 source: String, metadataFilePath: String?) async throws {
+        let original = addDraft.importedDocuments[source]?.data
+        let metadataURL = metadataFilePath.map { URL(fileURLWithPath: $0) }
+            ?? AddDownloadDraft.localTorrentFileURL(source)
+        let state = try Aria2NextPaths.supportDirectory().deletingLastPathComponent()
+            .appendingPathComponent("aria2-next", isDirectory: true)
+        try await TorrentStorage.saveEngineCopy(infoHash: infoHash, name: name, directory: directory,
+            original: original, metadataURL: metadataURL, stateDirectory: state)
+    }
+
+    func showInFinder(_ task: DownloadTask) {
+        guard let url = DownloadFileLocation.revealURL(for: task) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func setBitTorrentFile(_ file: DownloadFile, isSelected: Bool) {
@@ -1106,6 +1402,14 @@ final class DownloadStore: ObservableObject {
         bitTorrentSelectionSession = session
     }
 
+    func setBitTorrentFileIndexes(_ indexes: Set<Int>, selected: Bool) {
+        guard var session = bitTorrentSelectionSession, session.phase == .ready else { return }
+        let valid = indexes.intersection(Set(session.files.map(\.index)))
+        if selected { session.selectedFileIndexes.formUnion(valid) }
+        else { session.selectedFileIndexes.subtract(valid) }
+        bitTorrentSelectionSession = session
+    }
+
     func setAllBitTorrentFilesSelected(_ isSelected: Bool) {
         guard var session = bitTorrentSelectionSession else { return }
         session.selectedFileIndexes = isSelected ? Set(session.files.map(\.index)) : []
@@ -1114,13 +1418,15 @@ final class DownloadStore: ObservableObject {
 
     func refreshDetails(for taskID: DownloadTask.ID) async {
         guard engineController.isRunning else { return }
-        guard let task = tasks.first(where: { $0.id == taskID }), task.isTorrentLike else { return }
+        guard let task = tasks.first(where: { $0.id == taskID }), task.isTorrentLike, task.isAvailableInEngine else { return }
 
         do {
             let client = try engineController.client()
             let peers = try await client.getPeers(taskID)
-            guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+            let trackers = engineCapabilities?.supportsTorrentManagement == true ? try await client.getTorrentTrackers(taskID) : nil
+            guard !Task.isCancelled, let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
             tasks[index].peers = peers
+            if let trackers { tasks[index].trackers = trackers }
         } catch where isTaskAlreadyAbsent(error) {
             return
         } catch {
@@ -1129,23 +1435,236 @@ final class DownloadStore: ObservableObject {
     }
 
     func pause(_ task: DownloadTask) async {
+        cancelSchedule(task.id)
         guard task.primaryControlAction == .pause else {
-            postError("This task cannot be paused in its current state.", title: "Pause Failed")
+            postError(String(localized: "This task cannot be paused in its current state."), title: String(localized: "Pause Failed"))
             return
         }
-        await performTaskMutation(alertTitle: "Pause Failed") { client in
+        await performTaskMutation(alertTitle: String(localized: "Pause Failed")) { client in
             try await DownloadTaskRPCOperations.pause(task, using: client)
         }
     }
 
     func resume(_ task: DownloadTask) async {
+        cancelSchedule(task.id)
         guard task.primaryControlAction == .resume else {
-            postError("This task cannot be resumed in its current state.", title: "Resume Failed")
+            postError(String(localized: "This task cannot be resumed in its current state."), title: String(localized: "Resume Failed"))
             return
         }
-        await performTaskMutation(alertTitle: "Resume Failed") { client in
+        if task.media != nil {
+            guard inputCoordinator.owner == nil, !inputCoordinator.hasManualRequest else { return }
+            do {
+                let client = try engineController.client()
+                let options = try await client.getOption(task.id)
+                if options["media-pause-after-probe"] == "true" {
+                    let snapshot = try await client.tellStatus(task.id).task
+                    guard let tracks = snapshot.media?.tracks, !tracks.isEmpty else {
+                        throw DownloadOperationError(String(localized: "Media tracks are not ready. Retry inspection or wait for the source to respond."))
+                    }
+                    guard inputCoordinator.owner == nil, !inputCoordinator.hasManualRequest else { return }
+                    addDraft = defaultAddDraft()
+                    addDraft.rawInput = task.sourceURL ?? ""
+                    addDraft.savePath = task.destination
+                    mediaDownloads.restore(snapshot, options: options)
+                    inputCoordinator.requestManualSheet()
+                    addPanelRequests.send()
+                    return
+                }
+            } catch { postError(error, title: String(localized: "Resume Media Failed")); return }
+        }
+        if task.requiresFileSelection {
+            guard bitTorrentSelectionSession == nil, inputCoordinator.owner == nil, !inputCoordinator.hasManualRequest else { return }
+            addDraft = defaultAddDraft()
+            addDraft.rawInput = task.sourceURL ?? ""
+            addDraft.savePath = task.destination
+            addDraftNotice = String(localized: "Choose files to continue this saved download. Its original progress is kept.")
+            bitTorrentSelectionSession = BitTorrentFileSelectionSession(
+                source: task.sourceURL ?? "", metadataTaskID: task.id, downloadTaskID: task.id,
+                taskName: task.name, files: task.files,
+                selectedFileIndexes: Set(task.files.filter(\.isSelected).map(\.index)), phase: .ready,
+                removesTaskOnCancel: false, destination: task.destination, torrentDirectory: task.torrentDirectory)
+            inputCoordinator.requestManualSheet()
+            addPanelRequests.send()
+            return
+        }
+        await performTaskMutation(alertTitle: String(localized: "Resume Failed")) { client in
             try await DownloadTaskRPCOperations.resume(task, using: client)
         }
+    }
+
+    func repairConnection(_ task: DownloadTask, repair: DownloadConnectionRepair) async throws {
+        guard task.canRepairConnection, !isUpdatingEngine else { throw DownloadOperationError(String(localized: "Pause this task before editing its connection.")) }
+        let client = try engineController.client()
+        let current = try await client.tellStatus(task.id).task
+        guard current.canRepairConnection else { throw DownloadOperationError(String(localized: "The task state changed. Refresh it before trying again.")) }
+        let existing = try await client.getOption(task.id)
+        let options = try repair.options(existing: existing)
+        if !repair.replacementURL.trimmedForEngine.isEmpty {
+            let uris = try await client.getURIs(task.id)
+            guard let original = uris.first else { throw DownloadOperationError(String(localized: "The engine did not report a source address.")) }
+            if let replacement = try repair.validatedReplacement(for: current, original: original) {
+                try await client.replaceURI(task.id, old: uris, new: replacement)
+            }
+        }
+        cancelSchedule(task.id)
+        if current.canRetryMedia { try await client.retryMedia(task.id, options: options) }
+        else {
+            if !options.isEmpty { try await client.changeOption(gid: task.id, options: options) }
+            // A media probe must still enter track confirmation rather than start payload transfer.
+            if current.media != nil && existing["media-pause-after-probe"] == "true" {
+                try await client.saveSession()
+                await resume(current)
+                return
+            }
+            try await client.resume(task.id)
+        }
+        try await client.saveSession()
+        _ = await refreshTasks(reportErrors: false)
+    }
+
+    func recheckTorrent(_ task: DownloadTask) async {
+        guard task.isTorrentLike, task.isAvailableInEngine, task.primaryControlAction != nil,
+              engineCapabilities?.supportsTorrentManagement == true, !isUpdatingEngine else { return }
+        cancelSchedule(task.id)
+        await performTaskMutation(alertTitle: String(localized: "Recheck Files Failed")) { client in try await client.recheckTorrent(task.id) }
+    }
+
+    func reannounceTorrent(_ task: DownloadTask) async {
+        guard task.isTorrentLike, task.isAvailableInEngine, task.status == .active,
+              engineCapabilities?.supportsTorrentManagement == true, !isUpdatingEngine else { return }
+        await performTaskMutation(alertTitle: String(localized: "Announce Failed")) { client in try await client.reannounceTorrent(task.id) }
+        await refreshDetails(for: task.id)
+    }
+
+    func taskOptions(_ id: String) async throws -> [String: String] {
+        try await engineController.client().getOption(id)
+    }
+
+    func transferClient(for taskID: String) throws -> Aria2RPCClient {
+        guard !isUpdatingEngine, tasks.contains(where: { $0.id == taskID && $0.isAvailableInEngine }) else {
+            throw EngineError.notRunning
+        }
+        return try engineController.client()
+    }
+
+    func setTaskBandwidthLimits(_ task: DownloadTask, limits: TaskBandwidthLimits) async throws {
+        guard task.primaryControlAction != nil, task.isTorrentLike == (limits.uploadKiB != nil) else {
+            throw EngineError.notRunning
+        }
+        let options = try limits.engineOptions()
+        let client = try transferClient(for: task.id)
+        try await client.changeOption(gid: task.id, options: options)
+        try await client.saveSession()
+    }
+
+    func setTorrentUploadLimit(_ task: DownloadTask, kib: Int) async throws {
+        guard task.isTorrentLike, task.primaryControlAction != nil else { throw EngineError.notRunning }
+        let option = try TransferRateLimit.option(kib: kib)
+        let client = try transferClient(for: task.id)
+        try await client.changeOption(gid: task.id, options: ["max-upload-limit": option])
+        try await client.saveSession()
+    }
+
+    func updateTorrent(_ task: DownloadTask, options: BitTorrentTaskOptions) async throws {
+        guard !isUpdatingEngine, task.isTorrentLike, task.isAvailableInEngine,
+              task.primaryControlAction != nil, engineCapabilities?.supportsTorrentManagement == true else {
+            throw DownloadOperationError(String(localized: "Torrent settings are unavailable in the current engine state."))
+        }
+        let values = try options.engineOptions()
+        let client = try engineController.client()
+        taskRevision += 1
+        taskMutationDepth += 1
+        do {
+            try await client.changeOption(gid: task.id, options: values)
+            try await client.saveSession()
+        } catch {
+            taskMutationDepth -= 1; taskRevision += 1
+            throw error
+        }
+        taskMutationDepth -= 1; taskRevision += 1
+        _ = await refreshTasks(reportErrors: false)
+    }
+
+    func moveQueuedTask(_ id: String, before target: String? = nil) async {
+        guard !isUpdatingEngine else { return }
+        await performTaskMutation(alertTitle: String(localized: "Reorder Queue Failed")) { client in
+            let queue = try await client.waitingQueueIDs()
+            guard let position = DownloadQueueOrder.position(moving: id, before: target, in: queue) else { return }
+            try await client.changePosition(id, to: position)
+        }
+    }
+
+    func cancelSchedule(_ id: String) {
+        scheduleRequests.removeValue(forKey: id)
+        armedScheduledTaskIDs.remove(id)
+        guard let index = tasks.firstIndex(where: { $0.id == id }), tasks[index].scheduledStart != nil else { return }
+        taskRevision += 1
+        tasks[index].scheduledStart = nil
+        persistTaskHistory()
+    }
+
+    func scheduleTask(_ id: String, at date: Date) async {
+        guard !isUpdatingEngine, date > Date(), let task = tasks.first(where: { $0.id == id }),
+              task.primaryControlAction != nil, !task.requiresFileSelection else { return }
+        let request = UUID()
+        let session = engineSessionID
+        scheduleRequests[id] = request
+        defer { if scheduleRequests[id] == request { scheduleRequests.removeValue(forKey: id) } }
+        do {
+            let client = try engineController.client()
+            if task.media != nil, try await client.getOption(id)["media-pause-after-probe"] == "true" {
+                throw DownloadOperationError(String(localized: "Choose media tracks before scheduling this download."))
+            }
+            if task.status != .paused { try await client.pause(id) }
+            try await client.saveSession()
+            guard scheduleRequests[id] == request, engineSessionID == session,
+                  let index = tasks.firstIndex(where: { $0.id == id }), !isShuttingDown else { return }
+            taskRevision += 1
+            tasks[index].scheduledStart = date
+            tasks[index].status = .paused
+            guard persistTaskHistory() else { return }
+            armedScheduledTaskIDs.insert(id)
+            downloadPlanIssue = nil
+        } catch { downloadPlanIssue = DownloadPrivacy.redact(error.localizedDescription) }
+    }
+
+    func runDownloadPlans(now: Date = Date()) async {
+        guard !applyingDownloadPlans, !isShuttingDown, !isUpdatingEngine, engineController.isRunning else { return }
+        applyingDownloadPlans = true
+        defer { applyingDownloadPlans = false }
+        let client: Aria2RPCClient
+        do { client = try engineController.client() }
+        catch { downloadPlanIssue = DownloadPrivacy.redact(error.localizedDescription); return }
+
+        // A bandwidth error must not prevent an independently armed task from starting.
+        do {
+            if preferences.bandwidthSchedule.enabled, let issue = preferences.bandwidthSchedule.validationIssue {
+                throw DownloadOperationError(issue)
+            }
+            let options = preferences.bandwidthSchedule.options(at: now, base: engineSettings)
+            if options != lastBandwidthOptions {
+                try await client.changeGlobalOption(options)
+                lastBandwidthOptions = options
+            }
+            bandwidthPlanIssue = nil
+        } catch { bandwidthPlanIssue = DownloadPrivacy.redact(error.localizedDescription) }
+
+        let due = tasks.filter { armedScheduledTaskIDs.contains($0.id) && ($0.scheduledStart.map { $0 <= now } ?? false) }
+        var failures: [String] = []
+        for task in due {
+            guard armedScheduledTaskIDs.contains(task.id), !isShuttingDown, !isUpdatingEngine,
+                  task.isAvailableInEngine else { continue }
+            // Disarm before RPC: a failed start requires user action, never repeated alerts or starts.
+            armedScheduledTaskIDs.remove(task.id)
+            guard task.status == .paused else { continue }
+            do {
+                try await client.resume(task.id)
+                cancelSchedule(task.id)
+                try await client.saveSession()
+            } catch { failures.append(DownloadPrivacy.redact(error.localizedDescription)) }
+        }
+        if !failures.isEmpty { downloadPlanIssue = String(localized: "Scheduled start failed. Enable the schedule to try again. ") + failures[0] }
+        else if !due.isEmpty { downloadPlanIssue = nil }
     }
 
     func beginRemove(_ task: DownloadTask) {
@@ -1182,61 +1701,91 @@ final class DownloadStore: ObservableObject {
     }
 
     func remove(_ task: DownloadTask, includingFiles: Bool = false) async {
-        await performTaskMutation(alertTitle: "Remove Failed") { client in
-            if includingFiles, task.removalAction == .removeDownloadResult {
-                try DownloadTaskFileTrash.moveTaskFilesToTrash(task)
-            }
+        guard !isUpdatingEngine else { return }
+        if !engineController.isRunning || !task.isAvailableInEngine {
+            do {
+                if includingFiles {
+                    guard task.removalAction == .removeDownloadResult else { throw EngineError.notRunning }
+                    try DownloadTaskFileTrash.moveTaskFilesToTrash(task)
+                }
+                try hideHistory([task.id])
+            } catch { postError(error, title: String(localized: "Remove Failed")) }
+            return
+        }
+        await performTaskMutation(alertTitle: String(localized: "Remove Failed")) { client in
             try await DownloadTaskRPCOperations.remove(task, using: client)
-            if includingFiles, task.removalAction == .removeActiveDownload {
-                try DownloadTaskFileTrash.moveTaskFilesToTrash(task)
-            }
-            selectedTaskID = nil
-            tasks.removeAll { $0.id == task.id }
+            if includingFiles { try DownloadTaskFileTrash.moveTaskFilesToTrash(task) }
+            try hideHistory([task.id])
         }
     }
 
+    func pauseForShortcut() async throws {
+        for id in Set(tasks.filter { $0.scheduledStart != nil }.map(\.id)).union(scheduleRequests.keys) { cancelSchedule(id) }
+        guard !isUpdatingEngine else { throw DownloadOperationError(String(localized: "Wait for the engine update to finish.")) }
+        guard engineController.isRunning else { return }
+        let client = try engineController.client()
+        _ = try await DownloadTaskRPCOperations.pauseAll(tasks, using: client)
+        try await client.saveSession()
+        _ = await refreshTasks(reportErrors: false)
+    }
+
     func pauseAll() async {
-        await performTaskMutation(alertTitle: "Pause All Failed") { client in
+        for id in Set(tasks.filter { $0.scheduledStart != nil }.map(\.id)).union(scheduleRequests.keys) { cancelSchedule(id) }
+        await performTaskMutation(alertTitle: String(localized: "Pause All Failed")) { client in
             let pausedCount = try await DownloadTaskRPCOperations.pauseAll(tasks, using: client)
             if pausedCount == 0 {
-                postActivity("No active or waiting downloads to pause.")
+                postActivity(String(localized: "No active or waiting downloads to pause."))
             }
         }
     }
 
     func resumeAll() async {
-        await performTaskMutation(alertTitle: "Resume All Failed") { client in
+        for id in Set(tasks.filter { $0.scheduledStart != nil }.map(\.id)).union(scheduleRequests.keys) { cancelSchedule(id) }
+        await performTaskMutation(alertTitle: String(localized: "Resume All Failed")) { client in
             try await client.unpauseAll()
         }
     }
 
     func forcePauseAll() async {
-        await performTaskMutation(alertTitle: "Force Pause All Failed") { client in
+        for id in Set(tasks.filter { $0.scheduledStart != nil }.map(\.id)).union(scheduleRequests.keys) { cancelSchedule(id) }
+        await performTaskMutation(alertTitle: String(localized: "Force Pause All Failed")) { client in
             try await client.forcePauseAll()
         }
     }
 
     func purgeCompletedRecords() async {
-        await performTaskMutation(alertTitle: "Clear Records Failed") { client in
-            try await client.purgeDownloadResult()
-            selectedTaskID = nil
-            tasks.removeAll { $0.removalAction == .removeDownloadResult }
-            postActivity("Cleared completed, failed, and removed records.")
-        }
+        guard !isUpdatingEngine else { return }
+        let ids = Set(tasks.filter { $0.removalAction == .removeDownloadResult }.map(\.id))
+        do {
+            try hideHistory(ids)
+            if engineController.isRunning { _ = await refreshTasks(reportErrors: false) }
+            postActivity(String(localized: "Cleared finished records. Downloaded files were kept."))
+        } catch { postError(error, title: String(localized: "Clear Records Failed")) }
+    }
+
+    private func hideHistory(_ ids: Set<String>) throws {
+        guard let historyStore else { throw CocoaError(.fileWriteUnknown) }
+        try historyStore.hide(ids)
+        armedScheduledTaskIDs.subtract(ids)
+        hiddenTaskIDs.formUnion(ids)
+        taskRevision += 1
+        tasks.removeAll { ids.contains($0.id) }
+        if let selectedTaskID, ids.contains(selectedTaskID) { self.selectedTaskID = nil }
     }
 
     func applyRuntimeEngineOptions() async {
         guard !isUpdatingEngine else { return }
         guard engineController.isRunning else {
-            postError("Start Aria2 Next before applying runtime options.", title: "Apply Settings Failed")
+            postError(String(localized: "Start Aria2 Next before applying runtime options."), title: String(localized: "Apply Settings Failed"))
             return
         }
         do {
             let options = engineSettings.hotReloadableEngineOptions(downloadDirectoryPath: engineSettings.downloadDirectoryPath)
             try await engineController.client().changeGlobalOption(options)
-            postActivity("Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes.")
+            lastBandwidthOptions = nil
+            postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
         } catch {
-            postError(error, title: "Apply Settings Failed")
+            postError(error, title: String(localized: "Apply Settings Failed"))
         }
     }
 
@@ -1265,7 +1814,7 @@ final class DownloadStore: ObservableObject {
         let sources = engineSettings.trackerSourceURLs
         guard !sources.isEmpty else {
             if reportFailures {
-                postError("Select at least one tracker source.", title: "Tracker Sync Failed")
+                postError(String(localized: "Select at least one tracker source."), title: String(localized: "Tracker Sync Failed"))
             }
             return
         }
@@ -1278,7 +1827,7 @@ final class DownloadStore: ObservableObject {
         let trackerText = TrackerText.lineSeparated(fromChunks: result.data)
         guard !trackerText.isEmpty else {
             if reportFailures {
-                postError(trackerFailureMessage(result.failures, successCount: 0, totalCount: sources.count), title: "Tracker Sync Failed")
+                postError(trackerFailureMessage(result.failures, successCount: 0, totalCount: sources.count), title: String(localized: "Tracker Sync Failed"))
             }
             return
         }
@@ -1296,7 +1845,7 @@ final class DownloadStore: ObservableObject {
             } catch {
                 updateRuntime(lastError: error.localizedDescription)
                 if reportFailures {
-                    postError(error, title: "Apply Trackers Failed")
+                    postError(error, title: String(localized: "Apply Trackers Failed"))
                     return
                 }
             }
@@ -1304,11 +1853,11 @@ final class DownloadStore: ObservableObject {
 
         let successCount = result.data.count
         if result.failures.isEmpty {
-            postActivity(startup ? "Trackers auto-synced." : "Trackers synced.")
+            postActivity(startup ? String(localized: "Trackers auto-synced.") : String(localized: "Trackers synced."))
         } else if reportFailures {
             postError(
                 trackerFailureMessage(result.failures, successCount: successCount, totalCount: sources.count),
-                title: "Tracker Sync Partially Failed"
+                title: String(localized: "Tracker Sync Partially Failed")
             )
         }
     }
@@ -1320,17 +1869,17 @@ final class DownloadStore: ObservableObject {
     ) -> String {
         var lines: [String] = []
         if successCount > 0 {
-            lines.append("Synced \(successCount) of \(totalCount) tracker sources.")
+            lines.append(String(localized: "Synced \(successCount) of \(totalCount) tracker sources."))
         }
         if failures.isEmpty {
-            lines.append("No trackers were returned.")
+            lines.append(String(localized: "No trackers were returned."))
         } else {
-            lines.append("Failed sources:")
+            lines.append(String(localized: "Failed sources:"))
             lines.append(
-                contentsOf: failures.prefix(6).map { "\($0.url): \($0.reason)" }
+                contentsOf: failures.prefix(6).map { String(localized: "\($0.url): \($0.reason)") }
             )
             if failures.count > 6 {
-                lines.append("\(failures.count - 6) more failed sources.")
+                lines.append(String(localized: "\(failures.count - 6) more failed sources."))
             }
         }
         return lines.joined(separator: "\n")
@@ -1366,7 +1915,7 @@ final class DownloadStore: ObservableObject {
         guard ED2KBootstrapURLValidator.isValid(engineSettings.ed2kServerMetURL),
               ED2KBootstrapURLValidator.isValid(engineSettings.ed2kNodesDatURL) else {
             if reportFailures {
-                postError("ED2K bootstrap URLs must use HTTP or HTTPS.", title: "ED2K Bootstrap Failed")
+                postError(String(localized: "ED2K bootstrap URLs must use HTTP or HTTPS."), title: String(localized: "ED2K Bootstrap Failed"))
             }
             return
         }
@@ -1386,11 +1935,11 @@ final class DownloadStore: ObservableObject {
             var settings = engineSettings
             settings.lastED2KBootstrapSyncAt = Date()
             engineSettings = settings
-            postActivity(startup ? "ED2K bootstrap auto-synced." : "ED2K bootstrap files synced.")
+            postActivity(startup ? String(localized: "ED2K bootstrap auto-synced.") : String(localized: "ED2K bootstrap files synced."))
         } catch {
             updateRuntime(lastError: error.localizedDescription)
             if reportFailures {
-                postError(error, title: "ED2K Bootstrap Failed")
+                postError(error, title: String(localized: "ED2K Bootstrap Failed"))
             }
         }
     }
@@ -1404,21 +1953,25 @@ final class DownloadStore: ObservableObject {
     }
 
     func startED2KSearch() async {
+        guard engineCapabilities?.supports(.ed2k) != false else {
+            postError(String(localized: "The running engine does not support ED2K."), title: String(localized: "ED2K Search Unavailable"))
+            return
+        }
         guard !isSearchingED2K else { return }
         guard engineController.isRunning else {
-            postError("Start Aria2 Next before searching ED2K.", title: "ED2K Search Failed")
+            postError(String(localized: "Start Aria2 Next before searching ED2K."), title: String(localized: "ED2K Search Failed"))
             return
         }
         let keyword = ed2kSearchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else {
-            postError("Enter an ED2K search keyword.", title: "ED2K Search Failed")
+            postError(String(localized: "Enter an ED2K search keyword."), title: String(localized: "ED2K Search Failed"))
             return
         }
         let context = ed2kDownloadContext()
         guard context.hasBootstrapOrServer else {
             postError(
-                "Sync ED2K bootstrap files or add ED2K servers before searching.",
-                title: "ED2K Search Failed"
+                String(localized: "Sync ED2K bootstrap files or add ED2K servers before searching."),
+                title: String(localized: "ED2K Search Failed")
             )
             return
         }
@@ -1440,7 +1993,7 @@ final class DownloadStore: ObservableObject {
                 searchDirectory = try ED2KSearchTempCache.createDirectory()
             } catch {
                 isSearchingED2K = false
-                postError(error, title: "ED2K Search Failed")
+                postError(error, title: String(localized: "ED2K Search Failed"))
                 return
             }
 
@@ -1456,9 +2009,9 @@ final class DownloadStore: ObservableObject {
                 let results = try await pollED2KSearchResults(gid: gid, client: client, timeoutSeconds: timeoutSeconds)
                 ed2kSearchResults = results
                 if results.isEmpty {
-                    postActivity("ED2K search completed with no results.")
+                    postActivity(String(localized: "ED2K search completed with no results."))
                 } else {
-                    postActivity("ED2K search completed with \(results.count) result\(results.count == 1 ? "" : "s").")
+                    postActivity(String(localized: "ED2K search completed with \(results.count) results."))
                 }
                 do {
                     try await client.cleanupED2KSearch(gid)
@@ -1470,7 +2023,7 @@ final class DownloadStore: ObservableObject {
                     try? await client.cleanupED2KSearch(session.gid)
                 }
             } catch {
-                postError(error, title: "ED2K Search Failed")
+                postError(error, title: String(localized: "ED2K Search Failed"))
             }
             ED2KSearchTempCache.cleanup(ed2kSearchSession?.temporaryDirectory ?? searchDirectory)
             ed2kSearchSession = nil
@@ -1488,24 +2041,24 @@ final class DownloadStore: ObservableObject {
         }
         ed2kSearchSession = nil
         isSearchingED2K = false
-        postActivity(ed2kSearchResults.isEmpty ? "ED2K search cancelled." : "ED2K search cancelled with \(ed2kSearchResults.count) result\(ed2kSearchResults.count == 1 ? "" : "s").")
+        postActivity(ed2kSearchResults.isEmpty ? String(localized: "ED2K search cancelled.") : String(localized: "ED2K search cancelled with \(ed2kSearchResults.count) results."))
     }
 
     func downloadED2KSearchResult(_ result: ED2KSearchResult) async {
         guard let link = result.ed2kLink?.trimmingCharacters(in: .whitespacesAndNewlines),
               !link.isEmpty else {
-            postError("The selected ED2K result does not include a download link.", title: "ED2K Download Failed")
+            postError(String(localized: "The selected ED2K result does not include a download link."), title: String(localized: "ED2K Download Failed"))
             return
         }
         guard engineController.isRunning else {
-            postError("Start Aria2 Next before adding downloads.", title: "ED2K Download Failed")
+            postError(String(localized: "Start Aria2 Next before adding downloads."), title: String(localized: "ED2K Download Failed"))
             return
         }
         let context = ed2kDownloadContext()
         guard context.hasBootstrapOrServer else {
             postError(
-                "Sync ED2K bootstrap files or add ED2K servers before adding ED2K downloads.",
-                title: "ED2K Download Failed"
+                String(localized: "Sync ED2K bootstrap files or add ED2K servers before adding ED2K downloads."),
+                title: String(localized: "ED2K Download Failed")
             )
             return
         }
@@ -1521,19 +2074,18 @@ final class DownloadStore: ObservableObject {
                 autoOrganize: preferences.autoOrganizeFiles,
                 ed2kContext: context
             )
+            rememberSubmittedTasks([gid], draft: draft)
             selectedDestination = .ed2k
             selectedTaskID = gid
-            let refreshError = await refreshTasks(reportErrors: false)
             let saveError = await saveSessionAfterTaskMutation(using: client)
-            if let refreshError {
-                postError(refreshError, title: "Refresh Failed")
-            } else if let saveError {
-                postError(saveError, title: "Save Session Failed")
+            _ = await refreshTasks(reportErrors: false)
+            if let saveError {
+                postError(saveError, title: String(localized: "Save Session Failed"))
             } else {
-                postActivity("ED2K download started.")
+                postActivity(String(localized: "ED2K download started."))
             }
         } catch {
-            postError(error, title: "ED2K Download Failed")
+            postError(error, title: String(localized: "ED2K Download Failed"))
         }
     }
 
@@ -1573,85 +2125,51 @@ final class DownloadStore: ObservableObject {
         client: Aria2RPCClient,
         requestID: UUID
     ) async throws -> BitTorrentFileSelectionSession {
-        let deadline = Date().addingTimeInterval(90)
-        var lastError: Error?
-        let canUseMetadataTaskDirectly = AddDownloadDraft.localTorrentFileURL(source) != nil
-
-        while Date() < deadline {
+        while true {
             try Task.checkCancellation()
-            guard isCurrentBitTorrentSelection(requestID) else {
-                throw CancellationError()
+            guard isCurrentBitTorrentSelection(requestID) else { throw CancellationError() }
+            let metadata = try await client.tellStatus(metadataGID)
+            let contentID = metadata.firstFollowedDownloadID
+            let gid = contentID ?? metadataGID
+            let snapshot = contentID == nil ? metadata : try await client.tellStatus(gid)
+            guard isCurrentBitTorrentSelection(requestID) else { throw CancellationError() }
+            updateBitTorrentSelectionSession {
+                $0.downloadTaskID = contentID
+                $0.diagnostics = snapshot.task.torrentDiagnostics
+                $0.isQueued = snapshot.task.status == .waiting
             }
-            do {
-                let metadataSnapshot = try await client.tellStatus(metadataGID)
-                let followedDownloadID = metadataSnapshot.firstFollowedDownloadID
-                let downloadGID = followedDownloadID ?? metadataGID
-                let downloadSnapshot = downloadGID == metadataGID ? metadataSnapshot : try await client.tellStatus(downloadGID)
-                let files = usableBitTorrentContentFiles(try await client.getFiles(downloadGID))
-                let isResolvedContentTask = followedDownloadID != nil || canUseMetadataTaskDirectly
-
-                if isResolvedContentTask && !files.isEmpty {
-                    return BitTorrentFileSelectionSession(
-                        source: source,
-                        metadataTaskID: metadataGID,
-                        downloadTaskID: downloadGID,
-                        taskName: downloadSnapshot.task.name,
-                        files: files,
-                        selectedFileIndexes: Set(files.map(\.index)),
-                        phase: .ready
-                    )
+            if snapshot.task.status == .failed || snapshot.task.status == .removed {
+                throw DownloadOperationError(snapshot.task.errorMessage ?? String(localized: "The engine could not retrieve this torrent. Check the source or open a local torrent file."))
+            }
+            // Aria2 Next resolves magnets on the SAME GID. fileSelectionState=awaiting
+            // is authoritative; followedBy is only needed for fetched torrent documents.
+            let resolved = TorrentFileTree.isResolved(snapshot, source: source, followed: contentID != nil)
+            if resolved {
+                let files = TorrentFileTree.contentFiles(snapshot.task.files.isEmpty
+                    ? try await client.getFiles(gid) : snapshot.task.files)
+                if !files.isEmpty {
+                    if snapshot.task.status == .active || snapshot.task.status == .waiting {
+                        try await client.forcePause(gid)
+                    }
+                    guard isCurrentBitTorrentSelection(requestID), var session = bitTorrentSelectionSession else { throw CancellationError() }
+                    session.downloadTaskID = gid
+                    session.taskName = snapshot.task.name
+                    session.destination = snapshot.task.destination
+                    if contentID != nil { session.metadataFilePath = metadata.task.files.first?.path }
+                    session.files = files
+                    session.selectedFileIndexes = Set(files.map(\.index))
+                    session.phase = .ready
+                    return session
                 }
-            } catch {
-                lastError = error
             }
-
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            // Peer discovery has no reliable duration. Keep progress and cancellation live,
+            // rather than deleting a valid metadata task after an arbitrary timeout.
+            try await Task.sleep(for: .milliseconds(500))
         }
-
-        throw DownloadTaskOperationError.bitTorrentMetadataTimedOut(
-            reason: lastError?.localizedDescription ?? "Aria2 did not expose torrent files before the timeout."
-        )
-    }
-
-    private func usableBitTorrentContentFiles(_ files: [DownloadFile]) -> [DownloadFile] {
-        files.filter { file in
-            file.length > 0 && !isBitTorrentMetadataPlaceholder(file)
-        }
-    }
-
-    private func isBitTorrentMetadataPlaceholder(_ file: DownloadFile) -> Bool {
-        let trimmedPath = file.path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else { return false }
-        if trimmedPath.hasPrefix("[METADATA]") {
-            return true
-        }
-        return URL(fileURLWithPath: trimmedPath).lastPathComponent.hasPrefix("[METADATA]")
     }
 
     private func isCurrentBitTorrentSelection(_ requestID: UUID) -> Bool {
         bitTorrentSelectionRequestID == requestID && bitTorrentSelectionSession != nil
-    }
-
-    private func mergePolledTasks(_ polledTasks: [DownloadTask]) -> [DownloadTask] {
-        let existingTasks = Dictionary(tasks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return polledTasks.map { polled in
-            guard let existing = existingTasks[polled.id] else { return polled }
-            var merged = polled
-            merged.addedAt = existing.addedAt
-            if merged.peers.isEmpty {
-                merged.peers = existing.peers
-            }
-            if merged.trackers.isEmpty {
-                merged.trackers = existing.trackers
-            }
-            return merged
-        }.sorted { lhs, rhs in
-            if lhs.status != rhs.status {
-                return lhs.status.sortOrder < rhs.status.sortOrder
-            }
-            if lhs.addedAt != rhs.addedAt { return lhs.addedAt > rhs.addedAt }
-            return lhs.id < rhs.id
-        }
     }
 
     private func updateBitTorrentSelectionSession(_ transform: (inout BitTorrentFileSelectionSession) -> Void) {
@@ -1661,10 +2179,19 @@ final class DownloadStore: ObservableObject {
     }
 
     private func cleanupBitTorrentSelection(_ session: BitTorrentFileSelectionSession, using client: Aria2RPCClient?) async {
-        guard let client else { return }
-        let gids = [session.downloadTaskID, session.metadataTaskID]
+        guard session.removesTaskOnCancel else { return }
+        defer { TorrentStorage.removeEmptyDirectory(session.torrentDirectory) }
+        var gids = [session.downloadTaskID, session.metadataTaskID]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        // A fetched .torrent can create a child between the last poll and cancellation.
+        if let client, let metadataID = session.metadataTaskID,
+           let snapshot = try? await client.tellStatus(metadataID) {
+            gids.append(contentsOf: snapshot.followedBy)
+        }
+        do { try hideHistory(Set(gids)) }
+        catch { historyIssue = DownloadPrivacy.redact(error.localizedDescription) }
+        guard let client else { return }
         var seen = Set<String>()
 
         for gid in gids where seen.insert(gid).inserted {
@@ -1687,6 +2214,7 @@ final class DownloadStore: ObservableObject {
                 updateRuntime(lastError: error.localizedDescription)
             }
         }
+        _ = await saveSessionAfterTaskMutation(using: client)
     }
 
     private func isTaskAlreadyAbsent(_ error: Error) -> Bool {
@@ -1708,6 +2236,7 @@ final class DownloadStore: ObservableObject {
                 }
                 guard let self else { break }
                 await self.refreshTasks()
+                await self.runDownloadPlans()
             }
         }
     }
@@ -1719,7 +2248,7 @@ final class DownloadStore: ObservableObject {
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             if let exitStatus = engineController.clearTerminatedProcess() {
-                throw EngineError.processExited(exitStatus, "Aria2 Next exited before RPC became available.")
+                throw EngineError.processExited(exitStatus, String(localized: "Aria2 Next exited before RPC became available."))
             }
             guard engineController.hasLaunchedProcess else {
                 throw CancellationError()
@@ -1738,12 +2267,12 @@ final class DownloadStore: ObservableObject {
         }
 
         if let exitStatus = engineController.clearTerminatedProcess() {
-            throw EngineError.processExited(exitStatus, "Aria2 Next exited before RPC became available.")
+            throw EngineError.processExited(exitStatus, String(localized: "Aria2 Next exited before RPC became available."))
         }
 
         throw EngineError.rpcUnavailableAfterLaunch(
             port: port,
-            reason: lastError?.localizedDescription ?? "RPC port did not open before timeout."
+            reason: lastError?.localizedDescription ?? String(localized: "RPC port did not open before timeout.")
         )
     }
 
@@ -1779,19 +2308,19 @@ final class DownloadStore: ObservableObject {
 
     func postError(_ message: String, title: String) {
         clearActivityMessage()
-        userAlerts.send(UserFacingAlert(title: title, message: message))
+        userAlerts.send(UserFacingAlert(title: title, message: DownloadPrivacy.redact(message)))
     }
 
     func applyDetectedSystemProxy() {
         guard let proxy = SystemProxyDetector.detect() else {
-            postError("No enabled HTTP or HTTPS system proxy was found.", title: "System Proxy Not Found")
+            postError(String(localized: "No enabled HTTP or HTTPS system proxy was found."), title: String(localized: "System Proxy Not Found"))
             return
         }
 
         guard !proxy.isSocks else {
             postError(
-                "The enabled system proxy is SOCKS. Aria2 Next accepts HTTP proxy URLs here, so set an HTTP proxy manually.",
-                title: "Unsupported System Proxy"
+                String(localized: "The enabled system proxy is SOCKS. Aria2 Next accepts HTTP proxy URLs here, so set an HTTP proxy manually."),
+                title: String(localized: "Unsupported System Proxy")
             )
             return
         }
@@ -1800,7 +2329,7 @@ final class DownloadStore: ObservableObject {
         settings.proxyURL = proxy.server
         settings.proxyBypass = proxy.bypass
         engineSettings = settings
-        postActivity(proxy.bypass.isEmpty ? "System proxy applied." : "System proxy and bypass list applied.")
+        postActivity(proxy.bypass.isEmpty ? String(localized: "System proxy applied.") : String(localized: "System proxy and bypass list applied."))
     }
 
     func publishStartupAlerts() {
@@ -1845,7 +2374,7 @@ final class DownloadStore: ObservableObject {
             didReportPowerAssertionFailure = true
             sendDeferredAlert(
                 UserFacingAlert(
-                    title: "Prevent Sleep Failed",
+                    title: String(localized: "Prevent Sleep Failed"),
                     message: error.localizedDescription
                 )
             )
@@ -1864,6 +2393,8 @@ final class DownloadStore: ObservableObject {
             return
         }
 
+        taskRevision += 1
+        taskMutationDepth += 1
         let operationError: Error?
         do {
             try await operation(client)
@@ -1872,15 +2403,15 @@ final class DownloadStore: ObservableObject {
             operationError = error
         }
 
-        let refreshError = await refreshTasks(reportErrors: false)
+        taskMutationDepth -= 1
+        taskRevision += 1
         let saveError = await saveSessionAfterTaskMutation(using: client)
+        _ = await refreshTasks(reportErrors: false)
 
         if let operationError {
             postError(operationError, title: alertTitle)
-        } else if let refreshError {
-            postError(refreshError, title: "Refresh Failed")
         } else if let saveError {
-            postError(saveError, title: "Save Session Failed")
+            postError(saveError, title: String(localized: "Save Session Failed"))
         }
     }
 
@@ -1912,13 +2443,13 @@ final class DownloadStore: ObservableObject {
                 failures.append(error.localizedDescription)
             }
         } else {
-            failures.append("Persistent settings storage is unavailable.")
+            failures.append(String(localized: "Persistent settings storage is unavailable."))
         }
 
         guard !failures.isEmpty else { return }
         sendDeferredAlert(
             UserFacingAlert(
-                title: "Engine Settings Save Failed",
+                title: String(localized: "Engine Settings Save Failed"),
                 message: failures.joined(separator: "\n")
             )
         )
@@ -1928,8 +2459,8 @@ final class DownloadStore: ObservableObject {
         guard let settingsStore else {
             sendDeferredAlert(
                 UserFacingAlert(
-                    title: "App Settings Save Failed",
-                    message: "Persistent settings storage is unavailable."
+                    title: String(localized: "App Settings Save Failed"),
+                    message: String(localized: "Persistent settings storage is unavailable.")
                 )
             )
             return
@@ -1940,7 +2471,7 @@ final class DownloadStore: ObservableObject {
         } catch {
             sendDeferredAlert(
                 UserFacingAlert(
-                    title: "App Settings Save Failed",
+                    title: String(localized: "App Settings Save Failed"),
                     message: error.localizedDescription
                 )
             )
@@ -2059,6 +2590,11 @@ nonisolated enum DownloadTaskFileTrash {
                     return url.path != destinationURL.path
                 }
         )
+        if task.isTorrentLike, let destinationURL, destinationURL.path != "/",
+           task.torrentDirectory == destinationURL.path, !reportedURLs.isEmpty,
+           reportedURLs.allSatisfy({ $0.path.hasPrefix(destinationURL.path + "/") }) {
+            return DownloadTaskTrashPlan(primaryTargets: [destinationURL], companionTargets: [])
+        }
         let primaryTargets = primaryTargets(
             for: reportedURLs,
             destinationURL: destinationURL,
@@ -2176,11 +2712,11 @@ nonisolated enum DownloadFileTrashError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .noReportedFiles(let taskName):
-            "Aria2 Next did not report any file paths for \(taskName), so ChopChop cannot move files to Trash safely."
+            String(localized: "Aria2 Next did not report any file paths for \(taskName), so ChopChop cannot move files to Trash safely.")
         case .noExistingReportedFiles(let paths):
-            "None of the reported downloaded files exist on disk:\n\(paths.joined(separator: "\n"))"
+            String(localized: "None of the reported downloaded files exist on disk:\n\(paths.joined(separator: "\n"))")
         case .moveToTrashFailed(let path, let reason):
-            "Could not move \(path) to Trash.\n\(reason)"
+            String(localized: "Could not move \(path) to Trash.\n\(reason)")
         }
     }
 }
@@ -2222,7 +2758,7 @@ nonisolated enum DownloadTaskRPCOperations {
     }
 
     static func pauseAll(_ tasks: [DownloadTask], using client: Aria2RPCClient) async throws -> Int {
-        let pausableTasks = tasks.filter { $0.primaryControlAction == .pause && !$0.isSharing }
+        let pausableTasks = tasks.filter { $0.primaryControlAction == .pause || ($0.isAvailableInEngine && $0.isSharing) }
         var failedMessages: [String] = []
 
         for task in pausableTasks {
@@ -2278,11 +2814,11 @@ nonisolated enum DownloadTaskOperationError: LocalizedError, Equatable, Sendable
     var errorDescription: String? {
         switch self {
         case .batchPauseFailed(let failedCount, let totalCount, let firstFailure):
-            "Could not pause \(failedCount) of \(totalCount) tasks.\n\(firstFailure)"
+            String(localized: "Could not pause \(failedCount) of \(totalCount) tasks.\n\(firstFailure)")
         case .bitTorrentMetadataTimedOut(let reason):
-            "Torrent metadata did not become available.\n\(reason)"
+            String(localized: "Torrent metadata did not become available.\n\(reason)")
         case .bitTorrentContentNotSelectable(let status):
-            "Torrent files cannot be selected because the content task is \(status). Remove it and add the Magnet again."
+            String(localized: "Torrent files cannot be selected because the content task is \(status). Remove it and add the Magnet again.")
         }
     }
 }

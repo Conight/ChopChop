@@ -7,9 +7,9 @@ nonisolated enum PreferencesError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .staleBookmark(let label):
-            "\(label) permission is stale. Select it again in Settings."
+            String(localized: "\(label) permission is stale. Select it again in Settings.")
         case .missingBookmark(let label):
-            "\(label) has not been selected."
+            String(localized: "\(label) has not been selected.")
         }
     }
 }

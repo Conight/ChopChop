@@ -68,7 +68,7 @@ nonisolated enum EngineDownload {
         try verifyDownload(data, checksums: checksums, release: release)
         try Task.checkCancellation()
         guard !FileManager.default.fileExists(atPath: destination.path) else {
-            throw EngineInstallationError.installationFailed("The destination already exists.")
+            throw EngineInstallationError.installationFailed(String(localized: "The destination already exists."))
         }
         try data.write(to: destination)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)

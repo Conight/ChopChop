@@ -10,7 +10,7 @@ struct MenuBarPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ChopChop")
@@ -20,37 +20,30 @@ struct MenuBarPanel: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(ByteFormat.speed(store.activeSpeed))
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
-                    .monospacedDigit()
             }
 
             HStack(spacing: 12) {
-                MetricColumn(title: "Down", value: ByteFormat.speed(store.activeSpeed), symbol: "arrow.down", tint: .accentColor)
-                MetricColumn(title: "Up", value: ByteFormat.speed(store.uploadSpeed), symbol: "arrow.up", tint: .gray)
+                transferMetric(String(localized: "Download speed"), value: ByteFormat.speed(store.activeSpeed), symbol: "arrow.down")
+                transferMetric(String(localized: "Upload speed"), value: ByteFormat.speed(store.uploadSpeed), symbol: "arrow.up")
             }
 
             if activeTasks.isEmpty {
-                Text("No active downloads.")
+                Text(String(localized: "No active downloads."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                    .padding(12)
+                    .padding(.vertical, AppLayout.controlSpacing)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .panelRowBackground()
             } else {
                 VStack(spacing: 8) {
                     ForEach(activeTasks) { task in
-                        HStack {
-                            Text(task.name)
-                                .lineLimit(1)
-                            Spacer()
-                            Text("\(Int(task.progress * 100))%")
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                        .font(.callout)
-                        .padding(10)
-                        .panelRowBackground()
+                        VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
+                            HStack {
+                                Text(task.name).lineLimit(1).truncationMode(.middle)
+                                Spacer(minLength: 8)
+                                Text(task.progressLabel).monospacedDigit().foregroundStyle(.secondary)
+                            }
+                            TaskProgressIndicator(task: task).controlSize(.small)
+                        }.font(.callout).padding(.vertical, AppLayout.focusClearance)
                     }
                 }
             }
@@ -59,7 +52,7 @@ struct MenuBarPanel: View {
                 Button {
                     Task { await store.pauseAll() }
                 } label: {
-                    Label("Pause All", systemImage: "pause.fill")
+                    Label(String(localized: "Pause All"), systemImage: "pause.fill")
                 }
                 .buttonStyle(.bordered)
                 .disabled(!store.tasks.contains { $0.primaryControlAction == .pause } || store.isUpdatingEngine)
@@ -67,7 +60,7 @@ struct MenuBarPanel: View {
                 Button {
                     Task { await store.resumeAll() }
                 } label: {
-                    Label("Resume", systemImage: "play.fill")
+                    Label(String(localized: "Resume"), systemImage: "play.fill")
                 }
                 .buttonStyle(.bordered)
                 .disabled(!store.tasks.contains { $0.primaryControlAction == .resume } || store.isUpdatingEngine)
@@ -76,7 +69,7 @@ struct MenuBarPanel: View {
                     store.requestAddPanel()
                     NSApp.activate(ignoringOtherApps: true)
                 } label: {
-                    Label("Add", systemImage: "plus")
+                    Label(String(localized: "Add"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -84,39 +77,41 @@ struct MenuBarPanel: View {
             Divider()
 
             HStack {
-                Button("Settings") {
+                Button(String(localized: "Settings")) {
                     openSettings()
                 }
                 .buttonStyle(.bordered)
                 Spacer()
-                Button("Quit") {
+                Button(String(localized: "Quit")) {
                     NSApp.terminate(nil)
                 }
                 .buttonStyle(.bordered)
             }
         }
-        .padding(18)
+        .padding(16)
         .frame(width: 360)
+    }
+
+    private func transferMetric(_ title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: AppLayout.focusClearance) {
+            Label(title, systemImage: symbol).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.body.weight(.medium)).monospacedDigit()
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore).accessibilityLabel(title).accessibilityValue(value)
     }
 
     private var runtimeText: String {
         switch store.runtime.phase {
         case .stopped:
-            "Engine stopped"
+            String(localized: "Engine stopped")
         case .starting:
-            "Engine starting"
+            String(localized: "Engine starting")
         case .running:
-            "Engine running"
+            String(localized: "Engine running")
         case .stopping:
-            "Engine stopping"
+            String(localized: "Engine stopping")
         case .failed:
-            "Engine failed"
+            String(localized: "Engine failed")
         }
-    }
-}
-
-private extension View {
-    func panelRowBackground() -> some View {
-        background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

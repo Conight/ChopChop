@@ -25,11 +25,6 @@ jobs:
           sw_vers
           uname -m
           xcodebuild -version
-      - name: Run unit and RPC regression tests
-        run: Scripts/check.sh unit
-      - name: Verify real engine downloads and resume
-        run: python3 Scripts/smoke-aria2-next.py
-      - name: Build hardened Release app
-        run: Scripts/check.sh release
-      - name: Verify release bundle
-        run: python3 Scripts/verify-release-app.py DerivedData/Build/Products/Release/ChopChop.app
+      - uses: ./.github/actions/verification-tools
+      - name: Verify Swift, browser, real engine, media, and Release
+        run: Scripts/verify.sh

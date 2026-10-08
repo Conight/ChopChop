@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ChopChop",
+  "version": "0.0.1",
+  "description": "__MSG_extensionDescription__",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "__MSG_sendTitle__",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:*"
+  },
+  "default_locale": "en"
+}

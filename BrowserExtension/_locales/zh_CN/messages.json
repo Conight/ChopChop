@@ -1,0 +1,74 @@
+{
+  "extensionDescription": {
+    "message": "发送链接并发现网页媒体，在 ChopChop 中确认下载。"
+  },
+  "sendTitle": {
+    "message": "发送到 ChopChop"
+  },
+  "contextDownload": {
+    "message": "使用 ChopChop 下载"
+  },
+  "pairTitle": {
+    "message": "与 ChopChop 配对"
+  },
+  "pairInstructions": {
+    "message": "在 ChopChop → 设置 → 浏览器接收中，开启接收并复制配对码。"
+  },
+  "pairingCode": {
+    "message": "配对码"
+  },
+  "savePairing": {
+    "message": "保存配对"
+  },
+  "paired": {
+    "message": "配对已保存。发送链接时请保持 ChopChop 运行。"
+  },
+  "popupInstructions": {
+    "message": "选择网页中的媒体，或发送当前链接。ChopChop 会先让你确认下载。"
+  },
+  "looking": {
+    "message": "正在查找媒体…"
+  },
+  "sendSelected": {
+    "message": "发送所选链接"
+  },
+  "pairBrowser": {
+    "message": "配对浏览器…"
+  },
+  "invalidPairing": {
+    "message": "请从 ChopChop → 设置 → 浏览器接收复制配对码。"
+  },
+  "noLinks": {
+    "message": "尚未选择支持的下载链接。"
+  },
+  "unavailable": {
+    "message": "无法连接 ChopChop。请打开应用；如果已在运行，请在设置 → 浏览器接收中开启接收，然后重试。"
+  },
+  "pairingRejected": {
+    "message": "配对已失效。请从 ChopChop 复制新的配对码。"
+  },
+  "rateLimited": {
+    "message": "发送过于频繁，请稍后再试。"
+  },
+  "rejected": {
+    "message": "ChopChop 无法接收这些链接。请检查所选内容，并尝试分批发送。"
+  },
+  "mediaOne": {
+    "message": "找到 1 个媒体来源。"
+  },
+  "mediaMany": {
+    "message": "找到 $1 个媒体来源。"
+  },
+  "noMedia": {
+    "message": "未找到可直接下载的媒体。你可以发送当前网页链接，或复制媒体的直接下载地址。"
+  },
+  "pageRestricted": {
+    "message": "无法检查此网页。请尝试右键点击下载链接。"
+  },
+  "sentOne": {
+    "message": "已发送 1 个链接，请在 ChopChop 中确认。"
+  },
+  "sentMany": {
+    "message": "已发送 $1 个链接，请在 ChopChop 中确认。"
+  }
+}

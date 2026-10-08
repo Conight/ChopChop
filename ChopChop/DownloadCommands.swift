@@ -3,8 +3,9 @@ import SwiftUI
 struct DownloadWindowActions {
     var newDownload: @MainActor () -> Void
     var pasteDownload: @MainActor () -> Void
-    var toggleInspector: @MainActor () -> Void
-    var inspectorPresented: Bool
+    var openDownloadFile: @MainActor () -> Void
+    var toggleDetails: @MainActor () -> Void
+    var detailsPresented: Bool
     var hasSelection: Bool
     var canPresentDownload: Bool
 }
@@ -32,53 +33,65 @@ struct DownloadCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
-            Button("New Download…") { actions?.newDownload() }
+            Button(String(localized: "New Download…")) { actions?.newDownload() }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(actions?.canPresentDownload != true)
-            Button("Paste Download Link…") { actions?.pasteDownload() }
+            Button(String(localized: "Open Download File…")) { actions?.openDownloadFile() }
+                .keyboardShortcut("o")
+                .disabled(actions?.canPresentDownload != true)
+            Button(String(localized: "Paste Download Link…")) { actions?.pasteDownload() }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
                 .disabled(actions?.canPresentDownload != true)
         }
-        CommandGroup(after: .sidebar) {
-            Button(actions?.inspectorPresented == true ? "Hide Details" : "Show Details") {
-                actions?.toggleInspector()
+        CommandGroup(replacing: .sidebar) {
+            Button(actions?.detailsPresented == true ? String(localized: "Hide Details") : String(localized: "Show Details")) {
+                actions?.toggleDetails()
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
             .disabled(actions?.hasSelection != true)
         }
-        CommandMenu("Downloads") {
-            Button("Refresh Downloads") { Task { await store.refreshTasks() } }
+        CommandMenu(String(localized: "Downloads")) {
+            Button(String(localized: "Refresh Downloads")) { Task { await store.refreshTasks() } }
                 .keyboardShortcut("r")
                 .disabled(!engineReady)
             Divider()
-            Button("Pause Download") {
+            Button(String(localized: "Show in Finder")) {
+                if let task = store.selectedTask { store.showInFinder(task) }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(actions?.hasSelection != true || store.selectedTask.flatMap { DownloadFileLocation.revealURL(for: $0) } == nil)
+            Button(String(localized: "Pause Download")) {
                 if let task = store.selectedTask { Task { await store.pause(task) } }
             }
             .disabled(!engineReady || store.selectedTask?.primaryControlAction != .pause)
-            Button("Resume Download") {
+            Button(String(localized: "Resume Download")) {
                 if let task = store.selectedTask { Task { await store.resume(task) } }
             }
             .disabled(!engineReady || store.selectedTask?.primaryControlAction != .resume)
-            Button("Remove Download…") {
+            Button(String(localized: "Edit and Add Again…")) {
+                if let task = store.selectedTask { store.editAndAddAgain(task) }
+            }
+            .disabled(store.selectedTask?.canEditAndAddAgain != true || store.isUpdatingEngine)
+            Button(String(localized: "Remove Download…")) {
                 if let task = store.selectedTask { store.beginRemove(task) }
             }
-            .disabled(!engineReady || actions?.hasSelection != true)
+            .disabled(store.isUpdatingEngine || actions?.hasSelection != true)
             Divider()
-            Button("Pause All") { Task { await store.pauseAll() } }
+            Button(String(localized: "Pause All")) { Task { await store.pauseAll() } }
                 .disabled(!engineReady)
-            Button("Force Pause All") { Task { await store.forcePauseAll() } }
+            Button(String(localized: "Force Pause All")) { Task { await store.forcePauseAll() } }
                 .disabled(!engineReady)
-            Button("Resume All") { Task { await store.resumeAll() } }
+            Button(String(localized: "Resume All")) { Task { await store.resumeAll() } }
                 .disabled(!engineReady)
-            Button("Clear Finished Records") { Task { await store.purgeCompletedRecords() } }
-                .disabled(!engineReady)
+            Button(String(localized: "Clear Finished Records")) { Task { await store.purgeCompletedRecords() } }
+                .disabled(!store.canClearFinishedRecords)
             Divider()
-            Menu("Engine") {
-                Button("Start Engine") { Task { await store.startEngine() } }
+            Menu(String(localized: "Engine")) {
+                Button(String(localized: "Start Engine")) { Task { await store.startEngine() } }
                     .disabled(!store.canStartEngine)
-                Button("Restart Engine") { Task { await store.restartEngine() } }
+                Button(String(localized: "Restart Engine")) { Task { await store.restartEngine() } }
                     .disabled(!store.canRestartEngine)
-                Button("Stop Engine") { Task { await store.stopEngine() } }
+                Button(String(localized: "Stop Engine")) { Task { await store.stopEngine() } }
                     .disabled(!store.canStopEngine)
             }
         }

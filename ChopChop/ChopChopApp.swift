@@ -13,15 +13,28 @@ import SwiftUI
 struct ChopChopApp: App {
     @NSApplicationDelegateAdaptor(ChopChopAppDelegate.self) private var appDelegate
     @StateObject private var store: DownloadStore
+    @StateObject private var updates = AppUpdateCoordinator()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         AppLaunchConfiguration.prepare()
-        _store = StateObject(wrappedValue: DownloadStore())
+        let store = DownloadStore()
+        DownloadIntentRouter.shared.store = store
+        _store = StateObject(wrappedValue: store)
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: AppWindowID.downloads) {
             ContentView()
+                .modifier(DownloadWindowRegistration(delegate: appDelegate))
+                .task {
+                    guard !AppLaunchConfiguration.isTestAutomation else { return }
+                    await updates.check(automatically: true)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active, !AppLaunchConfiguration.isTestAutomation else { return }
+                    Task { await updates.check(automatically: true) }
+                }
                 .onAppear {
                     appDelegate.configureMenuBar(store: store)
                     store.startEngineOnAppLaunch()
@@ -33,13 +46,20 @@ struct ChopChopApp: App {
         .defaultLaunchBehavior(.presented)
         .restorationBehavior(.disabled)
         .commands {
-            SidebarCommands()
             DownloadCommands(store: store)
+            AppSupportCommands(updates: updates)
         }
+
+        Window(String(localized: "ChopChop Help"), id: AppWindowID.help) {
+            AppSupportView().environmentObject(store)
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
 
         Settings {
             SettingsView()
                 .environmentObject(store)
+                .environmentObject(updates)
         }
         .defaultSize(width: 860, height: 640)
         .windowResizability(.contentMinSize)
@@ -81,9 +101,15 @@ enum AppLaunchConfiguration {
 }
 
 final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
+    var openDownloadWindow: (() -> Void)?
     private let menuBarController = MenuBarStatusController()
+    private let dockProgressController = DockDownloadProgressController()
     private weak var store: DownloadStore?
     private var isFinishingTermination = false
+    private var pendingOpenURLs: [URL] = []
+    private var notificationNavigation: AnyCancellable?
+    private var addPanelNavigation: AnyCancellable?
+    private var downloadNavigation: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         presentMainWindowIfNeeded()
@@ -118,9 +144,38 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if let store { store.importDownloads(urls.map(DownloadImportInput.url)) }
+        else { pendingOpenURLs.append(contentsOf: urls) }
+        revealDownloadWindow()
+    }
+
     func configureMenuBar(store: DownloadStore) {
-        self.store = store
+        if self.store !== store {
+            self.store = store
+            downloadNavigation = store.downloadWindowRequests.sink { [weak self] in self?.revealDownloadWindow() }
+            addPanelNavigation = store.addPanelRequests.sink { [weak self] in self?.revealDownloadWindow() }
+            notificationNavigation = store.$notificationNavigationRevision.dropFirst().sink { [weak self] _ in
+                self?.revealDownloadWindow()
+            }
+        }
         menuBarController.configure(store: store)
+        dockProgressController.configure(store: store)
+        if !pendingOpenURLs.isEmpty {
+            let urls = pendingOpenURLs
+            pendingOpenURLs = []
+            store.importDownloads(urls.map(DownloadImportInput.url))
+        }
+    }
+
+    private func revealDownloadWindow() {
+        guard !AppLaunchConfiguration.isTestAutomation else { return }
+        // Identifies a download window even when Settings is the current main window.
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "ChopChop.Downloads" }) {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else { presentMainWindowIfNeeded() }
     }
 
     func removeMenuBarStatusItem() {
@@ -132,28 +187,15 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
             let hasVisibleWindow = NSApp.windows.contains { window in
                 window.isVisible &&
                     !window.isMiniaturized &&
-                    window.canBecomeMain &&
-                    window.level == .normal
+                    window.identifier?.rawValue == "ChopChop.Downloads"
             }
             guard !hasVisibleWindow else { return }
-            let didOpenWindow = self.openNewWindowFromSystemMenu()
-            if !didOpenWindow {
-                NSApp.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: nil)
-            }
+            self.openDownloadWindow?()
             NSApp.activate(ignoringOtherApps: true)
         }
     }
 
-    private func openNewWindowFromSystemMenu() -> Bool {
-        guard let fileMenu = NSApp.mainMenu?.item(withTitle: "File")?.submenu,
-              let newWindowItem = fileMenu.items.first(where: { $0.title == "New Window" }),
-              newWindowItem.isEnabled,
-              let action = newWindowItem.action else {
-            return false
-        }
 
-        return NSApp.sendAction(action, to: newWindowItem.target, from: newWindowItem)
-    }
 }
 
 @MainActor

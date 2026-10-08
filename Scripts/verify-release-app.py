@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Verify the app and installer service, and reject embedded engine payloads."""
 
+import json
+import os
 import pathlib
 import plistlib
 import re
@@ -49,6 +51,29 @@ def verify(app):
     for name in ("Aria2Next-COPYING.txt", "Aria2Next-NOTICE.txt"):
         require((app / "Contents/Resources" / name).read_bytes() == (root / "Vendor/Aria2Next" / name).read_bytes(),
                 f"Engine license notice differs: {name}")
+    tag = info.get("ChopChopReleaseVersion")
+    expected_tag = os.environ.get("CHOPCHOP_RELEASE_VERSION", "development")
+    require(tag == expected_tag, "Full release tag is missing or does not match the build")
+    if tag != "development":
+        require(re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?", tag), "Invalid full release tag")
+        require(tag[1:].split("-")[0] == info["CFBundleShortVersionString"], "Release tag and app version differ")
+    for language in ("en", "zh-Hans"):
+        for bundle in (app, installer):
+            resources = bundle / "Contents/Resources" / (language + ".lproj")
+            require((resources / "Localizable.strings").exists(), f"Missing localization: {resources}")
+        require((app / "Contents/Resources" / (language + ".lproj") / "AppShortcuts.strings").exists(), "Missing shortcut localization")
+    extension = app / "Contents/Resources/BrowserExtension"
+    manifest = json.loads((extension / "manifest.json").read_text())
+    require(manifest.get("default_locale") == "en", "Browser extension fallback locale is missing")
+    require(manifest["manifest_version"] == 3, "Browser extension must use Manifest V3")
+    require(manifest["host_permissions"] == ["http://127.0.0.1/*"], "Browser extension host access is too broad")
+    for name in ("manifest.json", "core.js", "background.js", "popup.js", "popup.html", "options.js", "options.html", "style.css", "i18n.js", "_locales/en/messages.json", "_locales/zh_CN/messages.json"):
+        require((extension / name).read_bytes() == (root / "BrowserExtension" / name).read_bytes(),
+                f"Bundled browser extension differs: {name}")
+    metadata = json.loads((app / "Contents/Resources/Metadata.appintents/extract.actionsdata").read_text())
+    actions = metadata.get("actions", {})
+    for name in ("AddDownloadLinksIntent", "PauseDownloadsIntent", "DownloadSummaryIntent"):
+        require(any(name in key for key in actions), f"App Intent metadata missing: {name}")
     print(f"Verified ChopChop {info['CFBundleShortVersionString']} ({info['CFBundleVersion']}), "
           "no embedded engine, arm64, signatures, entitlements and notices.")
 

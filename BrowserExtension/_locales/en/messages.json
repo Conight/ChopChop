@@ -1,0 +1,74 @@
+{
+  "extensionDescription": {
+    "message": "Send links and discover page media for review in ChopChop."
+  },
+  "sendTitle": {
+    "message": "Send to ChopChop"
+  },
+  "contextDownload": {
+    "message": "Download with ChopChop"
+  },
+  "pairTitle": {
+    "message": "Pair with ChopChop"
+  },
+  "pairInstructions": {
+    "message": "In ChopChop → Settings → Browser Capture, enable integration and copy the pairing code."
+  },
+  "pairingCode": {
+    "message": "Pairing code"
+  },
+  "savePairing": {
+    "message": "Save Pairing"
+  },
+  "paired": {
+    "message": "Paired. Keep ChopChop open when sending links."
+  },
+  "popupInstructions": {
+    "message": "Select media found in this page, or send the current link. ChopChop will ask you to review it."
+  },
+  "looking": {
+    "message": "Looking for media…"
+  },
+  "sendSelected": {
+    "message": "Send Selected"
+  },
+  "pairBrowser": {
+    "message": "Pair Browser…"
+  },
+  "invalidPairing": {
+    "message": "Copy the pairing code from ChopChop → Settings → Browser Capture."
+  },
+  "noLinks": {
+    "message": "No supported download links were selected."
+  },
+  "unavailable": {
+    "message": "Cannot connect to ChopChop. Open the app; if it is already running, enable receiving in Settings → Browser Capture, then try again."
+  },
+  "pairingRejected": {
+    "message": "Pairing was rejected. Copy a new pairing code from ChopChop."
+  },
+  "rateLimited": {
+    "message": "Please wait a moment before sending more links."
+  },
+  "rejected": {
+    "message": "ChopChop could not accept these links. Review the selection and try a smaller batch."
+  },
+  "mediaOne": {
+    "message": "1 media source found."
+  },
+  "mediaMany": {
+    "message": "$1 media sources found."
+  },
+  "noMedia": {
+    "message": "No direct media found. You can send this page link, or copy the direct download URL."
+  },
+  "pageRestricted": {
+    "message": "This page cannot be inspected. Right-click a download link instead."
+  },
+  "sentOne": {
+    "message": "1 link sent. Review in ChopChop."
+  },
+  "sentMany": {
+    "message": "$1 links sent. Review in ChopChop."
+  }
+}

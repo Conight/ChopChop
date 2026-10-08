@@ -33,6 +33,7 @@ jobs:
           sw_vers
           uname -m
           xcodebuild -version
+      - uses: ./.github/actions/verification-tools
       - name: Validate annotated version tag
         run: |
           set -euo pipefail
@@ -47,12 +48,10 @@ jobs:
           if settings['MARKETING_VERSION'] != version:
               sys.exit(f"Tag version {version} does not match MARKETING_VERSION {settings['MARKETING_VERSION']}")
           PY
-      - name: Run unit and RPC regression tests
-        run: Scripts/check.sh unit
-      - name: Verify real engine downloads and resume
-        run: python3 Scripts/smoke-aria2-next.py
-      - name: Build and verify release DMG
-        run: Scripts/create-dmg.sh --output-dir "${OUTPUT_DIR}" --dmg-name "ChopChop-${GITHUB_REF_NAME}-macos-arm64"
+      - name: Verify all features and package DMG
+        env:
+          CHOPCHOP_RELEASE_VERSION: ${{ github.ref_name }}
+        run: Scripts/verify.sh --package "${OUTPUT_DIR}" "ChopChop-${GITHUB_REF_NAME}-macos-arm64"
       - name: Verify checksums
         run: |
           cd "${OUTPUT_DIR}"

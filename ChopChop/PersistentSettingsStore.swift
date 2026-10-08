@@ -7,7 +7,7 @@ nonisolated enum PersistentSettingsError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .recordCreationFailed(let name):
-            "Could not create persistent \(name) settings record."
+            String(localized: "Could not create persistent \(name) settings record.")
         }
     }
 }
@@ -238,6 +238,10 @@ final class PersistentAppConfiguration {
     @Attribute(.unique) var key: String
     var launchAtLogin: Bool
     var showMenuBar: Bool
+    var notifyOnDownloadCompletion: Bool = false
+    var bandwidthScheduleData: Data?
+    var browserCaptureEnabled: Bool = false
+    var browserCaptureToken: String = ""
     var keepRunningAfterClose: Bool
     var autoRevealCompletedFile: Bool
     var askBeforeOverwrite: Bool
@@ -260,6 +264,9 @@ final class PersistentAppConfiguration {
         self.key = key
         self.launchAtLogin = preferences.launchAtLogin
         self.showMenuBar = preferences.showMenuBar
+        self.notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
+        self.browserCaptureEnabled = preferences.browserCaptureEnabled
+        self.browserCaptureToken = preferences.browserCaptureToken
         self.keepRunningAfterClose = preferences.keepRunningAfterClose
         self.autoRevealCompletedFile = preferences.autoRevealCompletedFile
         self.askBeforeOverwrite = preferences.askBeforeOverwrite
@@ -282,6 +289,10 @@ final class PersistentAppConfiguration {
         var preferences = AppPreferences()
         preferences.launchAtLogin = launchAtLogin
         preferences.showMenuBar = showMenuBar
+        preferences.notifyOnDownloadCompletion = notifyOnDownloadCompletion
+        preferences.bandwidthSchedule = bandwidthScheduleData.flatMap { try? JSONDecoder().decode(BandwidthSchedule.self, from: $0) } ?? BandwidthSchedule()
+        preferences.browserCaptureEnabled = browserCaptureEnabled
+        preferences.browserCaptureToken = browserCaptureToken
         preferences.keepRunningAfterClose = keepRunningAfterClose
         preferences.autoRevealCompletedFile = autoRevealCompletedFile
         preferences.askBeforeOverwrite = askBeforeOverwrite
@@ -304,6 +315,10 @@ final class PersistentAppConfiguration {
     func update(from preferences: AppPreferences) {
         launchAtLogin = preferences.launchAtLogin
         showMenuBar = preferences.showMenuBar
+        notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
+        bandwidthScheduleData = try? JSONEncoder().encode(preferences.bandwidthSchedule)
+        browserCaptureEnabled = preferences.browserCaptureEnabled
+        browserCaptureToken = preferences.browserCaptureToken
         keepRunningAfterClose = preferences.keepRunningAfterClose
         autoRevealCompletedFile = preferences.autoRevealCompletedFile
         askBeforeOverwrite = preferences.askBeforeOverwrite
@@ -328,14 +343,21 @@ final class PersistentSettingsStore {
     private let container: ModelContainer
     private let context: ModelContext
 
-    init(inMemory: Bool = false) throws {
+    init(inMemory: Bool = false, storeURL: URL? = nil) throws {
         let schema = Schema([
             PersistentEngineConfiguration.self,
-            PersistentAppConfiguration.self
+            PersistentAppConfiguration.self,
+            PersistentDownloadRecord.self
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+        let configuration: ModelConfiguration
+        if let storeURL { configuration = ModelConfiguration(schema: schema, url: storeURL) }
+        else { configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory) }
         self.container = try ModelContainer(for: schema, configurations: [configuration])
         self.context = ModelContext(container)
+    }
+
+    func makeHistoryStore() throws -> DownloadHistoryStore {
+        try DownloadHistoryStore(context: ModelContext(container))
     }
 
     static func live() throws -> PersistentSettingsStore {

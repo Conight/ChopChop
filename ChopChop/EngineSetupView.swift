@@ -5,22 +5,28 @@ struct EngineSetupView: View {
     @EnvironmentObject private var store: DownloadStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("Aria2 Next Required", systemImage: "arrow.down.circle.fill")
+        VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
+            Label(String(localized: "Aria2 Next Required"), systemImage: "arrow.down.circle.fill")
                 .font(.title2.bold())
-            Text("ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically.")
-                .fixedSize(horizontal: false, vertical: true)
-            if case .failed(let message) = store.engineSetupState {
-                Text(message).foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("engine-install-error")
-            }
-            if case .installing(let progress) = store.engineSetupState {
-                EngineInstallationProgressView(progress: progress, onCancel: store.cancelEngineInstallation)
-                .accessibilityIdentifier("engine-install-progress")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(String(localized: "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically."))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if case .failed(let message) = store.engineSetupState {
+                        Text(message).foregroundStyle(.red)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("engine-install-error")
+                    }
+                    if case .installing(let progress) = store.engineSetupState {
+                        EngineInstallationProgressView(progress: progress, onCancel: store.cancelEngineInstallation)
+                        .accessibilityIdentifier("engine-install-progress")
+                    }
+                    Text(String(localized: "The engine is stored and managed by ChopChop. You do not need to choose a location. Restored downloads remain paused until you resume them."))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                Button("Quit ChopChop") { NSApp.terminate(nil) }
+                Button(String(localized: "Quit ChopChop")) { NSApp.terminate(nil) }
                 Spacer()
                 Button(installButtonTitle) { store.installRequiredEngine() }
                     .buttonStyle(.borderedProminent)
@@ -29,14 +35,14 @@ struct EngineSetupView: View {
                     .accessibilityIdentifier("engine-install-button")
             }
         }
-        .padding(28)
-        .frame(width: 500)
+        .padding(AppLayout.pageInset + AppLayout.focusClearance)
+        .frame(minWidth: 400, idealWidth: 500, maxWidth: 540, minHeight: 340, idealHeight: 400, maxHeight: 500)
         .interactiveDismissDisabled()
     }
 
     private var installButtonTitle: String {
-        if case .failed = store.engineSetupState { return "Retry Download" }
-        return "Download and Start"
+        if case .failed = store.engineSetupState { return String(localized: "Retry Download") }
+        return String(localized: "Download and Start")
     }
 }
 
@@ -68,9 +74,9 @@ struct EngineInstallationProgressView: View {
                 }
                 Spacer(minLength: 12)
                 if progress.canCancel {
-                    Button("Cancel", role: .cancel, action: onCancel)
+                    Button(String(localized: "Cancel"), role: .cancel, action: onCancel)
                         .controlSize(.small)
-                        .help("Cancel this download. A retry starts from the beginning.")
+                        .help(String(localized: "Cancel this download. A retry starts from the beginning."))
                 }
             }
         }

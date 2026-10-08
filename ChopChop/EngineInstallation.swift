@@ -20,10 +20,10 @@ nonisolated enum EngineSetupState: Equatable, Sendable {
     var statusLabel: String? {
         switch self {
         case .unchecked, .ready: nil
-        case .checking: "Checking engine"
-        case .required: "Download required"
+        case .checking: String(localized: "Checking engine")
+        case .required: String(localized: "Download required")
         case .installing(let progress): progress.sidebarDescription
-        case .failed: "Installation failed"
+        case .failed: String(localized: "Installation failed")
         }
     }
 }
@@ -81,10 +81,10 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
         let executable = folder.appendingPathComponent("aria2-next")
         await progress(.init(stage: .testing))
         guard FileManager.default.fileExists(atPath: executable.path) else {
-            throw EngineInstallationError.installationFailed("The installer did not produce an engine executable. Retry the download.")
+            throw EngineInstallationError.installationFailed(String(localized: "The installer did not produce an engine executable. Retry the download."))
         }
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
-            throw EngineInstallationError.installationFailed("macOS did not allow the downloaded engine to run. Reinstall the latest version of ChopChop and retry.")
+            throw EngineInstallationError.installationFailed(String(localized: "macOS did not allow the downloaded engine to run. Reinstall the latest version of ChopChop and retry."))
         }
         // Verify it actually executes under the parent app's sandbox before returning the staged installation.
         let output = try await EngineDownload.runTool(executable.path, arguments: ["--version"])

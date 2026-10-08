@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		60B000000000000000000031 /* MacIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000031; };
+		60B000000000000000000030 /* FileVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000030; };
+		60B000000000000000000029 /* DownloadRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000029; };
+		60B000000000000000000028 /* BitTorrentManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000028; };
+		60B000000000000000000027 /* DownloadPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000027; };
+		60B000000000000000000025 /* BrowserCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000025; };
+		60B000000000000000000026 /* BrowserExtension in Resources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000026; };
+		60B000000000000000000024 /* MediaDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000024; };
+		60B000000000000000000023 /* MediaDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000023; };
+		60B000000000000000000022 /* DownloadNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000022; };
+		60B000000000000000000021 /* DownloadImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000021; };
+		60B000000000000000000020 /* DownloadTaskState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000020; };
+		60B00000000000000000001F /* EngineTaskSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001F; };
+		60B00000000000000000001E /* DownloadHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001E; };
 		60B00000000000000000001C /* DownloadCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001C /* DownloadCommands.swift */; };
 		60B00000000000000000001D /* AddDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001D /* AddDownloadView.swift */; };
 		60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000001 /* Aria2NextEngineController.swift */; };
@@ -38,6 +52,19 @@
         61B000000000000000000001 /* EngineInstaller.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 61A000000000000000000001; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
         61B000000000000000000002 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A000000000000000000002; };
 
+		62B000000000000000000001 /* AppUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000001 /* AppUpdate.swift */; };
+		62B000000000000000000002 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000002 /* AppSupport.swift */; };
+		62B000000000000000000003 /* NativeControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000003 /* NativeControls.swift */; };
+		62B000000000000000000007 /* TorrentFileSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000007 /* TorrentFileSelection.swift */; };
+		62B000000000000000000008 /* TorrentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000008 /* TorrentStorage.swift */; };
+		62B00000000000000000000A /* TransferDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000A /* TransferDetailsView.swift */; };
+		62B000000000000000000009 /* TransferDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000009 /* TransferDetails.swift */; };
+		62B000000000000000000004 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000004 /* Localizable.xcstrings */; };
+        62B000000000000000000005 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000005; };
+        62B000000000000000000006 /* Localizable.xcstrings in Installer */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000004; };
+		62B00000000000000000000B /* TaskDetailsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000B /* TaskDetailsPresentation.swift */; };
+		62B00000000000000000000C /* TaskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000C /* TaskSummaryView.swift */; };
+		62B00000000000000000000D /* DownloadArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000D /* DownloadArtwork.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +94,20 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		60A000000000000000000031 /* MacIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIntegration.swift; sourceTree = "<group>"; };
+		60A000000000000000000030 /* FileVerification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileVerification.swift; sourceTree = "<group>"; };
+		60A000000000000000000029 /* DownloadRepair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadRepair.swift; sourceTree = "<group>"; };
+		60A000000000000000000028 /* BitTorrentManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BitTorrentManagement.swift; sourceTree = "<group>"; };
+		60A000000000000000000027 /* DownloadPlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadPlanning.swift; sourceTree = "<group>"; };
+		60A000000000000000000025 /* BrowserCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserCapture.swift; sourceTree = "<group>"; };
+		60A000000000000000000026 /* BrowserExtension */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BrowserExtension; sourceTree = SOURCE_ROOT; };
+		60A000000000000000000024 /* MediaDownloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDownloadView.swift; sourceTree = "<group>"; };
+		60A000000000000000000023 /* MediaDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDownload.swift; sourceTree = "<group>"; };
+		60A000000000000000000022 /* DownloadNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadNotifications.swift; sourceTree = "<group>"; };
+		60A000000000000000000021 /* DownloadImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadImport.swift; sourceTree = "<group>"; };
+		60A000000000000000000020 /* DownloadTaskState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTaskState.swift; sourceTree = "<group>"; };
+		60A00000000000000000001F /* EngineTaskSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineTaskSnapshot.swift; sourceTree = "<group>"; };
+		60A00000000000000000001E /* DownloadHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadHistoryStore.swift; sourceTree = "<group>"; };
 		60A00000000000000000001C /* DownloadCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadCommands.swift; sourceTree = "<group>"; };
 		60A00000000000000000001D /* AddDownloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDownloadView.swift; sourceTree = "<group>"; };
 		59DBEC9F2FCFE0DA005075E1 /* ChopChop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChopChop.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -100,6 +141,18 @@
         61A000000000000000000002 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineInstaller/main.swift; sourceTree = SOURCE_ROOT; };
         61A000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = EngineInstaller/Info.plist; sourceTree = SOURCE_ROOT; };
 
+		62A000000000000000000001 /* AppUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdate.swift; sourceTree = "<group>"; };
+		62A000000000000000000002 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
+		62A000000000000000000003 /* NativeControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeControls.swift; sourceTree = "<group>"; };
+		62A000000000000000000007 /* TorrentFileSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFileSelection.swift; sourceTree = "<group>"; };
+		62A000000000000000000008 /* TorrentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentStorage.swift; sourceTree = "<group>"; };
+		62A00000000000000000000A /* TransferDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDetailsView.swift; sourceTree = "<group>"; };
+		62A000000000000000000009 /* TransferDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDetails.swift; sourceTree = "<group>"; };
+		62A000000000000000000004 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+        62A000000000000000000005 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
+		62A00000000000000000000B /* TaskDetailsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailsPresentation.swift; sourceTree = "<group>"; };
+		62A00000000000000000000C /* TaskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSummaryView.swift; sourceTree = "<group>"; };
+		62A00000000000000000000D /* DownloadArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadArtwork.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -166,6 +219,18 @@
 		59DBECA12FCFE0DA005075E1 /* ChopChop */ = {
 			isa = PBXGroup;
 			children = (
+				62A000000000000000000004 /* Localizable.xcstrings */,
+                62A000000000000000000005 /* AppShortcuts.xcstrings */,
+				62A000000000000000000003 /* NativeControls.swift */,
+				62A000000000000000000007 /* TorrentFileSelection.swift */,
+				62A000000000000000000008 /* TorrentStorage.swift */,
+				62A00000000000000000000A /* TransferDetailsView.swift */,
+				62A000000000000000000009 /* TransferDetails.swift */,
+				62A00000000000000000000C /* TaskSummaryView.swift */,
+				62A00000000000000000000D /* DownloadArtwork.swift */,
+				62A00000000000000000000B /* TaskDetailsPresentation.swift */,
+				62A000000000000000000002 /* AppSupport.swift */,
+				62A000000000000000000001 /* AppUpdate.swift */,
 				60A000000000000000000018 /* EngineRelease.swift */,
 				60A000000000000000000019 /* EngineDownload.swift */,
 				60A00000000000000000001A /* EngineInstallerProtocol.swift */,
@@ -177,6 +242,20 @@
 				60A000000000000000000003 /* ChopChopApp.swift */,
 				60A000000000000000000004 /* ContentView.swift */,
 				60A000000000000000000005 /* DownloadConsoleView.swift */,
+				60A00000000000000000001E /* DownloadHistoryStore.swift */,
+				60A00000000000000000001F /* EngineTaskSnapshot.swift */,
+				60A000000000000000000020 /* DownloadTaskState.swift */,
+				60A000000000000000000021 /* DownloadImport.swift */,
+				60A000000000000000000023 /* MediaDownload.swift */,
+				60A000000000000000000024 /* MediaDownloadView.swift */,
+				60A000000000000000000025 /* BrowserCapture.swift */,
+				60A000000000000000000031 /* MacIntegration.swift */,
+				60A000000000000000000030 /* FileVerification.swift */,
+				60A000000000000000000029 /* DownloadRepair.swift */,
+				60A000000000000000000028 /* BitTorrentManagement.swift */,
+				60A000000000000000000027 /* DownloadPlanning.swift */,
+				60A000000000000000000026 /* BrowserExtension */,
+				60A000000000000000000022 /* DownloadNotifications.swift */,
 				60A00000000000000000001C /* DownloadCommands.swift */,
 				60A00000000000000000001D /* AddDownloadView.swift */,
 				60A000000000000000000006 /* DownloadStore.swift */,
@@ -284,7 +363,7 @@
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 
-        61F000000000000000000001 /* EngineInstaller */ = {isa = PBXNativeTarget; buildConfigurationList = 61F000000000000000000002; buildPhases = (61D000000000000000000002, ); buildRules = (); dependencies = (); name = EngineInstaller; productName = EngineInstaller; productReference = 61A000000000000000000001; productType = "com.apple.product-type.xpc-service"; };
+        61F000000000000000000001 /* EngineInstaller */ = {isa = PBXNativeTarget; buildConfigurationList = 61F000000000000000000002; buildPhases = (61D000000000000000000002, 62D000000000000000000001, ); buildRules = (); dependencies = (); name = EngineInstaller; productName = EngineInstaller; productReference = 61A000000000000000000001; productType = "com.apple.product-type.xpc-service"; };
 
 /* End PBXNativeTarget section */
 
@@ -313,6 +392,7 @@
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"zh-Hans",
 				en,
 				Base,
 			);
@@ -336,6 +416,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				62B000000000000000000004 /* Localizable.xcstrings in Resources */,
+                62B000000000000000000005 /* AppShortcuts.xcstrings in Resources */,
+				60B000000000000000000026 /* BrowserExtension in Resources */,
 				60B00000000000000000000F /* Assets.xcassets in Resources */,
 				60B000000000000000000011 /* Aria2Next-COPYING.txt in Resources */,
 				60B000000000000000000012 /* Aria2Next-NOTICE.txt in Resources */,
@@ -356,6 +439,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+        62D000000000000000000001 /* Installer Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (62B000000000000000000006, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -363,6 +447,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				62B000000000000000000003 /* NativeControls.swift in Sources */,
+				62B000000000000000000007 /* TorrentFileSelection.swift in Sources */,
+				62B000000000000000000008 /* TorrentStorage.swift in Sources */,
+				62B00000000000000000000A /* TransferDetailsView.swift in Sources */,
+				62B000000000000000000009 /* TransferDetails.swift in Sources */,
+				62B00000000000000000000C /* TaskSummaryView.swift in Sources */,
+				62B00000000000000000000D /* DownloadArtwork.swift in Sources */,
+				62B00000000000000000000B /* TaskDetailsPresentation.swift in Sources */,
+				62B000000000000000000002 /* AppSupport.swift in Sources */,
+				62B000000000000000000001 /* AppUpdate.swift in Sources */,
 				60B000000000000000000018 /* EngineRelease.swift in Sources */,
 				60B000000000000000000019 /* EngineDownload.swift in Sources */,
 				60B00000000000000000001A /* EngineInstallerProtocol.swift in Sources */,
@@ -374,6 +468,19 @@
 				60B000000000000000000003 /* ChopChopApp.swift in Sources */,
 				60B000000000000000000004 /* ContentView.swift in Sources */,
 				60B000000000000000000005 /* DownloadConsoleView.swift in Sources */,
+				60B00000000000000000001E /* DownloadHistoryStore.swift in Sources */,
+				60B00000000000000000001F /* EngineTaskSnapshot.swift in Sources */,
+				60B000000000000000000020 /* DownloadTaskState.swift in Sources */,
+				60B000000000000000000021 /* DownloadImport.swift in Sources */,
+				60B000000000000000000023 /* MediaDownload.swift in Sources */,
+				60B000000000000000000024 /* MediaDownloadView.swift in Sources */,
+				60B000000000000000000025 /* BrowserCapture.swift in Sources */,
+				60B000000000000000000031 /* MacIntegration.swift in Sources */,
+				60B000000000000000000030 /* FileVerification.swift in Sources */,
+				60B000000000000000000029 /* DownloadRepair.swift in Sources */,
+				60B000000000000000000028 /* BitTorrentManagement.swift in Sources */,
+				60B000000000000000000027 /* DownloadPlanning.swift in Sources */,
+				60B000000000000000000022 /* DownloadNotifications.swift in Sources */,
 				60B00000000000000000001C /* DownloadCommands.swift in Sources */,
 				60B00000000000000000001D /* AddDownloadView.swift in Sources */,
 				60B000000000000000000006 /* DownloadStore.swift in Sources */,
@@ -551,7 +658,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -566,13 +673,14 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 			};
 			name = Debug;
 		};
@@ -587,7 +695,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -602,13 +710,14 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.conight.ChopChop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 			};
 			name = Release;
 		};
@@ -636,6 +745,8 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 			};
 			name = Debug;
 		};
@@ -663,6 +774,8 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 			};
 			name = Release;
 		};
@@ -681,6 +794,8 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Debug;
@@ -700,6 +815,8 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Release;
@@ -719,6 +836,8 @@
             PRODUCT_NAME = "$(TARGET_NAME)";
             SKIP_INSTALL = YES;
             SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
             SWIFT_STRICT_CONCURRENCY = complete;
         }; name = Debug; };
 
@@ -737,6 +856,8 @@
             PRODUCT_NAME = "$(TARGET_NAME)";
             SKIP_INSTALL = YES;
             SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
             SWIFT_STRICT_CONCURRENCY = complete;
         }; name = Release; };
 

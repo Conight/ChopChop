@@ -45,7 +45,7 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(engineStatus.waitForExistence(timeout: 8))
         XCTAssertEqual(textValue(of: title), "No Downloads")
         XCTAssertEqual(textValue(of: message), "Add a download link to get started. Your downloads in this category will appear here.")
-        XCTAssertEqual(textValue(of: engineVersion), "Unavailable")
+        XCTAssertEqual(textValue(of: engineVersion), "Engine Unavailable")
         XCTAssertEqual(textValue(of: engineStatus), "Stopped")
     }
 
@@ -79,7 +79,7 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 8))
         XCTAssertTrue(actionButton(in: app, id: "task-waiting-fixture-pause-button", label: "Pause Queue.mov").waitForExistence(timeout: 8))
         XCTAssertTrue(actionButton(in: app, id: "task-paused-fixture-resume-button", label: "Resume Paused.zip").waitForExistence(timeout: 8))
-        XCTAssertTrue(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg").waitForExistence(timeout: 8))
+        XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 8))
 
         XCTAssertFalse(actionButton(in: app, id: "task-active-fixture-resume-button", label: "Resume Ubuntu.iso").exists)
         XCTAssertFalse(actionButton(in: app, id: "task-waiting-fixture-resume-button", label: "Resume Queue.mov").exists)
@@ -92,9 +92,10 @@ final class ChopChopUITests: XCTestCase {
     func testRemovingFixtureTaskShowsNativeConfirmationOptions() throws {
         let app = launchApp(withTaskFixtures: true)
 
-        let removeButton = actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg")
-        XCTAssertTrue(removeButton.waitForExistence(timeout: 8))
-        removeButton.click()
+        let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
+        XCTAssertTrue(completed.waitForExistence(timeout: 8))
+        completed.rightClick()
+        app.menuItems["Remove Download…"].click()
 
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 4))
@@ -111,7 +112,7 @@ final class ChopChopUITests: XCTestCase {
         let app = launchApp(withTaskFixtures: true)
 
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 8))
-        XCTAssertTrue(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg").waitForExistence(timeout: 8))
+        XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 8))
 
         let searchField = searchField(in: app)
         XCTAssertTrue(searchField.waitForExistence(timeout: 8))
@@ -120,10 +121,10 @@ final class ChopChopUITests: XCTestCase {
         searchField.typeKey(.return, modifierFlags: [])
 
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 4))
-        XCTAssertTrue(waitForNonExistence(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg"), timeout: 4))
+        XCTAssertTrue(waitForNonExistence(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg"), timeout: 4))
 
         clear(searchField)
-        XCTAssertTrue(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg").waitForExistence(timeout: 4))
+        XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 4))
     }
 
     @MainActor
@@ -133,6 +134,7 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(taskName.waitForExistence(timeout: 8))
 
         taskName.click()
+        app.buttons.matching(identifier: "toolbar-inspector-button").firstMatch.click()
         segmentedPickerOption(in: app, label: "Network").click()
 
         let tracker = "Announced · udp://tracker.opentrackr.org:1337/announce"
@@ -156,7 +158,7 @@ final class ChopChopUITests: XCTestCase {
         sidebarDestination(in: app, id: "sidebar-destination-active", label: "Active").click()
         XCTAssertTrue(app.windows["Active"].waitForExistence(timeout: 4))
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 4))
-        XCTAssertTrue(waitForNonExistence(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg"), timeout: 4))
+        XCTAssertTrue(waitForNonExistence(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg"), timeout: 4))
 
         sidebarDestination(in: app, id: "sidebar-destination-waiting", label: "Waiting").click()
         XCTAssertTrue(app.windows["Waiting"].waitForExistence(timeout: 4))
@@ -166,13 +168,13 @@ final class ChopChopUITests: XCTestCase {
 
         sidebarDestination(in: app, id: "sidebar-destination-completed", label: "Completed").click()
         XCTAssertTrue(app.windows["Completed"].waitForExistence(timeout: 4))
-        XCTAssertTrue(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg").waitForExistence(timeout: 4))
+        XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 4))
         XCTAssertTrue(waitForNonExistence(actionButton(in: app, id: "task-waiting-fixture-pause-button", label: "Pause Queue.mov"), timeout: 4))
 
         sidebarDestination(in: app, id: "sidebar-destination-all", label: "All").click()
         XCTAssertTrue(app.windows["All"].waitForExistence(timeout: 4))
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 4))
-        XCTAssertTrue(actionButton(in: app, id: "task-completed-fixture-remove-button", label: "Remove Finished.dmg").waitForExistence(timeout: 4))
+        XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 4))
     }
 
     @MainActor
@@ -287,11 +289,7 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(bitTorrentPane.waitForExistence(timeout: 4))
         bitTorrentPane.click()
 
-        XCTAssertTrue(toggleControl(
-            in: app,
-            id: "settings-bt-auto-download-content-toggle",
-            label: "Download magnet and torrent content automatically"
-        ).waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["settings-bt-file-selection-note"].waitForExistence(timeout: 4))
         XCTAssertTrue(toggleControl(in: app, id: "settings-bt-dht-toggle", label: "DHT").waitForExistence(timeout: 4))
         XCTAssertTrue(
             app.descendants(matching: .any)
@@ -299,17 +297,14 @@ final class ChopChopUITests: XCTestCase {
                 .firstMatch
                 .waitForExistence(timeout: 4)
         )
-        let manualStopSegment = segmentedPickerOption(in: app, label: "Seed until manually stopped")
-        XCTAssertTrue(manualStopSegment.waitForExistence(timeout: 4))
-        manualStopSegment.click()
-        let stopByConditionSegment = segmentedPickerOption(in: app, label: "Stop by ratio or time")
-        XCTAssertTrue(stopByConditionSegment.waitForExistence(timeout: 4))
-        stopByConditionSegment.click()
+        let sharingMode = app.popUpButtons["settings-bt-sharing-mode-picker"]
+        sharingMode.click()
+        app.menuItems["Seed until manually stopped"].click()
+        sharingMode.click()
+        app.menuItems["Stop by ratio or time"].click()
         XCTAssertTrue(actionButton(in: app, id: "settings-bt-sync-trackers-button", label: "Sync Trackers").waitForExistence(timeout: 4))
 
-        let trackerSourcesButton = actionButton(in: app, id: "settings-bt-tracker-sources-button", label: "Tracker Sources")
-        XCTAssertTrue(trackerSourcesButton.waitForExistence(timeout: 4))
-        trackerSourcesButton.click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings-bt-tracker-sources-editor"].waitForExistence(timeout: 4))
         XCTAssertTrue(textEntry(in: app, id: "settings-bt-tracker-source-filter-field", label: "Filter").waitForExistence(timeout: 4))
         let customSourceField = textEntry(in: app, id: "settings-bt-custom-tracker-source-field", label: "Custom tracker source URL")
         let addCustomSourceButton = actionButton(in: app, id: "settings-bt-add-custom-tracker-source-button", label: "Add")
@@ -325,13 +320,9 @@ final class ChopChopUITests: XCTestCase {
             ),
             timeout: 4
         ))
-        app.typeKey(.escape, modifierFlags: [])
-
-        let trackerListButton = actionButton(in: app, id: "settings-bt-tracker-list-button", label: "Tracker List")
-        XCTAssertTrue(trackerListButton.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["settings-bt-tracker-list-editor"].waitForExistence(timeout: 4))
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "settings-bt-tracker-text-editor").firstMatch.exists)
 
-        trackerListButton.click()
         XCTAssertTrue(textEntry(in: app, id: "settings-bt-tracker-filter-field", label: "Filter").waitForExistence(timeout: 4))
         let addTrackerField = textEntry(in: app, id: "settings-bt-tracker-add-field", label: "Add tracker URL")
         let addTrackerButton = actionButton(in: app, id: "settings-bt-tracker-add-button", label: "Add")

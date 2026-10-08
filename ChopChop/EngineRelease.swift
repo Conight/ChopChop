@@ -26,38 +26,38 @@ nonisolated struct EngineInstallationProgress: Codable, Equatable, Sendable {
 
     var title: String {
         switch stage {
-        case .checkingRelease: "Checking the latest version…"
-        case .connecting: "Connecting to the download server…"
-        case .downloading: "Downloading Aria2 Next…"
-        case .verifying: "Verifying the download…"
-        case .preparing: "Preparing the engine…"
-        case .testing: "Checking the new engine…"
-        case .savingDownloads: "Saving your downloads…"
-        case .restarting: "Restarting the engine…"
-        case .activating: "Finishing installation…"
-        case .restoring: "Restoring the previous engine…"
+        case .checkingRelease: String(localized: "Checking the latest version…")
+        case .connecting: String(localized: "Connecting to the download server…")
+        case .downloading: String(localized: "Downloading Aria2 Next…")
+        case .verifying: String(localized: "Verifying the download…")
+        case .preparing: String(localized: "Preparing the engine…")
+        case .testing: String(localized: "Checking the new engine…")
+        case .savingDownloads: String(localized: "Saving your downloads…")
+        case .restarting: String(localized: "Restarting the engine…")
+        case .activating: String(localized: "Finishing installation…")
+        case .restoring: String(localized: "Restoring the previous engine…")
         }
     }
 
     var transferDescription: String {
         let received = ByteCountFormatter.string(fromByteCount: max(0, completedBytes), countStyle: .file)
         if let totalBytes, totalBytes > 0 {
-            return "\(received) of \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))"
+            return String(localized: "\(received) of \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
         }
-        return "\(received) downloaded"
+        return String(localized: "\(received) downloaded")
     }
 
     var sidebarDescription: String {
         switch stage {
-        case .checkingRelease: "Checking version"
-        case .connecting: "Connecting"
-        case .downloading: percentDescription.map { "Downloading \($0)" } ?? "Downloading"
-        case .verifying: "Verifying"
-        case .preparing, .testing: "Preparing"
-        case .savingDownloads: "Saving downloads"
-        case .restarting: "Restarting"
-        case .activating: "Finishing"
-        case .restoring: "Restoring"
+        case .checkingRelease: String(localized: "Checking version")
+        case .connecting: String(localized: "Connecting")
+        case .downloading: percentDescription.map { String(localized: "Downloading \($0)") } ?? String(localized: "Downloading")
+        case .verifying: String(localized: "Verifying")
+        case .preparing, .testing: String(localized: "Preparing")
+        case .savingDownloads: String(localized: "Saving downloads")
+        case .restarting: String(localized: "Restarting")
+        case .activating: String(localized: "Finishing")
+        case .restoring: String(localized: "Restoring")
         }
     }
 
@@ -104,11 +104,11 @@ nonisolated enum EngineInstallationError: LocalizedError {
     case invalidRelease, invalidChecksum, invalidExecutable, unexpectedResponse(Int), installationFailed(String)
     var errorDescription: String? {
         switch self {
-        case .invalidRelease: "The latest stable release does not contain a supported Apple Silicon engine."
-        case .invalidChecksum: "The downloaded engine did not match its official SHA-256 checksum. Please retry."
-        case .invalidExecutable: "The downloaded file is not a supported Apple Silicon Aria2 Next executable."
-        case .unexpectedResponse(let code): "The download server returned HTTP \(code). Please try again later."
-        case .installationFailed(let message): "Could not install Aria2 Next. \(message)"
+        case .invalidRelease: String(localized: "The latest stable release does not contain a supported Apple Silicon engine.")
+        case .invalidChecksum: String(localized: "The downloaded engine did not match its official SHA-256 checksum. Please retry.")
+        case .invalidExecutable: String(localized: "The downloaded file is not a supported Apple Silicon Aria2 Next executable.")
+        case .unexpectedResponse(let code): String(localized: "The download server returned HTTP \(code). Please try again later.")
+        case .installationFailed(let message): String(localized: "Could not install Aria2 Next. \(message)")
         }
     }
 }

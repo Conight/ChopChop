@@ -48,20 +48,20 @@ nonisolated final class EngineInstallerRequest: NSObject, EngineInstallerProgres
         connection.exportedInterface = NSXPCInterface(with: EngineInstallerProgressReporting.self)
         connection.exportedObject = self
         connection.interruptionHandler = { [weak self] in
-            self?.finish(.failure(EngineInstallationError.installationFailed("The installer connection was interrupted. Please retry.")))
+            self?.finish(.failure(EngineInstallationError.installationFailed(String(localized: "The installer connection was interrupted. Please retry."))))
         }
         connection.invalidationHandler = { [weak self] in
-            self?.finish(.failure(EngineInstallationError.installationFailed("The installer is unavailable. Please retry or reinstall ChopChop.")))
+            self?.finish(.failure(EngineInstallationError.installationFailed(String(localized: "The installer is unavailable. Please retry or reinstall ChopChop."))))
         }
         connection.resume()
         let proxy = connection.remoteObjectProxyWithErrorHandler { [weak self] error in self?.finish(.failure(error)) }
         guard let installer = proxy as? EngineInstallerProtocol else {
-            finish(.failure(EngineInstallationError.installationFailed("The installer could not be reached.")))
+            finish(.failure(EngineInstallationError.installationFailed(String(localized: "The installer could not be reached."))))
             return
         }
         installer.install(version: version, directoryBookmark: bookmark) { [weak self] directory, error in
             if let directory { self?.finish(.success(directory)) }
-            else { self?.finish(.failure(EngineInstallationError.installationFailed(error ?? "Please retry."))) }
+            else { self?.finish(.failure(EngineInstallationError.installationFailed(error ?? String(localized: "Please retry.")))) }
         }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 300) { [weak self] in
             self?.finish(.failure(URLError(.timedOut)))

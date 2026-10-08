@@ -1,0 +1,51 @@
+最新实施方向（2026-10-09）
+根据用户反馈，已取消早期雪山/山峦方案。DownloadFlowScene 改为两道连续贝塞尔曲面、低饱和光影、32 秒缓慢流转。曲面锚定底部并保持比例；表单变高时增加上方留白。下方保留原始调研供追溯，其中山形建议已失效。
+
+ChopChop 左侧程序动画调研 — 2026-10-08
+状态：已在新建下载窗口实现原生程序绘制与动画。原始调研结论保留如下，实施和验证记录见 Documentation/Development.md。
+
+结论
+可以用原生 SwiftUI 程序绘制左侧装饰画，并按 macOS 当前强调色、明暗外观和辅助功能设置调整颜色与运动。
+建议把设计图里的雪山/流线抽象成少量曲面：Canvas/Path 定义轮廓与层次，渐变定义光影；MeshGradient 可作为可选的柔和底色。
+TimelineView 的可暂停动画调度控制时间。无需把生图切成逐帧素材，也无需为每种强调色导出视频。
+
+Apple 官方依据
+1. Canvas 用于动态二维图形，可绘制路径、渐变、图像并混合。Canvas 内部元素没有独立交互/无障碍语义，因此只画装饰，文字、按钮和表单仍用原生视图。
+https://developer.apple.com/documentation/swiftui/canvas
+2. MeshGradient 是二维颜色网格，提供控制点、颜色与平滑插值，适合可控的曲面渐变，但它本身不负责动画时序。
+https://developer.apple.com/documentation/swiftui/meshgradient
+3. TimelineView 的 AnimationTimelineSchedule 支持 minimumInterval 和 paused。minimumInterval 是更新频率上限，不保证实际帧率。
+https://developer.apple.com/documentation/swiftui/animationtimelineschedule/init(minimuminterval:paused:)
+4. NSColor.controlAccentColor 返回用户的当前强调色；Color.accentColor 反映系统或 App 强调色，macOS 的多色选项允许应用自己的强调色。
+https://developer.apple.com/documentation/appkit/nscolor/controlaccentcolor
+https://developer.apple.com/documentation/swiftui/color/accentcolor
+5. colorScheme / colorSchemeContrast 提供明暗与对比度环境；动态系统颜色有对应外观变化。自定义衍生色仍须单独验证，不能假定自动获得合格对比度。
+https://developer.apple.com/design/human-interface-guidelines/color
+https://developer.apple.com/documentation/swiftui/environmentvalues/colorscheme
+6. Motion 指南强调动画有目的、克制、可选择，避免让人等待或分心。accessibilityReduceMotion 要求减少大型运动；此装饰建议直接静止。
+https://developer.apple.com/design/human-interface-guidelines/motion
+https://developer.apple.com/documentation/swiftui/environmentvalues/accessibilityreducemotion
+7. 减少透明度时窗口背景应保持不透明；低电量模式可通过 ProcessInfo 查询并响应状态通知，减少活动。
+https://developer.apple.com/documentation/swiftui/environmentvalues/accessibilityreducetransparency
+https://developer.apple.com/documentation/foundation/processinfo/islowpowermodeenabled
+
+ChopChop 实施建议（产品选择，不是 Apple 规定的动画参数）
+左侧维持约 25%～30% 宽度，画面仅在自己的裁切区域内移动。右侧表单和按钮完全稳定。
+以当前强调色生成低饱和浅/深层次；浅色外观偏雾白，深色外观偏深灰。石墨色同样要形成清楚的灰阶层次。
+保留曲线轮廓，光影和少量控制点以很低振幅缓慢变化。可从 20～30 秒的变化周期试验，最终以舒适度和实测能耗决定。
+颜色响应系统强调色变化；不读取壁纸文件或声称能够继承整套壁纸配色。系统材质的背景染色和自定义渐变是不同机制。
+“减少动态效果”开启时使用确定的静态构图；“减少透明度”使用不透明底色；“增强对比度”保留可读文字并降低装饰干扰。
+新建窗口关闭、最小化、不可见或 App 进入后台时停止刷新；低电量模式建议静止。
+起点可限定最高 30 fps，仅更新装饰子视图，不让动画驱动整个添加表单或 DownloadStore 刷新。
+保持装饰非交互且对辅助功能隐藏；品牌文字单独使用 Text。不能把绘制图层当作按钮或输入框。
+
+本地代码现状
+项目最低系统为 macOS 26.5；上述核心绘制与调度 API 早于该版本，不需要为此提高最低系统版本。
+现有 AccentColor 资源未指定固定 RGB；已有 SwiftUI 代码使用 Color.accentColor，速度图也已经使用 Canvas。
+调研时尚未实现；现已新增 DownloadArtwork.swift 并接入 AddDownloadPanel。
+
+后续验证
+用真正的 SwiftUI 组件对蓝、紫、橙、石墨色以及浅/深/高对比进行离屏渲染。
+验证减少动态效果后无持续刷新，窗口隐藏/关闭后无动画任务残留。
+在真实 App 内使用 Instruments 检查 CPU/GPU/能耗；30 fps 和实际实现成本在验证前不作性能承诺。
+动画不改变现有下载、种子选择、暂停恢复、原生键盘操作及底部固定按钮布局。

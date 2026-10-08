@@ -18,29 +18,29 @@ nonisolated enum EngineError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .installationRequired:
-            "Download and install Aria2 Next before starting the engine."
+            String(localized: "Download and install Aria2 Next before starting the engine.")
         case .missingDownloadDirectory:
-            "Default download directory has not been selected."
+            String(localized: "Default download directory has not been selected.")
         case .missingRPCToken:
-            "RPC token is required before the engine can be launched."
+            String(localized: "RPC token is required before the engine can be launched.")
         case .invalidRPCPort(let port):
-            "RPC port must be between 1 and 65535. Current value: \(port)."
+            String(localized: "RPC port must be between 1 and 65535. Current value: \(String(port)).")
         case .invalidListenPort(let label, let port):
-            "\(label) must be between 1 and 65535. Current value: \(port)."
+            String(localized: "\(label) must be between 1 and 65535. Current value: \(String(port)).")
         case .invalidNumericSetting(let label, let value, let range):
-            "\(label) must be between \(range.lowerBound) and \(range.upperBound). Current value: \(value)."
+            String(localized: "\(label) must be between \(range.lowerBound) and \(range.upperBound). Current value: \(value).")
         case .executableLaunchFailed(let path, let reason):
-            "Could not launch Aria2 Next at \(path).\n\(reason)"
+            String(localized: "Could not launch Aria2 Next at \(path).\n\(reason)")
         case .processExited(let code, let output):
-            "Aria2 Next exited with code \(code).\n\(output)"
+            String(localized: "Aria2 Next exited with code \(code).\n\(output)")
         case .rpcUnavailableAfterLaunch(let port, let reason):
-            "Aria2 Next launched, but RPC did not become reachable on 127.0.0.1:\(port).\n\(reason)"
+            String(localized: "Aria2 Next launched, but RPC did not become reachable on 127.0.0.1:\(String(port)).\n\(reason)")
         case .portAlreadyInUse(let label, let port):
-            "\(label) port \(port) is already in use. Stop the app using this port, or set a different \(label) port in Settings."
+            String(localized: "\(label) port \(String(port)) is already in use. Stop the app using this port, or set a different \(label) port in Settings.")
         case .alreadyRunning:
-            "Aria2 Next is already running."
+            String(localized: "Aria2 Next is already running.")
         case .notRunning:
-            "Aria2 Next is not running."
+            String(localized: "Aria2 Next is not running.")
         }
     }
 }
@@ -431,7 +431,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
 
     func stop() async throws -> EngineRuntimeSnapshot {
         if let exitStatus = clearTerminatedProcess() {
-            throw EngineError.processExited(exitStatus, "Aria2 Next stopped before the stop request completed.")
+            throw EngineError.processExited(exitStatus, String(localized: "Aria2 Next stopped before the stop request completed."))
         }
         guard let process, process.isRunning else { throw EngineError.notRunning }
         isStopping = true
@@ -476,11 +476,11 @@ final class Aria2NextEngineController: Aria2EngineControlling {
 
         let url: URL
         if settings.downloadDirectoryBookmark != nil {
-            url = try PreferencesStore.resolveBookmark(settings.downloadDirectoryBookmark, label: "Download directory")
+            url = try PreferencesStore.resolveBookmark(settings.downloadDirectoryBookmark, label: String(localized: "Download directory"))
         } else if EngineSettings.isDefaultDownloadDirectoryPath(path) {
             url = URL(fileURLWithPath: path).standardizedFileURL
         } else {
-            throw PreferencesError.missingBookmark("Download directory")
+            throw PreferencesError.missingBookmark(String(localized: "Download directory"))
         }
 
         if url.startAccessingSecurityScopedResource() {
@@ -506,6 +506,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
             // the session file during automation. Keep this stable for resume.
             "--state-dir=\(sessionURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("aria2-next", isDirectory: true).path)",
             "--enable-rpc=true",
+            "--pause=true", // Restored tasks must not transfer before explicit user resume.
             "--rpc-listen-all=false",
             "--summary-interval=0",
             "--save-session=\(sessionURL.path)",
@@ -545,14 +546,14 @@ final class Aria2NextEngineController: Aria2EngineControlling {
             if !wrapperProcess.isRunning {
                 throw EngineError.processExited(
                     wrapperProcess.terminationStatus,
-                    "Aria2 Next exited before publishing its process ID."
+                    String(localized: "Aria2 Next exited before publishing its process ID.")
                 )
             }
             try await Task.sleep(for: .milliseconds(10))
         }
         throw EngineError.executableLaunchFailed(
             path: pidFileURL.deletingLastPathComponent().path,
-            reason: "Aria2 Next lifecycle watchdog did not publish an engine process ID."
+            reason: String(localized: "Aria2 Next lifecycle watchdog did not publish an engine process ID.")
         )
     }
 

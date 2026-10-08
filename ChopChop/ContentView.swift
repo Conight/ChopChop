@@ -10,7 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: DownloadStore
     var body: some View {
-        DownloadConsoleView()
+        DownloadConsoleView(inputCoordinator: store.inputCoordinator)
             .sheet(isPresented: Binding(
                 get: { store.engineSetupState.requiresInstallation },
                 set: { _ in }

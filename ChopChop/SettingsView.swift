@@ -1,34 +1,27 @@
 import AppKit
 import SwiftUI
 
-private enum SettingsPane: String, CaseIterable, Hashable, Identifiable {
+enum SettingsPane: String, CaseIterable, Hashable, Identifiable {
     case general = "General"
     case downloads = "Downloads"
     case network = "Network"
     case bitTorrent = "BitTorrent"
     case ed2k = "ED2K"
-    case protocols = "Protocols"
-    case browserCapture = "Browser Capture"
+    case integrations = "Integrations"
     case engine = "Engine"
-    case advanced = "Advanced"
 
+    var localizedTitle: String { L10n.key(rawValue) }
     var id: String { rawValue }
-
-    var accessibilityIdentifier: String {
-        "settings-pane-\(rawValue.lowercased().replacingOccurrences(of: " ", with: "-"))"
-    }
-
+    var accessibilityIdentifier: String { "settings-pane-\(rawValue.lowercased())" }
     var symbol: String {
         switch self {
         case .general: "gearshape"
         case .downloads: "arrow.down.circle"
         case .network: "network"
         case .bitTorrent: "point.3.connected.trianglepath.dotted"
-        case .ed2k: "shared.with.you"
-        case .protocols: "link.badge.plus"
-        case .browserCapture: "globe.badge.chevron.backward"
+        case .ed2k: "server.rack"
+        case .integrations: "puzzlepiece.extension"
         case .engine: "cpu"
-        case .advanced: "slider.horizontal.3"
         }
     }
 }
@@ -39,29 +32,50 @@ private struct PeerLimitConfirmation {
 
 struct SettingsView: View {
     @EnvironmentObject private var store: DownloadStore
+    @EnvironmentObject private var updates: AppUpdateCoordinator
     @Environment(\.controlActiveState) private var controlActiveState
-    @State private var selectedPane: SettingsPane? = .general
-    @State private var sidebarSearchText = ""
+    @State private var selectedPane: SettingsPane
     @State private var presentedAlert: UserFacingAlert?
     @State private var peerLimitConfirmation: PeerLimitConfirmation?
     @State private var sharingModeSelection: BitTorrentSharingMode = .stopByCondition
     @State private var ed2kSearchFileTypeSelection: ED2KSearchFileType = .any
 
+    init(initialPane: SettingsPane? = nil) {
+        let saved = AppLaunchConfiguration.isTestAutomation ? nil : UserDefaults.standard.string(forKey: "settings.lastPane")
+        _selectedPane = State(initialValue: initialPane ?? saved.flatMap(SettingsPane.init(rawValue:)) ?? .general)
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
-            sidebar
-                .toolbar(removing: .sidebarToggle)
-        } detail: {
-            detail
+        TabView(selection: $selectedPane) {
+            ForEach(SettingsPane.allCases) { pane in
+                Form {
+                    paneContent(pane)
+                }
+                .formStyle(.grouped)
+                .controlSize(.regular)
+                .frame(maxWidth: AppLayout.settingsWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .navigationTitle(pane.localizedTitle)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if pane == .network || pane == .bitTorrent || pane == .ed2k { engineSettingsFooter }
+                }
+                .tabItem { Label(pane.localizedTitle, systemImage: pane.symbol).accessibilityIdentifier(pane.accessibilityIdentifier) }
+                .tag(pane)
+                .accessibilityIdentifier("settings-current-pane-title")
+            }
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 760, minHeight: 560)
+        .frame(minWidth: 760, idealWidth: 800, minHeight: 560, idealHeight: 620)
+        .onChange(of: selectedPane) { _, pane in
+            if !AppLaunchConfiguration.isTestAutomation { UserDefaults.standard.set(pane.rawValue, forKey: "settings.lastPane") }
+        }
         .onAppear {
             syncSharingModeSelectionFromStore()
             syncED2KSearchFileTypeSelectionFromStore()
             store.publishStartupAlerts()
             navigateToRequestedEngineSettings()
+            navigateToRequestedAppUpdates()
         }
+        .onChange(of: updates.settingsRequested) { _, _ in navigateToRequestedAppUpdates() }
         .onChange(of: store.engineSettingsRequested) { _, _ in
             navigateToRequestedEngineSettings()
         }
@@ -87,159 +101,104 @@ struct SettingsView: View {
             )
         }
         .alert(
-            "High Peer Limit",
+            String(localized: "High Peer Limit"),
             isPresented: peerLimitConfirmationIsPresented,
             presenting: peerLimitConfirmation
         ) { confirmation in
-            Button("Continue") {
+            Button(String(localized: "Continue")) {
                 store.engineSettings.btMaxPeers = confirmation.value
                 peerLimitConfirmation = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 peerLimitConfirmation = nil
             }
         } message: { confirmation in
-            Text("Max peers is set to \(confirmation.value). The recommended limit is 128 because higher values can increase memory and connection pressure.")
+            Text(String(localized: "Max peers is set to \(confirmation.value). The recommended limit is 128 because higher values can increase memory and connection pressure."))
         }
+    }
+
+    private func navigateToRequestedAppUpdates() {
+        guard updates.settingsRequested else { return }
+        selectedPane = .general; updates.settingsRequested = false
     }
 
     private func navigateToRequestedEngineSettings() {
         guard store.consumeEngineSettingsRequest() else { return }
-        sidebarSearchText = ""
         selectedPane = .engine
     }
 
-    private var sidebar: some View {
-        List(selection: $selectedPane) {
-            ForEach(filteredPanes) { pane in
-                NavigationLink(value: pane) {
-                    Label(pane.rawValue, systemImage: pane.symbol)
-                }
-                .tag(Optional(pane))
-                .accessibilityIdentifier(pane.accessibilityIdentifier)
-            }
-
-            if filteredPanes.isEmpty {
-                Text("No Results")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .listStyle(.sidebar)
-        .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Search")
-        .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 260)
-        .frame(minWidth: 210)
-    }
-
-    private var filteredPanes: [SettingsPane] {
-        let query = sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return SettingsPane.allCases }
-        return SettingsPane.allCases.filter { pane in
-            pane.rawValue.localizedCaseInsensitiveContains(query) ||
-                headerSubtitle(for: pane).localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    private var detail: some View {
-        NavigationStack {
-            Form {
-                paneContent
-            }
-            .formStyle(.grouped)
-            .controlSize(.regular)
-            .navigationTitle(selectedPane?.rawValue ?? "Settings")
-            .toolbarTitleDisplayMode(.inline)
-            .accessibilityIdentifier("settings-current-pane-title")
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-    }
-
-    private func headerSubtitle(for pane: SettingsPane) -> String {
+    @ViewBuilder
+    private func paneContent(_ pane: SettingsPane) -> some View {
         switch pane {
-        case .general:
-            "Window, launch, and appearance behavior."
-        case .downloads:
-            "Default save location and completed-file behavior."
-        case .network:
-            "Queue size, connection count, retry, timeout, speed, and proxy settings."
-        case .bitTorrent:
-            "Peer discovery, listen ports, encryption, and sharing behavior."
-        case .ed2k:
-            "ED2K ports, bootstrap files, server discovery, and search."
-        case .protocols:
-            "System protocol and file association preferences."
-        case .browserCapture:
-            "Download interception rules for browser integrations."
-        case .engine:
-            "Managed Aria2 Next download, update check, and RPC launch settings."
-        case .advanced:
-            "Runtime diagnostics and explicit launch arguments."
+        case .general: general
+        case .downloads: downloads
+        case .network: network
+        case .bitTorrent: bitTorrent
+        case .ed2k: ed2k
+        case .integrations:
+            protocols
+            browserCapture
+        case .engine: engine
         }
+    }
+
+    private var engineSettingsFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 16) {
+                Text(String(localized: "Saved automatically. Apply changes to the running engine; port changes require a restart."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button(String(localized: "Apply Settings")) {
+                    runStoreTask { await store.applyRuntimeEngineOptions() }
+                }.disabled(!runtimeCanApplySettings)
+            }
+            .padding(.horizontal, AppLayout.settingsInset).padding(.vertical, AppLayout.groupInset)
+            .frame(maxWidth: AppLayout.settingsWidth)
+            .frame(maxWidth: .infinity)
+        }.background(.background)
     }
 
     @ViewBuilder
-    private var paneContent: some View {
-        switch selectedPane ?? .general {
-        case .general:
-            general
-        case .downloads:
-            downloads
-        case .network:
-            network
-        case .bitTorrent:
-            bitTorrent
-        case .ed2k:
-            ed2k
-        case .protocols:
-            protocols
-        case .browserCapture:
-            browserCapture
-        case .engine:
-            engine
-        case .advanced:
-            advanced
-        }
-    }
-
-    private var headerSubtitle: String {
-        headerSubtitle(for: selectedPane ?? .general)
-    }
-
     private var general: some View {
-        SettingsSection {
-            Toggle("Show in menu bar", isOn: $store.preferences.showMenuBar)
-            Toggle("Keep running after window closes", isOn: $store.preferences.keepRunningAfterClose)
-            Toggle("Prevent sleep while downloads are active", isOn: $store.preferences.preventSleepDuringActiveDownloads)
+        SettingsSection(title: String(localized: "App Behavior")) {
+            Toggle(String(localized: "Show in menu bar"), isOn: $store.preferences.showMenuBar)
+            Toggle(String(localized: "Keep running after window closes"), isOn: $store.preferences.keepRunningAfterClose)
+            Toggle(String(localized: "Prevent sleep while downloads are active"), isOn: $store.preferences.preventSleepDuringActiveDownloads)
+            CompletionNotificationSetting(coordinator: store.notifications)
         }
+        AppUpdateSettingsView(updates: updates)
     }
 
     @ViewBuilder
     private var downloads: some View {
-        SettingsSection(title: "Location") {
+        SettingsSection(title: String(localized: "Location")) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Default save location")
-                    Text(store.engineSettings.downloadDirectoryPath ?? "No folder selected")
+                    Text(String(localized: "Default save location"))
+                    Text(store.engineSettings.downloadDirectoryPath.map { DownloadLocationDisplay.path($0) } ?? String(localized: "No folder selected"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 Spacer()
-                Button("Choose Folder") {
+                Button(String(localized: "Choose Folder")) {
                     chooseDownloadFolder()
                 }
             }
-            Toggle("Auto organize files", isOn: $store.preferences.autoOrganizeFiles)
+            Toggle(String(localized: "Auto organize files"), isOn: $store.preferences.autoOrganizeFiles)
         }
 
-        SettingsSection(title: "Removal") {
-            Toggle("Confirm before removing downloads", isOn: confirmBeforeRemoveBinding)
+        SettingsSection(title: String(localized: "Removal")) {
+            Toggle(String(localized: "Confirm before removing downloads"), isOn: confirmBeforeRemoveBinding)
             Toggle(
-                "Move files to Trash when confirmation is skipped",
+                String(localized: "Move files to Trash when confirmation is skipped"),
                 isOn: $store.preferences.deleteFilesWhenSkippingRemoveConfirmation
             )
             .disabled(!store.preferences.suppressRemoveConfirmation)
         }
+        BandwidthScheduleView()
     }
 
     private var confirmBeforeRemoveBinding: Binding<Bool> {
@@ -257,13 +216,6 @@ struct SettingsView: View {
                     peerLimitConfirmation = nil
                 }
             }
-        )
-    }
-
-    private var autoDownloadBitTorrentContentBinding: Binding<Bool> {
-        Binding(
-            get: { !store.engineSettings.pauseMetadata },
-            set: { store.engineSettings.pauseMetadata = !$0 }
         )
     }
 
@@ -291,133 +243,141 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var network: some View {
-        SettingsSection(title: "Transfer") {
+        SettingsSection(title: String(localized: "Transfer")) {
             Stepper(value: $store.engineSettings.maxActiveDownloads, in: 1...100) {
-                SettingValueRow(title: "Max active downloads", value: "\(store.engineSettings.maxActiveDownloads)")
+                SettingValueRow(title: String(localized: "Max active downloads"), value: "\(store.engineSettings.maxActiveDownloads)")
             }
             Stepper(value: $store.engineSettings.maxConnectionsPerTask, in: 1...256) {
-                SettingValueRow(title: "Max connections per server", value: "\(store.engineSettings.maxConnectionsPerTask)")
+                SettingValueRow(title: String(localized: "Max connections per server"), value: "\(store.engineSettings.maxConnectionsPerTask)")
             }
             Stepper(value: $store.engineSettings.splitCount, in: 1...256) {
-                SettingValueRow(title: "Split count", value: "\(store.engineSettings.splitCount)")
+                SettingValueRow(title: String(localized: "Split count"), value: "\(store.engineSettings.splitCount)")
             }
             SpeedLimitStepper(
-                title: "Global download limit",
+                title: String(localized: "Global download limit"),
                 value: $store.engineSettings.maxOverallDownloadLimitKB
             )
             SpeedLimitStepper(
-                title: "Global upload limit",
+                title: String(localized: "Global upload limit"),
                 value: $store.engineSettings.maxOverallUploadLimitKB
             )
         }
 
-        SettingsSection(title: "Retry and Disk") {
+        SettingsSection(title: "HTTP") {
+            TextField("User-Agent", text: $store.engineSettings.userAgent)
+                .nativeTextFieldStyle()
+                .frame(minWidth: 220, maxWidth: .infinity)
+            HStack(spacing: 10) {
+                TextField(String(localized: "Proxy URL"), text: $store.engineSettings.proxyURL)
+                    .nativeTextFieldStyle()
+                    .frame(minWidth: 220, maxWidth: .infinity)
+                    Button {
+                    store.applyDetectedSystemProxy()
+                } label: {
+                    Label(String(localized: "Detect System Proxy"), systemImage: "network")
+                }
+                .buttonStyle(.bordered)
+            }
+            TextField(String(localized: "Proxy bypass list"), text: $store.engineSettings.proxyBypass)
+                .nativeTextFieldStyle()
+                .frame(minWidth: 220, maxWidth: .infinity)
+        }
+        networkAdvanced
+    }
+
+    @ViewBuilder
+    private var networkAdvanced: some View {
+        SettingsSection(title: String(localized: "Retry and Disk")) {
             Stepper(value: $store.engineSettings.retryCount, in: 0...99) {
-                SettingValueRow(title: "Retry count", value: store.engineSettings.retryCount == 0 ? "Unlimited" : "\(store.engineSettings.retryCount)")
+                SettingValueRow(title: String(localized: "Retry count"), value: store.engineSettings.retryCount == 0 ? String(localized: "Unlimited") : "\(store.engineSettings.retryCount)")
             }
             Stepper(value: $store.engineSettings.retryWaitSeconds, in: 1...300) {
-                SettingValueRow(title: "Retry wait", value: "\(store.engineSettings.retryWaitSeconds) s")
+                SettingValueRow(title: String(localized: "Retry wait"), value: String(localized: "\(store.engineSettings.retryWaitSeconds) s"))
             }
             Stepper(value: $store.engineSettings.connectTimeoutSeconds, in: 1...300) {
-                SettingValueRow(title: "Connect timeout", value: "\(store.engineSettings.connectTimeoutSeconds) s")
+                SettingValueRow(title: String(localized: "Connect timeout"), value: String(localized: "\(store.engineSettings.connectTimeoutSeconds) s"))
             }
             Stepper(value: $store.engineSettings.timeoutSeconds, in: 1...300) {
-                SettingValueRow(title: "Transfer timeout", value: "\(store.engineSettings.timeoutSeconds) s")
+                SettingValueRow(title: String(localized: "Transfer timeout"), value: String(localized: "\(store.engineSettings.timeoutSeconds) s"))
             }
-            Picker("File allocation", selection: $store.engineSettings.fileAllocation) {
+            Picker(String(localized: "File allocation"), selection: $store.engineSettings.fileAllocation) {
                 ForEach(FileAllocationMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
             .pickerStyle(.menu)
-            Toggle("Async DNS", isOn: $store.engineSettings.asyncDNS)
+            Toggle(String(localized: "Async DNS"), isOn: $store.engineSettings.asyncDNS)
         }
 
-        SettingsSection(title: "HTTP") {
-            TextField("User-Agent", text: $store.engineSettings.userAgent)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
-            HStack(spacing: 10) {
-                TextField("Proxy URL", text: $store.engineSettings.proxyURL)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 220, maxWidth: .infinity)
-                    .frame(height: 28)
-                Button {
-                    store.applyDetectedSystemProxy()
-                } label: {
-                    Label("Detect System Proxy", systemImage: "network")
-                }
-                .buttonStyle(.bordered)
-            }
-            TextField("Proxy bypass list", text: $store.engineSettings.proxyBypass)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
-        }
     }
 
     @ViewBuilder
     private var bitTorrent: some View {
-        SettingsSection(title: "Content") {
-            Toggle("Download magnet and torrent content automatically", isOn: autoDownloadBitTorrentContentBinding)
-                .accessibilityIdentifier("settings-bt-auto-download-content-toggle")
-            Toggle("Force BitTorrent encryption", isOn: $store.engineSettings.btForceEncryption)
+        SettingsSection(title: String(localized: "Content")) {
+            Text(String(localized: "ChopChop asks you to choose files before starting a torrent download."))
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings-bt-file-selection-note")
+            Toggle(String(localized: "Force BitTorrent encryption"), isOn: $store.engineSettings.btForceEncryption)
                 .accessibilityIdentifier("settings-bt-force-encryption-toggle")
             Stepper(value: btMaxPeersBinding, in: 1...500) {
-                SettingValueRow(title: "Max peers", value: "\(store.engineSettings.btMaxPeers)")
+                SettingValueRow(title: String(localized: "Max peers"), value: "\(store.engineSettings.btMaxPeers)")
             }
             .accessibilityIdentifier("settings-bt-max-peers-stepper")
         }
 
-        SettingsSection(title: "Peer Discovery") {
+        SettingsSection(title: String(localized: "Peer Discovery")) {
             Toggle("DHT", isOn: $store.engineSettings.btDHTEnabled)
                 .accessibilityIdentifier("settings-bt-dht-toggle")
-            Toggle("Peer exchange", isOn: $store.engineSettings.btPeerExchangeEnabled)
+            Toggle(String(localized: "Peer exchange"), isOn: $store.engineSettings.btPeerExchangeEnabled)
                 .accessibilityIdentifier("settings-bt-peer-exchange-toggle")
-            Toggle("Local peer discovery", isOn: $store.engineSettings.btLocalPeerDiscoveryEnabled)
+            Toggle(String(localized: "Local peer discovery"), isOn: $store.engineSettings.btLocalPeerDiscoveryEnabled)
                 .accessibilityIdentifier("settings-bt-local-peer-discovery-toggle")
         }
 
-        SettingsSection(title: "Ports") {
-            SettingsControlRow(title: "BT listen port") {
-                TextField("BT listen port", value: $store.engineSettings.listenPort, format: .number)
-                    .textFieldStyle(.roundedBorder)
+        SettingsSection(title: String(localized: "Seeding")) {
+            Picker(String(localized: "Seeding"), selection: $sharingModeSelection) {
+                ForEach(BitTorrentSharingMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("settings-bt-sharing-mode-picker")
+
+            Stepper(value: $store.engineSettings.shareRatio, in: 1...100) {
+                SettingValueRow(title: String(localized: "Stop at ratio"), value: store.engineSettings.keepSharing ? String(localized: "Disabled") : "\(store.engineSettings.shareRatio)")
+            }
+            .disabled(store.engineSettings.keepSharing)
+
+            Stepper(value: $store.engineSettings.shareTimeMinutes, in: 1...20_160, step: 60) {
+                SettingValueRow(title: String(localized: "Stop after"), value: store.engineSettings.keepSharing ? String(localized: "Disabled") : String(localized: "\(store.engineSettings.shareTimeMinutes) min"))
+            }
+            .disabled(store.engineSettings.keepSharing)
+        }
+
+        bitTorrentAdvanced
+    }
+
+    @ViewBuilder
+    private var bitTorrentAdvanced: some View {
+        SettingsSection(title: String(localized: "Ports")) {
+            SettingsControlRow(title: String(localized: "BT listen port")) {
+                TextField(String(localized: "BT listen port"), value: $store.engineSettings.listenPort, format: .number.grouping(.never))
+                    .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
                     .accessibilityIdentifier("settings-bt-listen-port-field")
             }
-            SettingsControlRow(title: "DHT listen port") {
-                TextField("DHT listen port", value: $store.engineSettings.dhtListenPort, format: .number)
-                    .textFieldStyle(.roundedBorder)
+            SettingsControlRow(title: String(localized: "DHT listen port")) {
+                TextField(String(localized: "DHT listen port"), value: $store.engineSettings.dhtListenPort, format: .number.grouping(.never))
+                    .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
                     .accessibilityIdentifier("settings-bt-dht-listen-port-field")
             }
         }
 
-        SettingsSection(title: "Seeding") {
-            Picker("Mode:", selection: $sharingModeSelection) {
-                ForEach(BitTorrentSharingMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("settings-bt-sharing-mode-picker")
-
-            Stepper(value: $store.engineSettings.shareRatio, in: 1...100) {
-                SettingValueRow(title: "Stop at ratio", value: store.engineSettings.keepSharing ? "Disabled" : "\(store.engineSettings.shareRatio)")
-            }
-            .disabled(store.engineSettings.keepSharing)
-
-            Stepper(value: $store.engineSettings.shareTimeMinutes, in: 1...20_160, step: 60) {
-                SettingValueRow(title: "Stop after", value: store.engineSettings.keepSharing ? "Disabled" : "\(store.engineSettings.shareTimeMinutes) min")
-            }
-            .disabled(store.engineSettings.keepSharing)
-        }
-
-        SettingsSection(title: "Tracker Sources") {
-            TrackerSourcesPopoverButton(
+        SettingsSection(title: String(localized: "Tracker Sources")) {
+            TrackerSourcesEditor(
                 selectedSourceURLs: $store.engineSettings.trackerSourceURLs,
                 customSourceURLs: $store.engineSettings.customTrackerSourceURLs
             )
@@ -426,7 +386,7 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.syncBitTorrentTrackersManually() }
                 } label: {
-                    Label(store.isSyncingTrackers ? "Syncing" : "Sync Trackers", systemImage: "arrow.triangle.2.circlepath")
+                    Label(store.isSyncingTrackers ? String(localized: "Syncing") : String(localized: "Sync Trackers"), systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(store.isSyncingTrackers)
                 .buttonStyle(.bordered)
@@ -434,19 +394,19 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Text("Last sync: \(lastTrackerSyncDescription)")
+                Text(String(localized: "Last sync: \(lastTrackerSyncDescription)"))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
         }
 
-        SettingsSection(title: "Tracker List") {
-            TrackerListPopoverButton(trackerText: btTrackerTextBinding)
+        SettingsSection(title: String(localized: "Tracker List")) {
+            TrackerListEditor(trackerText: btTrackerTextBinding)
 
-            Toggle("Sync tracker sources automatically", isOn: $store.engineSettings.btTrackerAutoSync)
+            Toggle(String(localized: "Sync tracker sources automatically"), isOn: $store.engineSettings.btTrackerAutoSync)
                 .accessibilityIdentifier("settings-bt-tracker-auto-sync-toggle")
 
-            Picker("Sync frequency:", selection: $store.engineSettings.btTrackerSyncIntervalHours) {
+            Picker(String(localized: "Sync frequency:"), selection: $store.engineSettings.btTrackerSyncIntervalHours) {
                 ForEach(TrackerSyncInterval.allCases) { interval in
                     Text(interval.title).tag(interval.rawValue)
                 }
@@ -458,7 +418,7 @@ struct SettingsView: View {
 
     private var lastTrackerSyncDescription: String {
         guard let lastTrackerSyncAt = store.engineSettings.lastTrackerSyncAt else {
-            return "Never"
+            return String(localized: "Never")
         }
         return lastTrackerSyncAt.formatted(date: .abbreviated, time: .shortened)
     }
@@ -496,44 +456,42 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var ed2k: some View {
-        SettingsSection(title: "Ports") {
-            SettingsControlRow(title: "ED2K listen port") {
-                TextField("ED2K listen port", value: $store.engineSettings.ed2kListenPort, format: .number)
-                    .textFieldStyle(.roundedBorder)
+        SettingsSection(title: String(localized: "Ports")) {
+            SettingsControlRow(title: String(localized: "ED2K listen port")) {
+                TextField(String(localized: "ED2K listen port"), value: $store.engineSettings.ed2kListenPort, format: .number.grouping(.never))
+                    .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
                     .accessibilityIdentifier("settings-ed2k-listen-port-field")
             }
-            SettingsControlRow(title: "ED2K UDP listen port") {
-                TextField("ED2K UDP listen port", value: $store.engineSettings.ed2kUDPListenPort, format: .number)
-                    .textFieldStyle(.roundedBorder)
+            SettingsControlRow(title: String(localized: "ED2K UDP listen port")) {
+                TextField(String(localized: "ED2K UDP listen port"), value: $store.engineSettings.ed2kUDPListenPort, format: .number.grouping(.never))
+                    .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
                     .accessibilityIdentifier("settings-ed2k-udp-listen-port-field")
             }
             Stepper(value: $store.engineSettings.ed2kUploadSlots, in: 1...100) {
-                SettingValueRow(title: "Upload slots", value: "\(store.engineSettings.ed2kUploadSlots)")
+                SettingValueRow(title: String(localized: "Upload slots"), value: "\(store.engineSettings.ed2kUploadSlots)")
             }
             .accessibilityIdentifier("settings-ed2k-upload-slots-stepper")
         }
 
-        SettingsSection(title: "Bootstrap") {
-            TextField("server.met URL", text: $store.engineSettings.ed2kServerMetURL)
-                .textFieldStyle(.roundedBorder)
+        SettingsSection(title: String(localized: "Bootstrap")) {
+            TextField(String(localized: "server.met URL"), text: $store.engineSettings.ed2kServerMetURL)
+                .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
                 .accessibilityIdentifier("settings-ed2k-server-met-url-field")
-            TextField("nodes.dat URL", text: $store.engineSettings.ed2kNodesDatURL)
-                .textFieldStyle(.roundedBorder)
+            TextField(String(localized: "nodes.dat URL"), text: $store.engineSettings.ed2kNodesDatURL)
+                .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
                 .accessibilityIdentifier("settings-ed2k-nodes-dat-url-field")
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("ED2K servers")
+                Text(String(localized: "ED2K servers"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("One server per line, for example server.example:4661", text: $store.engineSettings.ed2kServer, axis: .vertical)
+                TextField(String(localized: "One server per line, for example server.example:4661"), text: $store.engineSettings.ed2kServer, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(3...6)
@@ -546,16 +504,16 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings-ed2k-server-list-field")
                 if ED2KServerText.containsInvalidServer(in: store.engineSettings.ed2kServer) {
-                    Text("Use host:port format, one server per line.")
+                    Text(String(localized: "Use host:port format, one server per line."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Toggle("Sync bootstrap files automatically", isOn: $store.engineSettings.ed2kBootstrapAutoSync)
+            Toggle(String(localized: "Sync bootstrap files automatically"), isOn: $store.engineSettings.ed2kBootstrapAutoSync)
                 .accessibilityIdentifier("settings-ed2k-bootstrap-auto-sync-toggle")
 
-            Picker("Sync frequency:", selection: $store.engineSettings.ed2kBootstrapSyncIntervalHours) {
+            Picker(String(localized: "Sync frequency:"), selection: $store.engineSettings.ed2kBootstrapSyncIntervalHours) {
                 ForEach(TrackerSyncInterval.allCases) { interval in
                     Text(interval.title).tag(interval.rawValue)
                 }
@@ -567,7 +525,7 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.syncED2KBootstrapManually() }
                 } label: {
-                    Label(store.isSyncingED2KBootstrap ? "Syncing" : "Sync Bootstrap Files", systemImage: "arrow.triangle.2.circlepath")
+                    Label(store.isSyncingED2KBootstrap ? String(localized: "Syncing") : String(localized: "Sync Bootstrap Files"), systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.bordered)
                 .disabled(store.isSyncingED2KBootstrap)
@@ -581,14 +539,13 @@ struct SettingsView: View {
             }
         }
 
-        SettingsSection(title: "Search") {
-            TextField("Keyword", text: $store.ed2kSearchKeyword)
-                .textFieldStyle(.roundedBorder)
+        SettingsSection(title: String(localized: "Search")) {
+            TextField(String(localized: "Keyword"), text: $store.ed2kSearchKeyword)
+                .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
                 .accessibilityIdentifier("settings-ed2k-search-keyword-field")
 
-            Picker("File type:", selection: $ed2kSearchFileTypeSelection) {
+            Picker(String(localized: "File type:"), selection: $ed2kSearchFileTypeSelection) {
                 ForEach(ED2KSearchFileType.allCases) { fileType in
                     Text(fileType.title).tag(fileType)
                 }
@@ -597,11 +554,11 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings-ed2k-search-file-type-picker")
 
             Stepper(value: $store.ed2kSearchMinSources, in: 1...9_999) {
-                SettingValueRow(title: "Minimum sources", value: "\(store.ed2kSearchMinSources)")
+                SettingValueRow(title: String(localized: "Minimum sources"), value: "\(store.ed2kSearchMinSources)")
             }
 
             Stepper(value: $store.engineSettings.ed2kSearchTimeoutSeconds, in: 10...600, step: 10) {
-                SettingValueRow(title: "Search timeout", value: "\(store.engineSettings.ed2kSearchTimeoutSeconds) s")
+                SettingValueRow(title: String(localized: "Search timeout"), value: String(localized: "\(store.engineSettings.ed2kSearchTimeoutSeconds) s"))
             }
             .accessibilityIdentifier("settings-ed2k-search-timeout-stepper")
 
@@ -609,7 +566,7 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.startOrCancelED2KSearch() }
                 } label: {
-                    Label(store.isSearchingED2K ? "Cancel Search" : "Search", systemImage: store.isSearchingED2K ? "xmark.circle" : "magnifyingglass")
+                    Label(store.isSearchingED2K ? String(localized: "Cancel Search") : String(localized: "Search"), systemImage: store.isSearchingED2K ? "xmark.circle" : "magnifyingglass")
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("settings-ed2k-search-button")
@@ -622,24 +579,24 @@ struct SettingsView: View {
             }
 
             if store.ed2kSearchResults.isEmpty {
-                Text("No ED2K search results.")
+                Text(String(localized: "No ED2K search results."))
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("settings-ed2k-search-empty")
             } else {
                 Table(store.ed2kSearchResults) {
-                    TableColumn("Name") { result in
+                    TableColumn(String(localized: "Name")) { result in
                         Text(result.displayName)
                             .lineLimit(1)
                     }
-                    TableColumn("Size") { result in
+                    TableColumn(String(localized: "Size")) { result in
                         Text(ByteFormat.size(result.lengthBytes))
                             .monospacedDigit()
                     }
-                    TableColumn("Sources") { result in
+                    TableColumn(String(localized: "Sources")) { result in
                         Text(result.sourceCount ?? "0")
                             .monospacedDigit()
                     }
-                    TableColumn("Complete") { result in
+                    TableColumn(String(localized: "Complete")) { result in
                         Text(result.completeSourceCount ?? "0")
                             .monospacedDigit()
                     }
@@ -647,7 +604,7 @@ struct SettingsView: View {
                         Button {
                             runStoreTask { await store.downloadED2KSearchResult(result) }
                         } label: {
-                            Label("Download \(result.displayName)", systemImage: "arrow.down.circle")
+                            Label(String(localized: "Download \(result.displayName)"), systemImage: "arrow.down.circle")
                                 .labelStyle(.iconOnly)
                         }
                         .buttonStyle(.borderless)
@@ -660,32 +617,36 @@ struct SettingsView: View {
     }
 
     private var ed2kBootstrapStatusDescription: String {
-        let serverSize = store.ed2kBootstrapStatus.serverMetSize.map(ByteFormat.size) ?? "Missing"
-        let nodesSize = store.ed2kBootstrapStatus.nodesDatSize.map(ByteFormat.size) ?? "Missing"
-        let syncText = store.engineSettings.lastED2KBootstrapSyncAt?.formatted(date: .abbreviated, time: .shortened) ?? "Never"
-        return "server.met \(serverSize), nodes.dat \(nodesSize) · Last sync \(syncText)"
+        let serverSize = store.ed2kBootstrapStatus.serverMetSize.map(ByteFormat.size) ?? String(localized: "Missing")
+        let nodesSize = store.ed2kBootstrapStatus.nodesDatSize.map(ByteFormat.size) ?? String(localized: "Missing")
+        let syncText = store.engineSettings.lastED2KBootstrapSyncAt?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Never")
+        return String(localized: "server.met \(serverSize), nodes.dat \(nodesSize) · Last sync \(syncText)")
     }
 
     private var ed2kSearchStatusDescription: String {
         if store.isSearchingED2K {
-            return "\(store.ed2kSearchElapsedSeconds)/\(store.engineSettings.ed2kSearchTimeoutSeconds) s · \(store.ed2kSearchResults.count) results"
+            return String(localized: "\(store.ed2kSearchElapsedSeconds)/\(store.engineSettings.ed2kSearchTimeoutSeconds) s · \(store.ed2kSearchResults.count) results")
         }
-        return "\(store.ed2kSearchResults.count) results"
+        return String(localized: "\(store.ed2kSearchResults.count) results")
     }
 
     private var protocols: some View {
-        SettingsSection(title: "Links and Files") {
-            Text("ChopChop supports HTTP, HTTPS, Magnet, ED2K, torrent, and metalink downloads from the Add Download window.")
-            Text("Opening links or files directly from other apps isn't available in this version.")
+        SettingsSection(title: String(localized: "Links and Files")) {
+            Text(String(localized: "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, and metalink downloads from the Add Download window."))
+            Toggle(String(localized: "Receive Magnet links"), isOn: $store.preferences.handleMagnetLinks)
+            Toggle(String(localized: "Receive ED2K links"), isOn: $store.preferences.handleED2KLinks)
+            Toggle(String(localized: "Open Torrent files"), isOn: $store.preferences.handleTorrentFiles)
+            Toggle(String(localized: "Open Metalink files"), isOn: $store.preferences.handleMetalinkFiles)
+            Text(String(localized: "Drop links or files into the download window, or choose File → Open Download File…. Every import opens for review before downloading."))
                 .foregroundStyle(.secondary)
+            Text(String(localized: "To open a file from Finder, choose Open With → ChopChop. Your macOS default apps remain your choice; these options only control what ChopChop accepts."))
+                .font(.callout).foregroundStyle(.secondary)
         }
     }
 
     private var browserCapture: some View {
-        SettingsSection(title: "Browser Integration") {
-            Text("Browser capture isn't available in this version.")
-            Text("Copy a download link from your browser, then choose File → Paste Download Link… in the main window.")
-                .foregroundStyle(.secondary)
+        SettingsSection(title: String(localized: "Browser Integration")) {
+            BrowserIntegrationView(server: store.browserCapture)
         }
     }
 
@@ -693,24 +654,30 @@ struct SettingsView: View {
     private var engine: some View {
         SettingsSection(title: "Aria2 Next") {
             EngineStatusView()
-            KeyValueLine(title: "Installed version", value: store.engineVersionDescription)
-            Text("Aria2 Next starts automatically when ChopChop opens.")
+            KeyValueLine(title: String(localized: "Installed version"), value: store.engineVersionDescription)
+            if let capabilities = store.engineCapabilities {
+                KeyValueLine(title: String(localized: "Running version"), value: capabilities.version)
+                if let features = capabilities.enabledFeatures {
+                    KeyValueLine(title: String(localized: "Available features"), value: features.joined(separator: ", "))
+                }
+            }
+            Text(String(localized: "Aria2 Next starts automatically when ChopChop opens. Restored downloads stay paused until you resume them."))
                 .font(.callout).foregroundStyle(.secondary)
         }
 
-        SettingsSection(title: "Engine Update") {
+        SettingsSection(title: String(localized: "Engine Update")) {
             VStack(alignment: .leading, spacing: 16) {
                 if let progress = store.engineUpgradeProgress {
                     EngineInstallationProgressView(progress: progress, onCancel: store.cancelEngineUpdate)
                         .accessibilityIdentifier("settings-engine-update-progress")
                     Text(progress.canCancel
-                         ? "Your current engine stays available while the update downloads and is verified."
-                         : "Downloads briefly pause while ChopChop finishes the update.")
+                         ? String(localized: "Your current engine stays available while the update downloads and is verified.")
+                         : String(localized: "Downloads briefly pause while ChopChop finishes the update."))
                         .font(.callout).foregroundStyle(.secondary)
                 } else {
                     if let error = store.engineUpgradeError {
                         VStack(alignment: .leading, spacing: 6) {
-                            Label("The update couldn’t be completed", systemImage: "exclamationmark.triangle.fill")
+                            Label(String(localized: "The update couldn’t be completed"), systemImage: "exclamationmark.triangle.fill")
                                 .fontWeight(.medium)
                                 .symbolRenderingMode(.multicolor)
                             Text(error).font(.callout).foregroundStyle(.secondary)
@@ -724,19 +691,19 @@ struct SettingsView: View {
                     }
 
                     if store.availableEngineUpdate != nil {
-                        Text("ChopChop downloads and verifies the update before restarting the engine. Downloads briefly pause during the restart.")
+                        Text(String(localized: "ChopChop downloads and verifies the update before restarting the engine. Downloads briefly pause during the restart."))
                             .font(.callout).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 12) {
                         if let release = store.availableEngineUpdate {
-                            Button(store.engineUpgradeError == nil ? "Update to \(release.version.description)" : "Retry Update to \(release.version.description)") {
+                            Button(store.engineUpgradeError == nil ? String(localized: "Update to \(release.version.description)") : String(localized: "Retry Update to \(release.version.description)")) {
                                 store.updateEngine()
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(!store.canUpdateEngine)
                             .accessibilityIdentifier("settings-update-engine-button")
                         }
-                        Button("Check for Updates") { store.startEngineUpdateCheck() }
+                        Button(String(localized: "Check for Updates")) { store.startEngineUpdateCheck() }
                             .disabled(store.installedEngine == nil || store.isCheckingEngineUpdate)
                         if store.isCheckingEngineUpdate { ProgressView().controlSize(.small) }
                     }
@@ -745,32 +712,35 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
+        engineAdvanced
+    }
+
+    @ViewBuilder
+    private var engineAdvanced: some View {
         SettingsSection(title: "RPC") {
-            SecureField("RPC token", text: $store.engineSettings.rpcToken)
-                .textFieldStyle(.roundedBorder)
+            SecureField(String(localized: "RPC token"), text: $store.engineSettings.rpcToken)
+                .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
-                .frame(height: 28)
             HStack {
                 Button {
                     store.generateRPCToken()
                 } label: {
-                    Label("Generate Token", systemImage: "key")
+                    Label(String(localized: "Generate Token"), systemImage: "key")
                 }
                 .buttonStyle(.bordered)
 
-                TextField("Port", value: $store.engineSettings.rpcPort, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                TextField(String(localized: "Port"), value: $store.engineSettings.rpcPort, format: .number.grouping(.never))
+                    .nativeTextFieldStyle()
                     .frame(width: 112)
-                    .frame(height: 28)
-            }
+                }
         }
 
-        SettingsSection(title: "Runtime") {
+        SettingsSection(title: String(localized: "Runtime")) {
             HStack(spacing: 10) {
                 Button {
                     runStoreTask { await store.startEngine() }
                 } label: {
-                    Label("Start Engine", systemImage: "play.fill")
+                    Label(String(localized: "Start Engine"), systemImage: "play.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!store.canStartEngine)
@@ -778,7 +748,7 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.restartEngine() }
                 } label: {
-                    Label("Restart", systemImage: "arrow.clockwise")
+                    Label(String(localized: "Restart"), systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .disabled(!store.canRestartEngine)
@@ -786,7 +756,7 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.stopEngine() }
                 } label: {
-                    Label("Stop", systemImage: "stop.fill")
+                    Label(String(localized: "Stop"), systemImage: "stop.fill")
                 }
                 .buttonStyle(.bordered)
                 .disabled(!store.canStopEngine)
@@ -794,23 +764,30 @@ struct SettingsView: View {
                 Button {
                     runStoreTask { await store.applyRuntimeEngineOptions() }
                 } label: {
-                    Label("Apply Settings", systemImage: "slider.horizontal.3")
+                    Label(String(localized: "Apply Settings"), systemImage: "slider.horizontal.3")
                 }
                 .buttonStyle(.bordered)
                 .disabled(!runtimeCanApplySettings)
             }
             RuntimeRequirementsView(missingRequirements: store.engineSettings.missingLaunchRequirements)
-            KeyValueLine(title: "State", value: runtimeDescription)
+            KeyValueLine(title: String(localized: "State"), value: runtimeDescription)
             if let error = store.runtime.lastError {
-                KeyValueLine(title: "Last error", value: error)
+                VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
+                    Label(String(localized: "Last error"), systemImage: "exclamationmark.triangle")
+                    Text(error)
+                        .font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        launchArguments
     }
 
     private func chooseDownloadFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Download Folder"
-        panel.prompt = "Choose"
+        panel.title = String(localized: "Choose Download Folder")
+        panel.prompt = String(localized: "Choose")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -828,10 +805,10 @@ struct SettingsView: View {
         }
     }
 
-    private var advanced: some View {
-        SettingsSection {
+    private var launchArguments: some View {
+        SettingsSection(title: String(localized: "Launch Arguments")) {
             if store.runtime.lastLaunchArguments.isEmpty {
-                Text("No engine launch arguments yet.")
+                Text(String(localized: "No engine launch arguments yet."))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(store.runtime.lastLaunchArguments, id: \.self) { argument in
@@ -847,15 +824,15 @@ struct SettingsView: View {
     private var runtimeDescription: String {
         switch store.runtime.phase {
         case .stopped:
-            "Stopped"
+            String(localized: "Stopped")
         case .starting:
-            "Starting"
+            String(localized: "Starting")
         case .running(let pid):
-            "Running, PID \(pid)"
+            String(localized: "Running, PID \(String(pid))")
         case .stopping:
-            "Stopping"
+            String(localized: "Stopping")
         case .failed(let message):
-            "Failed: \(message)"
+            String(localized: "Failed: \(message)")
         }
     }
 
@@ -927,7 +904,7 @@ private struct SettingValueRow: View {
 
     var body: some View {
         HStack {
-            Text(title)
+            Text(title).fixedSize(horizontal: false, vertical: true)
             Spacer()
             Text(value)
                 .foregroundStyle(.secondary)
@@ -942,15 +919,14 @@ private struct SpeedLimitStepper: View {
 
     var body: some View {
         Stepper(value: $value, in: 0...1_048_576, step: 128) {
-            SettingValueRow(title: title, value: value == 0 ? "Unlimited" : "\(value) KB/s")
+            SettingValueRow(title: title, value: value == 0 ? String(localized: "Unlimited") : "\(value) KB/s")
         }
     }
 }
 
-private struct TrackerSourcesPopoverButton: View {
+private struct TrackerSourcesEditor: View {
     @Binding var selectedSourceURLs: [String]
     @Binding var customSourceURLs: [String]
-    @State private var isPresented = false
     @State private var filter = ""
     @State private var newSourceURL = ""
     @State private var focusedSourceID: String?
@@ -974,7 +950,7 @@ private struct TrackerSourcesPopoverButton: View {
                 TrackerSourceRowModel(
                     id: "custom:\(url)",
                     title: url,
-                    subtitle: "Custom",
+                    subtitle: String(localized: "Custom"),
                     url: url,
                     isCustom: true
                 )
@@ -987,7 +963,7 @@ private struct TrackerSourcesPopoverButton: View {
                 TrackerSourceRowModel(
                     id: "selected:\(url)",
                     title: url,
-                    subtitle: "Selected source",
+                    subtitle: String(localized: "Selected source"),
                     url: url,
                     isCustom: true
                 )
@@ -1012,7 +988,7 @@ private struct TrackerSourcesPopoverButton: View {
     }
 
     private var summary: String {
-        selectedCount == 1 ? "1 source" : "\(selectedCount) sources"
+        selectedCount == 1 ? String(localized: "1 source") : String(localized: "\(selectedCount) sources")
     }
 
     private var focusedCustomSource: TrackerSourceRowModel? {
@@ -1021,35 +997,12 @@ private struct TrackerSourcesPopoverButton: View {
     }
 
     var body: some View {
-        Button {
-            isPresented.toggle()
-        } label: {
-            HStack(spacing: 10) {
-                Label("Tracker Sources", systemImage: "list.bullet")
-                Spacer(minLength: 12)
-                Text(summary)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.glass)
-        .accessibilityIdentifier("settings-bt-tracker-sources-button")
-        .popover(isPresented: $isPresented, arrowEdge: .top) {
-            popoverContent
-                .frame(width: 460)
-        }
-    }
-
-    private var popoverContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            filterField
-                .padding([.horizontal, .top], 12)
-                .padding(.bottom, 10)
+            HStack(spacing: 12) {
+                filterField
+                Text(summary).font(.callout).foregroundStyle(.secondary).monospacedDigit().fixedSize()
+            }
+            .padding(.bottom, 12)
 
             Divider()
 
@@ -1064,7 +1017,7 @@ private struct TrackerSourcesPopoverButton: View {
             Divider()
 
             TrackerCommandRow(
-                title: "Remove Custom Source",
+                title: String(localized: "Remove Custom Source"),
                 systemImage: "minus.circle",
                 isEnabled: focusedCustomSource != nil,
                 accessibilityIdentifier: "settings-bt-remove-custom-tracker-source-button",
@@ -1072,6 +1025,7 @@ private struct TrackerSourcesPopoverButton: View {
             )
             .padding(.vertical, 6)
         }
+        .accessibilityIdentifier("settings-bt-tracker-sources-editor")
         .onChange(of: customSourceURLs) { _, _ in
             reconcileFocusedSource()
         }
@@ -1081,23 +1035,16 @@ private struct TrackerSourcesPopoverButton: View {
     }
 
     private var filterField: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(.secondary)
-            TextField("Filter", text: $filter)
-                .textFieldStyle(.plain)
-                .accessibilityIdentifier("settings-bt-tracker-source-filter-field")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
+        TextField(String(localized: "Filter"), text: $filter)
+            .nativeTextFieldStyle()
+            .accessibilityIdentifier("settings-bt-tracker-source-filter-field")
     }
 
     private var sourceList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 2) {
                 if filteredRows.isEmpty {
-                    Text("No tracker sources match this filter.")
+                    Text(String(localized: "No tracker sources match this filter."))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
@@ -1128,15 +1075,15 @@ private struct TrackerSourcesPopoverButton: View {
     private var addCustomSourceControls: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField("Custom tracker source URL", text: $newSourceURL)
-                    .textFieldStyle(.roundedBorder)
+                TextField(String(localized: "Custom tracker source URL"), text: $newSourceURL)
+                    .nativeTextFieldStyle()
                     .accessibilityIdentifier("settings-bt-custom-tracker-source-field")
                     .onSubmit(addCustomSource)
 
                 Button(action: addCustomSource) {
-                    Label("Add", systemImage: "plus")
+                    Label(String(localized: "Add"), systemImage: "plus")
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.bordered)
                 .accessibilityIdentifier("settings-bt-add-custom-tracker-source-button")
             }
 
@@ -1163,16 +1110,16 @@ private struct TrackerSourcesPopoverButton: View {
     private func addCustomSource() {
         let url = newSourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else {
-            validationMessage = "Enter a tracker source URL."
+            validationMessage = String(localized: "Enter a tracker source URL.")
             return
         }
         guard TrackerSourceURLValidator.isValid(url) else {
-            validationMessage = "Use an HTTP or HTTPS tracker source URL."
+            validationMessage = String(localized: "Use an HTTP or HTTPS tracker source URL.")
             return
         }
         guard !sourceRows.contains(where: { $0.url == url }) else {
             focusedSourceID = sourceRows.first { $0.url == url }?.id
-            validationMessage = "Tracker source already exists."
+            validationMessage = String(localized: "Tracker source already exists.")
             return
         }
 
@@ -1250,9 +1197,8 @@ private struct TrackerSourceSelectionRow: View {
     }
 }
 
-private struct TrackerListPopoverButton: View {
+private struct TrackerListEditor: View {
     @Binding var trackerText: String
-    @State private var isPresented = false
     @State private var filter = ""
     @State private var newTracker = ""
     @State private var selectedTracker: String?
@@ -1271,39 +1217,16 @@ private struct TrackerListPopoverButton: View {
 
     private var summary: String {
         let count = trackers.count
-        return count == 1 ? "1 tracker" : "\(count) trackers"
+        return count == 1 ? String(localized: "1 tracker") : String(localized: "\(count) trackers")
     }
 
     var body: some View {
-        Button {
-            isPresented.toggle()
-        } label: {
-            HStack(spacing: 10) {
-                Label("Tracker List", systemImage: "point.3.connected.trianglepath.dotted")
-                Spacer(minLength: 12)
-                Text(summary)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.glass)
-        .accessibilityIdentifier("settings-bt-tracker-list-button")
-        .popover(isPresented: $isPresented, arrowEdge: .top) {
-            popoverContent
-                .frame(width: 430)
-        }
-    }
-
-    private var popoverContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            filterField
-                .padding([.horizontal, .top], 12)
-                .padding(.bottom, 10)
+            HStack(spacing: 12) {
+                filterField
+                Text(summary).font(.callout).foregroundStyle(.secondary).monospacedDigit().fixedSize()
+            }
+            .padding(.bottom, 12)
 
             Divider()
 
@@ -1326,6 +1249,7 @@ private struct TrackerListPopoverButton: View {
 
             commandRows
         }
+        .accessibilityIdentifier("settings-bt-tracker-list-editor")
         .onAppear(perform: selectInitialTrackerIfNeeded)
         .onChange(of: trackerText) { _, _ in
             reconcileSelection()
@@ -1333,29 +1257,22 @@ private struct TrackerListPopoverButton: View {
     }
 
     private var filterField: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(.secondary)
-            TextField("Filter", text: $filter)
-                .textFieldStyle(.plain)
-                .accessibilityIdentifier("settings-bt-tracker-filter-field")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
+        TextField(String(localized: "Filter"), text: $filter)
+            .nativeTextFieldStyle()
+            .accessibilityIdentifier("settings-bt-tracker-filter-field")
     }
 
     private var trackerRows: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 2) {
                 if trackers.isEmpty {
-                    Text("No trackers. Sync sources or add a tracker.")
+                    Text(String(localized: "No trackers. Sync sources or add a tracker."))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
                         .accessibilityIdentifier("settings-bt-tracker-list-empty")
                 } else if filteredTrackers.isEmpty {
-                    Text("No trackers match this filter.")
+                    Text(String(localized: "No trackers match this filter."))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
@@ -1383,15 +1300,15 @@ private struct TrackerListPopoverButton: View {
     private var addTrackerControls: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField("Add tracker URL", text: $newTracker)
-                    .textFieldStyle(.roundedBorder)
+                TextField(String(localized: "Add tracker URL"), text: $newTracker)
+                    .nativeTextFieldStyle()
                     .accessibilityIdentifier("settings-bt-tracker-add-field")
                     .onSubmit(addTracker)
 
                 Button(action: addTracker) {
-                    Label("Add", systemImage: "plus")
+                    Label(String(localized: "Add"), systemImage: "plus")
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.bordered)
                 .accessibilityIdentifier("settings-bt-tracker-add-button")
             }
 
@@ -1406,9 +1323,9 @@ private struct TrackerListPopoverButton: View {
     }
 
     private var commandRows: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        HStack(spacing: 12) {
             TrackerCommandRow(
-                title: "Remove Selected Tracker",
+                title: String(localized: "Remove Selected Tracker"),
                 systemImage: "minus.circle",
                 isEnabled: selectedTracker != nil,
                 accessibilityIdentifier: "settings-bt-tracker-remove-button",
@@ -1416,7 +1333,7 @@ private struct TrackerListPopoverButton: View {
             )
 
             TrackerCommandRow(
-                title: showsRawEditor ? "Hide Raw List" : "Edit Raw List...",
+                title: showsRawEditor ? String(localized: "Hide Raw List") : String(localized: "Edit Raw List..."),
                 systemImage: "text.alignleft",
                 isEnabled: true,
                 accessibilityIdentifier: "settings-bt-tracker-raw-toggle"
@@ -1430,7 +1347,7 @@ private struct TrackerListPopoverButton: View {
 
     private var rawEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Raw tracker list")
+            Text(String(localized: "Raw tracker list"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("settings-bt-tracker-raw-editor-label")
@@ -1460,16 +1377,16 @@ private struct TrackerListPopoverButton: View {
     private func addTracker() {
         let trimmed = newTracker.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            validationMessage = "Enter a tracker URL."
+            validationMessage = String(localized: "Enter a tracker URL.")
             return
         }
         guard TrackerURLValidator.isValid(trimmed) else {
-            validationMessage = "Use an HTTP, HTTPS, or UDP tracker URL."
+            validationMessage = String(localized: "Use an HTTP, HTTPS, or UDP tracker URL.")
             return
         }
         guard !trackers.contains(trimmed) else {
             selectedTracker = trimmed
-            validationMessage = "Tracker already exists."
+            validationMessage = String(localized: "Tracker already exists.")
             return
         }
 
@@ -1525,18 +1442,9 @@ private struct TrackerCommandRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: systemImage)
-                    .frame(width: 18)
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(isEnabled ? Color.primary : Color.secondary.opacity(0.7))
-            .padding(.horizontal, 18)
-            .padding(.vertical, 7)
-            .contentShape(Rectangle())
+            Label(title, systemImage: systemImage)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
         .disabled(!isEnabled)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
@@ -1547,16 +1455,12 @@ private struct KeyValueLine: View {
     var value: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .foregroundStyle(.secondary)
-                .frame(width: 128, alignment: .leading)
+        LabeledContent(title) {
             Text(value)
-                .lineLimit(2)
-                .truncationMode(.middle)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
                 .textSelection(.enabled)
         }
-        .font(.callout)
     }
 }
 
@@ -1568,7 +1472,7 @@ private struct RuntimeRequirementsView: View {
             if missingRequirements.isEmpty {
                 RuntimeRequirementLine(
                     symbol: "checkmark.circle.fill",
-                    title: "Runtime requirements complete",
+                    title: String(localized: "Runtime requirements complete"),
                     tint: .green
                 )
             } else {
@@ -1645,23 +1549,42 @@ private struct EngineStatusView: View {
         if let status = store.engineSetupState.statusLabel { return status }
         switch store.runtime.phase {
         case .running:
-            return "Aria2 Next running"
+            return String(localized: "Aria2 Next running")
         case .failed:
-            return "Aria2 Next failed"
+            return String(localized: "Aria2 Next failed")
         default:
-            return store.engineSettings.canLaunch ? "Aria2 Next ready" : "Runtime setup incomplete"
+            return store.engineSettings.canLaunch ? String(localized: "Aria2 Next ready") : String(localized: "Runtime setup incomplete")
         }
     }
 
     private var subtitle: String {
         let missingRequirements = store.engineSettings.missingLaunchRequirements
         if !missingRequirements.isEmpty {
-            return "Missing: \(missingRequirements.joined(separator: ", "))."
+            return String(localized: "Missing: \(missingRequirements.joined(separator: ", ")).")
         }
         switch store.runtime.phase {
-        case .running: return "The engine is ready to download files."
-        case .starting: return "Starting the download engine…"
-        default: return "Aria2 Next starts automatically when ChopChop opens."
+        case .running: return String(localized: "The engine is ready to download files.")
+        case .starting: return String(localized: "Starting the download engine…")
+        default: return String(localized: "Aria2 Next starts automatically when ChopChop opens. Restored downloads stay paused until you resume them.")
+        }
+    }
+}
+
+
+private struct CompletionNotificationSetting: View {
+    @EnvironmentObject private var store: DownloadStore
+    @ObservedObject var coordinator: DownloadNotificationCoordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(String(localized: "Notify when downloads complete"), isOn: Binding(
+                get: { store.preferences.notifyOnDownloadCompletion },
+                set: { enabled in Task { await store.setCompletionNotificationsEnabled(enabled) } }
+            ))
+            .disabled(coordinator.isRequestingPermission)
+            Text(coordinator.status ?? String(localized: "Show a notification when a background download finishes. Notifications are quiet while ChopChop is active."))
+                .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

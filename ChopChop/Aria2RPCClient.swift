@@ -12,32 +12,40 @@ nonisolated enum RPCError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .nonHTTPResponse:
-            "Aria2 RPC returned a non-HTTP response."
+            String(localized: "Aria2 RPC returned a non-HTTP response.")
         case .unexpectedHTTPStatus(let code, let body):
             if body.isEmpty {
-                "Aria2 RPC returned HTTP \(code)."
+                String(localized: "Aria2 RPC returned HTTP \(code).")
             } else {
-                "Aria2 RPC returned HTTP \(code).\n\(body)"
+                String(localized: "Aria2 RPC returned HTTP \(code).\n\(body)")
             }
         case .invalidResponseBody(let method, let body, let reason):
             if body.isEmpty {
-                "Aria2 RPC response for \(method) could not be decoded.\n\(reason)"
+                String(localized: "Aria2 RPC response for \(method) could not be decoded.\n\(reason)")
             } else {
-                "Aria2 RPC response for \(method) could not be decoded.\n\(reason)\n\(body)"
+                String(localized: "Aria2 RPC response for \(method) could not be decoded.\n\(reason)\n\(body)")
             }
         case .missingResult(let method, let body):
             if body.isEmpty {
-                "Aria2 RPC response for \(method) did not contain a result or error."
+                String(localized: "Aria2 RPC response for \(method) did not contain a result or error.")
             } else {
-                "Aria2 RPC response for \(method) did not contain a result or error.\n\(body)"
+                String(localized: "Aria2 RPC response for \(method) did not contain a result or error.\n\(body)")
             }
         case .invalidPort(let port):
-            "RPC port must be between 1 and 65535. Current value: \(port)."
+            String(localized: "RPC port must be between 1 and 65535. Current value: \(port).")
         case .serverError(let code, let message):
-            "Aria2 RPC error \(code): \(message)"
+            String(localized: "Aria2 RPC error \(code): \(message)")
         case .tokenMissing:
-            "RPC token is required."
+            String(localized: "RPC token is required.")
         }
+    }
+}
+
+nonisolated struct PartialDownloadSubmissionError: LocalizedError, Sendable {
+    var addedIDs: [String]
+    var reason: String
+    var errorDescription: String? {
+        String(localized: "Added \(addedIDs.count) downloads. The remaining links are still in the editor. \(reason)")
     }
 }
 
@@ -106,6 +114,9 @@ nonisolated struct Aria2RPCClient: Sendable {
             throw RPCError.tokenMissing
         }
         let normalized = try draft.normalizedResources()
+        if normalized.count > 1, normalized.contains(where: { resource in
+            URL(string: resource)?.isFileURL == true || resource.hasPrefix("/")
+        }) { throw DownloadDraftError.documentRequiresSingleResource }
         let options = try ed2kAwareOptions(
             draft: draft,
             resources: normalized,
@@ -113,6 +124,10 @@ nonisolated struct Aria2RPCClient: Sendable {
             autoOrganize: autoOrganize,
             ed2kContext: ed2kContext
         )
+        if normalized.count == 1, let resource = normalized.first,
+           let document = try localDocument(resource, draft: draft), document.kind == .metalink {
+            return try await call("aria2.addMetalink", params: [document.data.base64EncodedString(), options], as: [String].self)
+        }
         if draft.treatLinesAsMirrors || normalized.count == 1 {
             let gid: String = try await call("aria2.addUri", params: [normalized, options], as: String.self)
             return [gid]
@@ -129,10 +144,51 @@ nonisolated struct Aria2RPCClient: Sendable {
                 autoOrganize: autoOrganize,
                 ed2kContext: ed2kContext
             )
-            let gid: String = try await call("aria2.addUri", params: [[uri], singleOptions], as: String.self)
-            gids.append(gid)
+            do {
+                let gid: String = try await call("aria2.addUri", params: [[uri], singleOptions], as: String.self)
+                gids.append(gid)
+            } catch {
+                guard !gids.isEmpty else { throw error }
+                throw PartialDownloadSubmissionError(addedIDs: gids, reason: DownloadPrivacy.redact(error.localizedDescription))
+            }
         }
         return gids
+    }
+
+    @concurrent
+    func inspectMedia(_ draft: AddDownloadDraft, fallbackDirectory: String?) async throws -> String {
+        guard draft.shouldInspectMedia else { throw DownloadOperationError(String(localized: "Use one HTTP or HTTPS media source.")) }
+        var options = try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: false)
+        options.merge(try draft.media.engineOptions(probing: true)) { _, new in new }
+        options["pause"] = "false"
+        return try await call("aria2.addUri", params: [try draft.normalizedResources(), options], as: String.self)
+    }
+
+    @concurrent
+    func finishMedia(_ gid: String) async throws {
+        let _: String = try await call("aria2.finishMedia", params: [gid], as: String.self)
+    }
+
+    @concurrent
+    func retryMedia(_ gid: String, options: [String: String] = [:]) async throws {
+        let _: String = try await call("aria2.retryMedia", params: [gid, options], as: String.self)
+    }
+
+    @concurrent
+    func getURIs(_ gid: String) async throws -> [String] {
+        let values: [Aria2URIStatusDTO] = try await call("aria2.getUris", params: [gid], as: [Aria2URIStatusDTO].self)
+        return values.compactMap(\.uri)
+    }
+
+    @concurrent
+    func replaceURI(_ gid: String, old: [String], new: String) async throws {
+        let result: [Int] = try await call("aria2.changeUri", params: [gid, 1, old, [new], 0], as: [Int].self)
+        guard result.count == 2, result[1] == 1 else { throw DownloadOperationError(String(localized: "The engine did not accept the replacement address.")) }
+    }
+
+    @concurrent
+    func getOption(_ gid: String) async throws -> [String: String] {
+        try await call("aria2.getOption", params: [gid], as: [String: String].self)
     }
 
     @concurrent
@@ -151,10 +207,11 @@ nonisolated struct Aria2RPCClient: Sendable {
 
         var options = try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: autoOrganize)
         options["pause-metadata"] = "true"
+        options["force-save"] = "true" // Preserve active seeding in crash-recovery sessions.
         options["follow-torrent"] = "true"
 
-        if let torrentURL = AddDownloadDraft.localTorrentFileURL(resource) {
-            let data = try Data(contentsOf: torrentURL)
+        if let document = try localDocument(resource, draft: draft), document.kind == .torrent {
+            let data = document.data
             options["pause"] = "true"
             let gid: String = try await call("aria2.addTorrent", params: [data.base64EncodedString(), [], options], as: String.self)
             return gid
@@ -162,6 +219,16 @@ nonisolated struct Aria2RPCClient: Sendable {
 
         let gid: String = try await call("aria2.addUri", params: [[resource], options], as: String.self)
         return gid
+    }
+
+    private func localDocument(_ resource: String, draft: AddDownloadDraft) throws -> ImportedDownloadDocument? {
+        if let document = draft.importedDocuments[resource] { return document }
+        let url: URL?
+        if let parsed = URL(string: resource), parsed.isFileURL { url = parsed }
+        else if resource.hasPrefix("/") { url = URL(fileURLWithPath: resource) }
+        else { url = nil }
+        guard let url else { return nil }
+        return try DownloadImportReader.readDocument(url, preferences: AppPreferences())
     }
 
     @concurrent
@@ -292,7 +359,10 @@ nonisolated struct Aria2RPCClient: Sendable {
             "infoHash",
             "seeder",
             "following",
-            "followedBy"
+            "followedBy",
+            "media",
+            "verifiedLength",
+            "verifyIntegrityPending"
         ]
         let dto: Aria2TaskDTO = try await call("aria2.tellStatus", params: [gid, fields], as: Aria2TaskDTO.self)
         return dto.toSnapshot()
@@ -305,9 +375,72 @@ nonisolated struct Aria2RPCClient: Sendable {
     }
 
     @concurrent
+    func getTorrentTrackers(_ gid: String) async throws -> [TrackerEntry] {
+        let trackers: [BitTorrentTrackerStatus] = try await call("aria2.getBtTrackers", params: [gid], as: [BitTorrentTrackerStatus].self)
+        return trackers.map(\.entry)
+    }
+
+    @concurrent
+    func reannounceTorrent(_ gid: String) async throws {
+        let _: String = try await call("aria2.forceBtAnnounce", params: [gid], as: String.self)
+    }
+
+    @concurrent
+    func recheckTorrent(_ gid: String) async throws {
+        let _: String = try await call("aria2.forceBtRecheck", params: [gid], as: String.self)
+    }
+
+    @concurrent
     func getPeers(_ gid: String) async throws -> [ConnectionPeer] {
         let dtos: [Aria2PeerDTO] = try await call("aria2.getPeers", params: [gid], as: [Aria2PeerDTO].self)
         return dtos.map { $0.toPeer() }
+    }
+
+    @concurrent
+    func transferProgress(_ gid: String) async throws -> TransferProgressDTO {
+        try await call("aria2.tellStatus", params: [gid, ["gid", "status", "bitfield", "pieceLength", "numPieces",
+            "connections", "downloadSpeed", "uploadSpeed", "uploadLength", "files", "bittorrent"]], as: TransferProgressDTO.self)
+    }
+
+    @concurrent
+    func peerTransfers(_ gid: String) async throws -> [PeerTransfer] {
+        try await call("aria2.getPeers", params: [gid], as: [PeerTransfer].self)
+    }
+
+    @concurrent
+    func serverTransfers(_ gid: String) async throws -> [ServerTransfer] {
+        let result = try await call("aria2.getServers", params: [gid], as: [ServerTransferDTO].self)
+        return ServerTransferDTO.connections(result)
+    }
+
+    @concurrent
+    func getGlobalOption() async throws -> [String: String] {
+        try await call("aria2.getGlobalOption", params: [], as: [String: String].self)
+    }
+
+    @concurrent
+    func transferSnapshot(_ gid: String, isTorrent: Bool) async throws -> TransferSnapshot {
+        var state = try await transferProgress(gid)
+        var connections: [PeerTransfer] = [], streams: [ServerTransfer] = []
+        if state.status == "active" {
+            do {
+                if isTorrent { connections = try await peerTransfers(gid) }
+                else { streams = try await serverTransfers(gid) }
+            } catch {
+                // Completion/pause can race the connection request. Recheck status before
+                // treating "no active download" as an unavailable engine.
+                try Task.checkCancellation()
+                let latest = try await transferProgress(gid)
+                guard latest.status != "active" else { throw error }
+                state = latest
+            }
+        }
+        let live = state.status == "active"
+        return TransferSnapshot(pieces: state.pieceMap,
+            peers: live ? Dictionary(connections.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new }).values.sorted { $0.id < $1.id } : [],
+            servers: live ? streams : [], downloadSpeed: live ? max(0, Int64(state.downloadSpeed ?? "") ?? 0) : 0,
+            uploadSpeed: live ? max(0, Int64(state.uploadSpeed ?? "") ?? 0) : 0,
+            uploaded: Int64(state.uploadLength ?? ""), connections: live ? max(0, Int(state.connections ?? "") ?? 0) : 0)
     }
 
     @concurrent
@@ -327,6 +460,19 @@ nonisolated struct Aria2RPCClient: Sendable {
                 }
                 return lhs.status.sortOrder < rhs.status.sortOrder
             }
+    }
+
+    @concurrent
+    func waitingQueueIDs() async throws -> [String] { try await pagedTaskDTOs(method: "aria2.tellWaiting").map(\.gid) }
+
+    @concurrent
+    func changePosition(_ gid: String, to position: Int) async throws {
+        let _: Int = try await call("aria2.changePosition", params: [gid, position, "POS_SET"], as: Int.self)
+    }
+
+    @concurrent
+    func getVersion() async throws -> EngineCapabilities {
+        try await call("aria2.getVersion", params: [], as: EngineCapabilities.self)
     }
 
     @concurrent
@@ -361,21 +507,25 @@ nonisolated struct Aria2RPCClient: Sendable {
     }
 
     private func tellWaiting() async throws -> [DownloadTask] {
-        try await pagedTasks(method: "aria2.tellWaiting")
+        try await pagedTaskDTOs(method: "aria2.tellWaiting").enumerated().compactMap { position, dto in
+            guard var task = [dto].toVisibleTasks().first else { return nil }
+            task.queuePosition = position
+            return task
+        }
     }
 
     private func tellStopped() async throws -> [DownloadTask] {
-        try await pagedTasks(method: "aria2.tellStopped")
+        try await pagedTaskDTOs(method: "aria2.tellStopped").toVisibleTasks()
     }
 
-    private func pagedTasks(method: String) async throws -> [DownloadTask] {
+    private func pagedTaskDTOs(method: String) async throws -> [Aria2TaskDTO] {
         let pageSize = 1000
         var offset = 0
-        var tasks: [DownloadTask] = []
+        var tasks: [Aria2TaskDTO] = []
         while true {
             try Task.checkCancellation()
             let page: [Aria2TaskDTO] = try await call(method, params: [offset, pageSize], as: [Aria2TaskDTO].self)
-            tasks.append(contentsOf: page.toVisibleTasks())
+            tasks.append(contentsOf: page)
             guard page.count == pageSize else { return tasks }
             offset += page.count
         }
@@ -438,7 +588,7 @@ nonisolated struct Aria2RPCClient: Sendable {
 
     private func redactToken(_ text: String) -> String {
         guard !token.isEmpty else { return text }
-        return text.replacingOccurrences(of: token, with: "<redacted>")
+        return DownloadPrivacy.redact(text.replacingOccurrences(of: token, with: "<redacted>"))
     }
 
 }
@@ -462,286 +612,4 @@ private nonisolated struct RPCEnvelope<T: Decodable & Sendable>: Decodable, Send
 private nonisolated struct RPCServerError: Decodable, Sendable {
     var code: Int
     var message: String
-}
-
-private nonisolated struct Aria2TaskDTO: Decodable, Sendable {
-    var gid: String
-    var status: String?
-    var totalLength: String?
-    var completedLength: String?
-    var downloadSpeed: String?
-    var uploadSpeed: String?
-    var connections: String?
-    var dir: String?
-    var files: [Aria2FileDTO]?
-    var uris: [Aria2URIStatusDTO]?
-    var errorMessage: String?
-    var bittorrent: Aria2BitTorrentDTO?
-    var ed2k: Aria2ED2KDTO?
-    var infoHash: String?
-    var seeder: String?
-    var following: String?
-    var followedBy: [String]?
-
-    var isBitTorrentMetadataPlaceholder: Bool {
-        if let followedBy,
-           followedBy.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-            return true
-        }
-
-        let mappedFiles = files ?? []
-        if mappedFiles.contains(where: { $0.isBitTorrentMetadataPlaceholder }) {
-            return true
-        }
-
-        if let name = bittorrent?.info?.name?.trimmingCharacters(in: .whitespacesAndNewlines),
-           name.hasPrefix("[METADATA]") {
-            return true
-        }
-
-        return false
-    }
-
-    var isED2KSearchPlaceholder: Bool {
-        if ed2k?.isSearchTask == true {
-            return true
-        }
-        let paths = (files ?? []).compactMap(\.path)
-        return paths.contains { path in
-            let lastPathComponent = URL(fileURLWithPath: path).lastPathComponent
-            return path.contains("chopchop-ed2k-search-") ||
-                path.contains("aria2-next-ed2k-search-") ||
-                lastPathComponent.hasPrefix("aria2-next-ed2k-search-")
-        }
-    }
-
-    func toTask() -> DownloadTask {
-        let mappedFiles = (files ?? []).map { $0.toFile() }
-        let firstPath = mappedFiles.first(where: { $0.path.isUsableAria2Path })?.path ?? ""
-        let firstURI = firstReportedURI()
-        let name = bittorrent?.info?.name?.usableTaskName ??
-            ed2k?.name?.usableTaskName ??
-            displayName(path: firstPath, uri: firstURI) ??
-            gid
-        let protocolKind = detectProtocol(from: firstURI.nonEmpty ?? firstPath)
-        let mappedStatus = mapStatus(status)
-        let logs = errorMessage.map { [$0] } ?? []
-        return DownloadTask(
-            id: gid,
-            name: name,
-            protocolKind: bittorrent == nil ? (ed2k == nil ? protocolKind : .ed2k) : .bitTorrent,
-            status: mappedStatus,
-            totalLength: Int64(totalLength ?? "") ?? mappedFiles.reduce(0) { $0 + $1.length },
-            completedLength: Int64(completedLength ?? "") ?? mappedFiles.reduce(0) { $0 + $1.completedLength },
-            downloadSpeed: Int64(downloadSpeed ?? "") ?? 0,
-            uploadSpeed: Int64(uploadSpeed ?? "") ?? 0,
-            connections: Int(connections ?? "") ?? 0,
-            destination: dir ?? "",
-            addedAt: Date(),
-            errorMessage: errorMessage,
-            files: mappedFiles,
-            peers: [],
-            trackers: bittorrent?.trackerEntries ?? [],
-            recentLogs: ed2kNetworkLogs() + logs,
-            infoHash: infoHash ?? ed2k?.hash,
-            isSharing: mappedStatus == .active && seeder == "true"
-        )
-    }
-
-    func toSnapshot() -> Aria2TaskSnapshot {
-        Aria2TaskSnapshot(
-            task: toTask(),
-            following: following,
-            followedBy: followedBy ?? []
-        )
-    }
-
-    private func firstReportedURI() -> String {
-        let fileURIs = (files ?? [])
-            .flatMap { $0.uris ?? [] }
-            .compactMap(\.uri)
-        return (fileURIs + (uris ?? []).compactMap(\.uri))
-            .first { !$0.trimmedForEngine.isEmpty } ?? ""
-    }
-
-    private func displayName(path: String, uri: String) -> String? {
-        if path.isUsableAria2Path,
-           let pathName = URL(fileURLWithPath: path).lastPathComponent.usableTaskName {
-            return pathName
-        }
-        if let urlName = URL(string: uri)?.lastPathComponent.usableTaskName {
-            return urlName
-        }
-        return uri.split(separator: "/").last.map(String.init)?.usableTaskName
-    }
-
-    private func mapStatus(_ raw: String?) -> DownloadStatus {
-        switch raw {
-        case "active": .active
-        case "waiting": .waiting
-        case "paused": .paused
-        case "complete": .completed
-        case "error": .failed
-        case "removed": .removed
-        default: .waiting
-        }
-    }
-
-    private func detectProtocol(from path: String) -> TaskProtocol {
-        let lowered = path.lowercased()
-        if lowered.hasPrefix("ed2k://") { return .ed2k }
-        if lowered.hasPrefix("magnet:") { return .magnet }
-        if lowered.hasPrefix("ftp://") || lowered.hasPrefix("sftp://") { return .ftp }
-        if lowered.hasSuffix(".meta4") || lowered.hasSuffix(".metalink") { return .metalink }
-        return .http
-    }
-
-    private func ed2kNetworkLogs() -> [String] {
-        guard let ed2k, !ed2k.isSearchTask else { return [] }
-        return [
-            ed2k.hash.map { "ED2K hash: \($0)" },
-            ed2k.serverCount.map { "Servers: \($0)" },
-            ed2k.connectedServerCount.map { "Connected servers: \($0)" },
-            ed2k.peerCount.map { "Sources: \($0)" },
-            ed2k.kadNodeCount.map { "Kad nodes: \($0)" },
-            ed2k.kadFirewalled.map { "Kad firewalled: \($0.value ? "Yes" : "No")" }
-        ].compactMap { $0 }
-    }
-}
-
-private nonisolated struct Aria2FileDTO: Decodable, Sendable {
-    var index: String?
-    var path: String?
-    var length: String?
-    var completedLength: String?
-    var selected: String?
-    var uris: [Aria2URIStatusDTO]?
-
-    var isBitTorrentMetadataPlaceholder: Bool {
-        let trimmedPath = (path ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else { return false }
-        if trimmedPath.hasPrefix("[METADATA]") {
-            return true
-        }
-        return URL(fileURLWithPath: trimmedPath).lastPathComponent.hasPrefix("[METADATA]")
-    }
-
-    func toFile() -> DownloadFile {
-        DownloadFile(
-            index: Int(index ?? "") ?? 0,
-            path: path ?? "",
-            length: Int64(length ?? "") ?? 0,
-            completedLength: Int64(completedLength ?? "") ?? 0,
-            isSelected: selected != "false"
-        )
-    }
-}
-
-private nonisolated struct Aria2URIStatusDTO: Decodable, Sendable {
-    var uri: String?
-}
-
-private nonisolated struct Aria2BitTorrentDTO: Decodable, Sendable {
-    nonisolated struct Info: Decodable, Sendable {
-        var name: String?
-    }
-
-    var info: Info?
-    var announceList: [[String]]?
-
-    var trackerEntries: [TrackerEntry] {
-        (announceList ?? [])
-            .flatMap { $0 }
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .map { TrackerEntry(url: $0, status: "Announced", lastAnnounce: nil) }
-    }
-}
-
-private nonisolated struct Aria2ED2KDTO: Decodable, Sendable {
-    var hash: String?
-    var name: String?
-    var length: String?
-    var completedLength: String?
-    var serverCount: String?
-    var connectedServerCount: String?
-    var peerCount: String?
-    var queuedPeerCount: String?
-    var acceptedPeerCount: String?
-    var deadPeerCount: String?
-    var lowIdPeerCount: String?
-    var callbackWaitingPeerCount: String?
-    var kadNodeCount: String?
-    var kadRouterCount: String?
-    var kadFirewalled: FlexibleBool?
-    var searchActive: FlexibleBool?
-    var searchMoreResults: FlexibleBool?
-    var searchResultCount: String?
-
-    var isSearchTask: Bool {
-        searchActive != nil || searchMoreResults != nil || searchResultCount != nil
-    }
-}
-
-private nonisolated struct FlexibleBool: Decodable, Sendable, Equatable {
-    var value: Bool
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let boolValue = try? container.decode(Bool.self) {
-            value = boolValue
-        } else if let stringValue = try? container.decode(String.self) {
-            value = stringValue == "true" || stringValue == "1"
-        } else {
-            value = false
-        }
-    }
-}
-
-private nonisolated struct Aria2PeerDTO: Decodable, Sendable {
-    var ip: String?
-    var port: String?
-    var peerId: String?
-    var seeder: String?
-    var downloadSpeed: String?
-    var completedLength: String?
-
-    func toPeer() -> ConnectionPeer {
-        let addressParts = [
-            ip?.trimmingCharacters(in: .whitespacesAndNewlines),
-            port?.trimmingCharacters(in: .whitespacesAndNewlines)
-        ].compactMap { value -> String? in
-            guard let value, !value.isEmpty else { return nil }
-            return value
-        }
-        let address = addressParts.isEmpty ? "Unknown peer" : addressParts.joined(separator: ":")
-        let client = seeder == "true" ? "Seeder" : "Peer"
-        return ConnectionPeer(
-            address: address,
-            client: client,
-            progress: 0,
-            downloadSpeed: Int64(downloadSpeed ?? "") ?? 0
-        )
-    }
-}
-
-private nonisolated extension Array where Element == Aria2TaskDTO {
-    func toVisibleTasks() -> [DownloadTask] {
-        filter { !$0.isBitTorrentMetadataPlaceholder && !$0.isED2KSearchPlaceholder }.map { $0.toTask() }
-    }
-}
-
-private nonisolated extension String {
-    var nonEmpty: String? {
-        isEmpty ? nil : self
-    }
-
-    var usableTaskName: String? {
-        let trimmed = trimmedForEngine
-        guard !trimmed.isEmpty, trimmed != "/", trimmed != "." else { return nil }
-        return trimmed
-    }
-
-    var isUsableAria2Path: Bool {
-        usableTaskName != nil
-    }
 }

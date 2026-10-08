@@ -1,0 +1,8 @@
+:root { color-scheme: light dark; font: 13px -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+body { width: 340px; margin: 0; padding: 20px; box-sizing: border-box; }
+h1 { font-size: 18px; margin: 0 0 10px; } p { line-height: 1.5; color: light-dark(#555, #bbb); }
+button, input { font: inherit; } button { border: 1px solid light-dark(#ccc, #555); border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+button.primary { background: #0869d6; color: white; border-color: transparent; }
+button:disabled { opacity: .5; cursor: default; } input[type=text] { box-sizing: border-box; width: 100%; padding: 8px; margin: 8px 0 14px; border: 1px solid light-dark(#ccc, #555); border-radius: 6px; }
+#links { max-height: 280px; overflow: auto; margin: 12px 0; } label.resource { display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid light-dark(#eee, #333); }
+.resource span { overflow-wrap: anywhere; } .actions { display: flex; gap: 8px; margin-top: 14px; } #status { min-height: 20px; }

@@ -1,0 +1,49 @@
+name: Verification tools
+description: Install the versions used by the shared verification gate
+runs:
+  using: composite
+  steps:
+    - id: versions
+      shell: bash
+      run: |
+        python3 - <<'PY' >> "$GITHUB_OUTPUT"
+        import json
+        from pathlib import Path
+        for name, version in json.loads(Path('Scripts/verification-tools.json').read_text()).items():
+            print(f'{name}={version}')
+        PY
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: ${{ steps.versions.outputs.node }}
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: ${{ steps.versions.outputs.python }}
+    - name: Install pinned FFmpeg bottle
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: 1
+        HOMEBREW_NO_INSTALL_CLEANUP: 1
+        HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+      run: |
+        set -euo pipefail
+        if command -v ffmpeg >/dev/null && ffmpeg -version | head -1 | grep -q '^ffmpeg version ${{ steps.versions.outputs.ffmpeg }} '; then
+          exit 0
+        fi
+        # Use the upstream formula and bottle checksums from a fixed commit,
+        # rather than accepting whichever FFmpeg version Homebrew serves today.
+        brew tap-new --no-git conight/chopchop-verification
+        tap_root="$(brew --repository conight/chopchop-verification)"
+        trap 'brew untap --force conight/chopchop-verification' EXIT
+        formula="$tap_root/Formula/ffmpeg.rb"
+        curl --fail --silent --show-error --location \
+          https://raw.githubusercontent.com/Homebrew/homebrew-core/df0f5973faba506285051a1a21b1baa1e166719a/Formula/f/ffmpeg.rb \
+          --output "$formula"
+        echo "d276ecab3d5e109fadcb93a671a7175569ca7ac942be46008a41f4fa678509f0  $formula" | shasum -a 256 -c -
+        python3 - "$formula" <<'PY'
+        from pathlib import Path
+        import sys
+        path = Path(sys.argv[1])
+        path.write_text(path.read_text().replace('  bottle do\n', '  bottle do\n    root_url "https://ghcr.io/v2/homebrew/core"\n', 1))
+        PY
+        brew install --force-bottle conight/chopchop-verification/ffmpeg
+        echo "$(brew --prefix conight/chopchop-verification/ffmpeg)/bin" >> "$GITHUB_PATH"

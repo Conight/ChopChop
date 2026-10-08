@@ -1,8 +1,10 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AddDownloadPanel: View {
     @EnvironmentObject private var store: DownloadStore
+    @ObservedObject var mediaCoordinator: MediaDownloadCoordinator
     @State private var isShowingAdvanced: Bool
     @State private var contentHeight: CGFloat = 230
     @State private var submissionError: UserFacingAlert?
@@ -10,43 +12,63 @@ struct AddDownloadPanel: View {
     @FocusState private var linksAreFocused: Bool
     var onDismiss: () -> Void
 
-    init(initiallyShowsAdvanced: Bool = false, onDismiss: @escaping () -> Void) {
+    init(initiallyShowsAdvanced: Bool = false, mediaCoordinator: MediaDownloadCoordinator = MediaDownloadCoordinator(), onDismiss: @escaping () -> Void) {
         _isShowingAdvanced = State(initialValue: initiallyShowsAdvanced)
+        self.mediaCoordinator = mediaCoordinator
         self.onDismiss = onDismiss
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                Image(systemName: "arrow.down.circle")
-                    .font(.system(size: 32, weight: .regular))
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Add Download")
-                        .font(.title3.weight(.semibold))
-                        .accessibilityIdentifier("add-download-title")
-                    Text("Paste a link, or add several links on separate lines.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(store.bitTorrentSelectionSession == nil ? String(localized: "Add Download") : String(localized: "Choose Torrent Files"))
+                    .font(.title2.weight(.semibold))
+                    .accessibilityIdentifier("add-download-title")
+                Text(store.bitTorrentSelectionSession == nil ? String(localized: "Review your links or files before starting a download.") : String(localized: "Choose what to save before the download begins."))
+                    .font(.callout).foregroundStyle(.secondary)
             }
             .fixedSize(horizontal: false, vertical: true)
             .layoutPriority(1)
+            .padding(.horizontal, AppLayout.focusClearance)
 
+            if let session = store.bitTorrentSelectionSession {
+                BitTorrentFileSelectionView(session: session)
+                    .padding(.horizontal, AppLayout.focusClearance)
+                    .frame(minHeight: 180, idealHeight: 360, maxHeight: 420)
+            } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
                     linksInput
-                    saveLocation
-                    if let session = store.bitTorrentSelectionSession {
-                        BitTorrentFileSelectionView(session: session)
+                    if let notice = store.addDraftNotice {
+                        Text(notice).font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    DisclosureGroup("Advanced Options", isExpanded: $isShowingAdvanced) {
+                    if store.addDraft.resourceLines.contains(where: { $0.lowercased().hasPrefix("ftp://") }) {
+                        Text(String(localized: "FTP is no longer supported by Aria2 Next. Use an HTTP, HTTPS, or SFTP link."))
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                    if !store.importIssues.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Label(String(localized: "Some items need attention"), systemImage: "exclamationmark.triangle.fill")
+                                .font(.callout.weight(.medium)).symbolRenderingMode(.multicolor)
+                            ForEach(store.importIssues, id: \.self) { issue in
+                                Text(issue).font(.callout).foregroundStyle(.secondary)
+                            }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    saveLocation
+                    if showsMediaOptions {
+                        MediaDownloadOptionsView(coordinator: mediaCoordinator)
+                            .disabled(isSubmitting)
+                    }
+                    DisclosureGroup(String(localized: "Advanced Options"), isExpanded: $isShowingAdvanced) {
                         AddDownloadOptions()
                             // AppKit draws field bezels and focus rings outside their layout bounds.
                             // Keep them inside the disclosure group's clipping/animation container.
-                            .padding(6)
-                            .padding(.top, 14)
-                            .disabled(isSubmitting || store.bitTorrentSelectionSession != nil)
+                            .padding(AppLayout.focusClearance)
+                            .padding(.top, AppLayout.controlSpacing)
+                            .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
                     }
                     .accessibilityIdentifier("add-download-advanced-toggle")
                     if let error = submissionError {
@@ -62,34 +84,45 @@ struct AddDownloadPanel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(2) // Keep native focus rings inside the scroll view's clipping bounds.
+                .padding(AppLayout.focusClearance) // Align content with the header/footer and retain focus-ring clearance.
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(minHeight: 0, idealHeight: min(contentHeight, 420), maxHeight: min(contentHeight, 420))
 
+            }
+
             footer
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
+                .padding(.horizontal, AppLayout.focusClearance)
         }
-        .padding(24)
-        .frame(minWidth: 480, idealWidth: 560, maxWidth: 560)
+        .padding(AppLayout.pageInset)
+        .frame(minWidth: 480, idealWidth: 560, maxWidth: 660)
+        // The form determines the height. A background rail cannot stretch the sheet
+        // or reduce the existing 480-point minimum space available to its controls.
+        .padding(.leading, 180)
+        .background(alignment: .leading) {
+            DownloadArtwork().frame(width: 180)
+        }
         .presentationSizing(.fitted)
         .background(Color(nsColor: .windowBackgroundColor))
         .defaultFocus($linksAreFocused, true)
-        .onChange(of: store.addDraft.rawInput) { _, _ in submissionError = nil }
+        .onChange(of: store.addDraft.rawInput) { _, _ in submissionError = nil; mediaCoordinator.clearError() }
         .onReceive(store.userAlerts) { alert in
             guard store.claimAlert(alert) else { return }
             submissionError = alert
         }
-        .interactiveDismissDisabled(isSubmitting && !store.isResolvingBitTorrentFiles)
+        .interactiveDismissDisabled(isSubmitting && !store.isResolvingBitTorrentFiles && mediaCoordinator.phase != .inspecting)
     }
 
     private var linksInput: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Download links").font(.callout.weight(.medium))
+                Text(String(localized: "Links or files")).font(.callout.weight(.medium))
                 Spacer()
+                Button(String(localized: "Open File…"), action: chooseDownloadFile)
+                    .disabled(isSubmitting || mediaCoordinator.isPresented)
                 if !store.addDraft.resourceLines.isEmpty {
                     Text(inputSummary).font(.caption).foregroundStyle(.secondary)
                         .accessibilityIdentifier("add-download-input-summary")
@@ -101,7 +134,7 @@ struct AddDownloadPanel: View {
                     .scrollContentBackground(.hidden)
                     .focused($linksAreFocused)
                     .padding(6)
-                    .accessibilityLabel("Download links")
+                    .accessibilityLabel(String(localized: "Download links"))
                     .accessibilityIdentifier("add-download-url-field")
                 if store.addDraft.rawInput.isEmpty {
                     Text("https://example.com/file.zip")
@@ -111,7 +144,7 @@ struct AddDownloadPanel: View {
                         .accessibilityHidden(true)
                 }
             }
-            .frame(height: 96)
+            .frame(height: store.addDraft.isBatch ? 96 : 64)
             .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
             .overlay {
                 RoundedRectangle(cornerRadius: 6)
@@ -119,9 +152,9 @@ struct AddDownloadPanel: View {
                                   lineWidth: linksAreFocused ? 2 : 1)
                     .allowsHitTesting(false)
             }
-            .disabled(isSubmitting || store.bitTorrentSelectionSession != nil)
+            .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
             if store.addDraft.isBatch {
-                Toggle("Use these links as mirrors for one download", isOn: $store.addDraft.treatLinesAsMirrors)
+                Toggle(String(localized: "Use these links as mirrors for one download"), isOn: $store.addDraft.treatLinesAsMirrors)
                     .toggleStyle(.checkbox)
                     .disabled(isSubmitting)
             }
@@ -131,36 +164,47 @@ struct AddDownloadPanel: View {
     private var inputSummary: String {
         let lines = store.addDraft.resourceLines
         let unsupported = lines.filter { AddDownloadDraft.detectProtocol(for: $0) == nil }.count
-        if unsupported > 0 { return "\(unsupported) unsupported \(unsupported == 1 ? "link" : "links")" }
-        if lines.count > 1 { return "\(lines.count) links" }
+        if unsupported > 0 { return String(localized: "\(unsupported) unsupported links") }
+        if lines.count > 1 { return String(localized: "\(lines.count) links") }
         return store.addDraft.detectedProtocol?.rawValue ?? ""
+    }
+
+    private var showsMediaOptions: Bool {
+        mediaCoordinator.phase == .inspecting || mediaCoordinator.phase == .ready ||
+        mediaCoordinator.error != nil ||
+        (store.engineCapabilities?.supportsMedia == true && store.addDraft.isHTTPSource)
     }
 
     private var saveLocation: some View {
         HStack(spacing: 10) {
-            Text("Save to").font(.callout.weight(.medium))
+            Text(String(localized: "Save to")).font(.callout.weight(.medium))
             if store.addDraft.savePath.isEmpty {
-                Text("Choose a folder").foregroundStyle(.secondary)
+                Text(String(localized: "Choose a folder")).foregroundStyle(.secondary)
                 Spacer()
             } else {
                 DownloadFolderPath(path: store.addDraft.savePath)
                     .frame(maxWidth: .infinity)
                     .frame(height: 24)
-                    .help(store.addDraft.savePath)
+                    .help(DownloadLocationDisplay.resolvedURL(store.addDraft.savePath)?.path ?? store.addDraft.savePath)
             }
-            Button("Choose…", action: chooseSaveFolder)
+            Button(String(localized: "Choose…"), action: chooseSaveFolder)
                 .accessibilityIdentifier("add-download-choose-folder-button")
         }
-        .disabled(isSubmitting || store.bitTorrentSelectionSession != nil)
+        .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
     }
 
     private var footer: some View {
         HStack(spacing: 10) {
-            if isSubmitting { ProgressView().controlSize(.small) }
-            Spacer()
-            Button("Cancel", role: .cancel, action: dismiss)
-                .keyboardShortcut(.cancelAction)
+            if store.bitTorrentSelectionSession != nil {
+                Button(String(localized: "Change Source")) {
+                    Task { await store.cancelBitTorrentFileSelection() }
+                }
                 .disabled(isSubmitting && !store.isResolvingBitTorrentFiles)
+            } else if isSubmitting { ProgressView().controlSize(.small) }
+            Spacer()
+            Button(String(localized: "Cancel"), role: .cancel, action: dismiss)
+                .keyboardShortcut(.cancelAction)
+                .disabled(isSubmitting && !store.isResolvingBitTorrentFiles && mediaCoordinator.phase != .inspecting)
                 .accessibilityIdentifier("add-download-cancel-button")
             Button(primaryButtonTitle, action: submit)
                 .buttonStyle(.borderedProminent)
@@ -172,18 +216,26 @@ struct AddDownloadPanel: View {
     }
 
     private var primaryButtonTitle: String {
+        if mediaCoordinator.phase == .inspecting { return String(localized: "Inspecting…") }
+        if mediaCoordinator.phase == .ready { return mediaCoordinator.snapshot?.live == "true" ? String(localized: "Start Recording") : String(localized: "Download Selected Tracks") }
         if let session = store.bitTorrentSelectionSession {
-            return session.phase == .loading ? "Loading Files…" : "Download Selected Files"
+            switch session.phase {
+            case .loading: return String(localized: "Finding Files…")
+            case .failed: return String(localized: "Try Again")
+            case .ready: return String(localized: "Download Selected Files")
+            }
         }
-        if isSubmitting { return "Adding…" }
-        if store.addDraft.shouldResolveBitTorrentFilesBeforeSubmit { return "Choose Files…" }
+        if isSubmitting { return String(localized: "Adding…") }
+        if store.addDraft.shouldInspectMedia { return String(localized: "Inspect Media…") }
+        if store.addDraft.shouldResolveBitTorrentFilesBeforeSubmit { return String(localized: "Choose Files…") }
         let count = store.addDraft.resourceLines.count
-        return count > 1 && !store.addDraft.treatLinesAsMirrors ? "Start \(count) Downloads" : "Start Download"
+        return count > 1 && !store.addDraft.treatLinesAsMirrors ? String(localized: "Start \(count) Downloads") : String(localized: "Start Download")
     }
 
     private var primaryButtonDisabled: Bool {
         if isSubmitting || store.isResolvingBitTorrentFiles { return true }
-        if let session = store.bitTorrentSelectionSession { return session.phase != .ready || !session.hasSelection }
+        if let session = store.bitTorrentSelectionSession { return session.phase == .loading || (session.phase == .ready && !session.hasSelection) }
+        if mediaCoordinator.phase == .ready { return false }
         return !store.addDraft.isSubmittable
     }
 
@@ -195,7 +247,12 @@ struct AddDownloadPanel: View {
         Task { @MainActor in
             defer { isSubmitting = false }
             let submitted: Bool
-            if store.bitTorrentSelectionSession?.phase == .ready {
+            if mediaCoordinator.phase == .ready {
+                submitted = await store.confirmMediaSelection()
+            } else if store.bitTorrentSelectionSession?.phase == .failed {
+                await store.prepareBitTorrentFileSelection()
+                submitted = false
+            } else if store.bitTorrentSelectionSession?.phase == .ready {
                 submitted = await store.confirmBitTorrentFileSelection()
             } else {
                 submitted = await store.submitDraft()
@@ -207,14 +264,40 @@ struct AddDownloadPanel: View {
     private func dismiss() {
         Task { @MainActor in
             await store.cancelBitTorrentFileSelection()
+            await store.cancelMediaSelection()
             onDismiss()
+        }
+    }
+
+    private func chooseDownloadFile() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Open Download File")
+        panel.allowedContentTypes = ["torrent", "metalink", "meta4"].compactMap { UTType(filenameExtension: $0) }
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            let preferences = store.preferences
+            Task { @MainActor in
+                do {
+                    let document = try await Task.detached(priority: .userInitiated) {
+                        try DownloadImportReader.readDocument(url, preferences: preferences)
+                    }.value
+                    store.addDraft.rawInput = url.absoluteString
+                    store.addDraft.importedDocuments = [url.absoluteString: document]
+                    store.addDraft.treatLinesAsMirrors = false
+                    submissionError = nil
+                } catch {
+                    submissionError = UserFacingAlert(title: String(localized: "Open Download File"), message: error.localizedDescription)
+                }
+            }
         }
     }
 
     private func chooseSaveFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Download Folder"
-        panel.prompt = "Choose"
+        panel.title = String(localized: "Choose Download Folder")
+        panel.prompt = String(localized: "Choose")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -235,12 +318,12 @@ private struct DownloadFolderPath: NSViewRepresentable {
         control.pathStyle = .standard
         control.isEditable = false
         control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        control.setAccessibilityLabel("Download folder")
+        control.setAccessibilityLabel(String(localized: "Download folder"))
         return control
     }
     func updateNSView(_ control: NSPathControl, context: Context) {
-        control.url = URL(fileURLWithPath: path, isDirectory: true)
-        control.setAccessibilityValue(path)
+        control.url = DownloadLocationDisplay.resolvedURL(path)
+        control.setAccessibilityValue(DownloadLocationDisplay.path(path))
     }
 }
 
@@ -248,36 +331,36 @@ private struct AddDownloadOptions: View {
     @EnvironmentObject private var store: DownloadStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
             VStack(spacing: 12) {
-                row("Filename") {
+                row(String(localized: "Filename")) {
                     VStack(alignment: .leading, spacing: 6) {
-                        TextField("Use the original filename", text: $store.addDraft.outputName)
+                        TextField(String(localized: "Use the original filename"), text: $store.addDraft.outputName)
                         if store.addDraft.isBatch && !store.addDraft.treatLinesAsMirrors {
-                            Text("Leave empty when adding separate downloads.")
+                            Text(String(localized: "Leave empty when adding separate downloads."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
-                row("Connections") {
+                row(String(localized: "Connections")) {
                     Stepper(value: $store.addDraft.splitCount, in: 1...256) {
                         Text("\(store.addDraft.splitCount)").monospacedDigit()
                     }
                     .frame(width: 100)
                 }
-                row("Download speed") {
+                row(String(localized: "Download speed")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Limit speed", isOn: $store.addDraft.limitSpeed)
+                        Toggle(String(localized: "Limit speed"), isOn: $store.addDraft.limitSpeed)
                             .toggleStyle(.checkbox)
                             .accessibilityIdentifier("add-download-limit-speed-toggle")
                         if store.addDraft.limitSpeed {
                             HStack {
-                                TextField("Speed", value: $store.addDraft.speedLimitKB, format: .number.grouping(.never))
+                                TextField(String(localized: "Speed"), value: $store.addDraft.speedLimitKB, format: .number.grouping(.never))
                                     .frame(width: 88)
                                 Text("KB/s").foregroundStyle(.secondary)
                             }
                             if store.addDraft.speedLimitKB <= 0 {
-                                Text("Enter a speed greater than zero.")
+                                Text(String(localized: "Enter a speed greater than zero."))
                                     .font(.caption).foregroundStyle(.secondary)
                                     .accessibilityIdentifier("add-download-speed-limit-warning")
                             }
@@ -286,21 +369,21 @@ private struct AddDownloadOptions: View {
                 }
             }
             Divider()
-            Text("HTTP Request").font(.callout.weight(.medium))
+            Text(String(localized: "HTTP Request")).font(.callout.weight(.medium))
             VStack(spacing: 12) {
-                row("User-Agent") { TextField("Default", text: $store.addDraft.userAgent) }
-                row("Referer") { TextField("Optional", text: $store.addDraft.referer) }
-                row("Cookie") { SecureField("Optional", text: $store.addDraft.cookie) }
-                row("Authorization") { SecureField("Optional", text: $store.addDraft.authorization) }
-                row("Proxy") { TextField("Use engine settings", text: $store.addDraft.proxyURL) }
-                row("Custom headers") {
-                    TextField("Header: Value", text: $store.addDraft.customHeaders, axis: .vertical)
+                row("User-Agent") { TextField(String(localized: "Default"), text: $store.addDraft.userAgent) }
+                row("Referer") { TextField(String(localized: "Optional"), text: $store.addDraft.referer) }
+                row("Cookie") { SecureField(String(localized: "Optional"), text: $store.addDraft.cookie) }
+                row("Authorization") { SecureField(String(localized: "Optional"), text: $store.addDraft.authorization) }
+                row(String(localized: "Proxy")) { TextField(String(localized: "Use engine settings"), text: $store.addDraft.proxyURL) }
+                row(String(localized: "Custom headers")) {
+                    TextField(String(localized: "Header: Value"), text: $store.addDraft.customHeaders, axis: .vertical)
                         .lineLimit(3...5)
                         .font(.system(.callout, design: .monospaced))
                 }
             }
         }
-        .textFieldStyle(.roundedBorder)
+        .nativeTextFieldStyle()
         .controlSize(.regular)
     }
 
@@ -311,132 +394,5 @@ private struct AddDownloadOptions: View {
             content().frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 .accessibilityLabel(title)
         }
-    }
-}
-
-private struct BitTorrentFileSelectionView: View {
-    @EnvironmentObject private var store: DownloadStore
-    var session: BitTorrentFileSelectionSession
-
-    var body: some View {
-        GroupBox {
-            switch session.phase {
-            case .loading:
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Loading torrent metadata")
-                            .font(.callout.weight(.medium))
-                        Text(session.source)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-                .accessibilityIdentifier("bt-file-selection-loading")
-            case .ready:
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(session.taskName)
-                                .font(.callout.weight(.medium))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .accessibilityIdentifier("bt-file-selection-title")
-                            Text(selectionSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .accessibilityIdentifier("bt-file-selection-summary")
-                        }
-                        Spacer()
-                        Button("All") {
-                            store.setAllBitTorrentFilesSelected(true)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("bt-file-selection-select-all")
-
-                        Button("None") {
-                            store.setAllBitTorrentFilesSelected(false)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("bt-file-selection-select-none")
-                    }
-
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(session.files.enumerated()), id: \.element.id) { offset, file in
-                                BitTorrentFileSelectionRow(
-                                    file: file,
-                                    isSelected: session.selectedFileIndexes.contains(file.index)
-                                )
-                                .environmentObject(store)
-                                if offset < session.files.count - 1 {
-                                    Divider()
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 220)
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(.separator.opacity(0.45), lineWidth: 0.5)
-                    }
-                    .accessibilityIdentifier("bt-file-selection-list")
-                }
-            }
-        }
-        .accessibilityIdentifier("bt-file-selection")
-    }
-
-    private var selectionSummary: String {
-        "\(session.selectedFileIndexes.count) of \(session.files.count) files selected - \(ByteFormat.size(session.selectedTotalLength))"
-    }
-}
-
-private struct BitTorrentFileSelectionRow: View {
-    @EnvironmentObject private var store: DownloadStore
-    var file: DownloadFile
-    var isSelected: Bool
-
-    var body: some View {
-        Toggle(isOn: selectionBinding) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(displayName)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(file.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                Text(ByteFormat.size(file.length))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .toggleStyle(.checkbox)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .accessibilityIdentifier("bt-file-selection-row-\(file.index)")
-    }
-
-    private var selectionBinding: Binding<Bool> {
-        Binding(
-            get: { isSelected },
-            set: { store.setBitTorrentFile(file, isSelected: $0) }
-        )
-    }
-
-    private var displayName: String {
-        let name = URL(fileURLWithPath: file.path).lastPathComponent
-        return name.isEmpty ? file.path : name
     }
 }

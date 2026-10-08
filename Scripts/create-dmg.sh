@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/build/distribution"
 app_path=""
 dmg_name=""
-python_bin="${PYTHON:-python3}"
+python_bin="${PYTHON:-$(command -v python3.14 || command -v python3)}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --app|--output-dir|--dmg-name)
@@ -41,7 +41,8 @@ if [[ -z "$app_path" ]]; then
         -configuration Release -destination 'generic/platform=macOS' \
         -derivedDataPath "$temp_dir/DerivedData" \
         -archivePath "$temp_dir/ChopChop.xcarchive" \
-        CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ARCHS=arm64 archive
+        CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ARCHS=arm64 \
+        CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" archive
     app_path="$temp_dir/ChopChop.xcarchive/Products/Applications/ChopChop.app"
 fi
 [[ -d "$app_path" && "$(basename "$app_path")" == ChopChop.app ]] || { echo 'error: expected ChopChop.app' >&2; exit 1; }

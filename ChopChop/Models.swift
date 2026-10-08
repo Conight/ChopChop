@@ -5,7 +5,7 @@ import SwiftUI
 
 nonisolated enum TaskProtocol: String, CaseIterable, Codable, Identifiable, Sendable {
     case http = "HTTP"
-    case ftp = "FTP"
+    case sftp = "SFTP"
     case bitTorrent = "BitTorrent"
     case magnet = "Magnet"
     case ed2k = "ED2K"
@@ -17,7 +17,7 @@ nonisolated enum TaskProtocol: String, CaseIterable, Codable, Identifiable, Send
     var symbolName: String {
         switch self {
         case .http: "link"
-        case .ftp: "server.rack"
+        case .sftp: "server.rack"
         case .bitTorrent: "point.3.connected.trianglepath.dotted"
         case .magnet: "link.circle"
         case .ed2k: "shared.with.you"
@@ -34,6 +34,8 @@ nonisolated enum DownloadStatus: String, CaseIterable, Codable, Identifiable, Se
     case completed = "Completed"
     case failed = "Failed"
     case removed = "Removed"
+
+    var localizedTitle: String { L10n.key(rawValue) }
 
     var id: String { rawValue }
 
@@ -72,7 +74,6 @@ nonisolated enum DownloadStatus: String, CaseIterable, Codable, Identifiable, Se
 }
 
 nonisolated enum SidebarDestination: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case today = "Today"
     case all = "All"
     case active = "Active"
     case waiting = "Waiting"
@@ -82,11 +83,12 @@ nonisolated enum SidebarDestination: String, CaseIterable, Identifiable, Hashabl
     case ed2k = "ED2K"
     case browserCapture = "Browser Capture"
 
+    var localizedTitle: String { L10n.key(rawValue) }
+
     var id: String { rawValue }
 
     var accessibilityIdentifier: String {
         switch self {
-        case .today: "sidebar-destination-today"
         case .all: "sidebar-destination-all"
         case .active: "sidebar-destination-active"
         case .waiting: "sidebar-destination-waiting"
@@ -100,7 +102,6 @@ nonisolated enum SidebarDestination: String, CaseIterable, Identifiable, Hashabl
 
     var symbolName: String {
         switch self {
-        case .today: "sparkles"
         case .all: "tray.full"
         case .active: "arrow.down.circle"
         case .waiting: "clock"
@@ -140,6 +141,7 @@ nonisolated struct Aria2TaskSnapshot: Equatable, Sendable {
 nonisolated enum BitTorrentFileSelectionPhase: Equatable, Sendable {
     case loading
     case ready
+    case failed
 }
 
 nonisolated struct BitTorrentFileSelectionSession: Identifiable, Equatable, Sendable {
@@ -151,6 +153,14 @@ nonisolated struct BitTorrentFileSelectionSession: Identifiable, Equatable, Send
     var files: [DownloadFile]
     var selectedFileIndexes: Set<Int>
     var phase: BitTorrentFileSelectionPhase
+    var removesTaskOnCancel = true
+    var startedAt = Date()
+    var destination = ""
+    var diagnostics: BitTorrentDiagnostics?
+    var isQueued = false
+    var issue: String?
+    var torrentDirectory: String?
+    var metadataFilePath: String?
 
     var selectedFiles: [DownloadFile] {
         files.filter { selectedFileIndexes.contains($0.index) }
@@ -203,14 +213,32 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
     var recentLogs: [String]
     var infoHash: String?
     var isSharing = false
+    var sourceURL: String? = nil // Ephemeral; history only keeps credential-free sources.
+    var torrentDiagnostics: BitTorrentDiagnostics? = nil
+    var media: MediaTaskProgress? = nil
+    var isChecking: Bool = false
+    var isFetchingMetadata: Bool = false
+    var requiresFileSelection: Bool = false
+    var isAvailableInEngine: Bool = true
+    var addedAtIsFirstSeen: Bool = true
+    var queuePosition: Int? = nil
+    var scheduledStart: Date? = nil
+    var torrentDirectory: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, protocolKind, status, totalLength, completedLength, downloadSpeed, uploadSpeed
+        case connections, destination, addedAt, errorMessage, files, peers, trackers, recentLogs, infoHash
+        case isSharing, sourceURL, torrentDiagnostics, media, isChecking, isFetchingMetadata
+        case requiresFileSelection, isAvailableInEngine, addedAtIsFirstSeen, queuePosition, scheduledStart
+        case torrentDirectory
+    }
 
     var hasReportedTrashableFiles: Bool {
         files.contains { DownloadTaskTrashPath.isReportedUserContentPath($0.path) }
     }
 
     var progress: Double {
-        guard totalLength > 0 else { return 0 }
-        return min(1, max(0, Double(completedLength) / Double(totalLength)))
+        progressState.fraction ?? 0
     }
 
     var isTorrentLike: Bool {
@@ -218,7 +246,8 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
     }
 
     var primaryControlAction: DownloadTaskControlAction? {
-        switch status {
+        guard isAvailableInEngine, media?.state != "finalizing" else { return nil }
+        return switch status {
         case .active, .waiting:
             .pause
         case .paused:
@@ -239,6 +268,7 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
 }
 
 nonisolated enum DownloadTaskControlAction: Equatable, Sendable {
+    var accessibilityName: String { self == .pause ? "pause" : "resume" }
     case pause
     case resume
 
@@ -254,9 +284,9 @@ nonisolated enum DownloadTaskControlAction: Equatable, Sendable {
     var helpTitle: String {
         switch self {
         case .pause:
-            "Pause"
+            String(localized: "Pause")
         case .resume:
-            "Resume"
+            String(localized: "Resume")
         }
     }
 }
@@ -294,19 +324,12 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var authorization = ""
     var customHeaders = ""
     var proxyURL = ""
+    var importedDocuments: [String: ImportedDownloadDocument] = [:]
+    var media = MediaDownloadOptions()
+    var torrentDirectory: String? = nil
 
     var detectedProtocol: TaskProtocol? {
-        guard let trimmed = resourceLines.first else { return nil }
-        let lowered = trimmed.lowercased()
-        if Self.isBareBitTorrentInfoHash(trimmed) { return .magnet }
-        if lowered.hasPrefix("thunder://") { return .thunder }
-        if lowered.hasPrefix("magnet:") { return .magnet }
-        if lowered.hasPrefix("ed2k://") { return .ed2k }
-        if Self.isTorrentResource(trimmed) { return .bitTorrent }
-        if lowered.hasPrefix("ftp://") || lowered.hasPrefix("sftp://") { return .ftp }
-        if lowered.hasSuffix(".meta4") || lowered.hasSuffix(".metalink") { return .metalink }
-        if lowered.hasPrefix("http://") || lowered.hasPrefix("https://") { return .http }
-        return nil
+        resourceLines.first.flatMap(Self.detectProtocol)
     }
 
     var resourceLines: [String] {
@@ -341,16 +364,24 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     func normalizedResources() throws -> [String] {
         let resources = resourceLines
         guard !resources.isEmpty else { throw DownloadDraftError.emptyResource }
-        return try resources.map(Self.normalizedResource)
+        return try resources.map { resource in
+            let normalized = try Self.normalizedResource(resource)
+            guard Self.detectProtocol(for: normalized) != nil else { throw DownloadDraftError.unsupportedProtocol }
+            return normalized
+        }
     }
 
     func engineOptions(fallbackDirectory: String?, autoOrganize: Bool) throws -> [String: String] {
         let normalized = try normalizedResources()
+        if normalized.count > 1, media.mode != .file,
+           (media.mode != .automatic || normalized.contains(where: Self.isMediaManifest)) {
+            throw DownloadOperationError(String(localized: "Add one media source at a time to inspect and choose its tracks."))
+        }
         if normalized.count > 1, !treatLinesAsMirrors, !outputName.trimmedForEngine.isEmpty {
             throw DownloadDraftError.outputNameRequiresSingleTask
         }
 
-        var options: [String: String] = [:]
+        var options: [String: String] = ["pause": "false"]
         if !outputName.trimmedForEngine.isEmpty {
             options["out"] = outputName.trimmedForEngine
         }
@@ -389,6 +420,9 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
         if !headerLines.isEmpty {
             options["header"] = headerLines.joined(separator: "\n")
         }
+        if media.mode != .automatic || shouldInspectMedia {
+            options.merge(try media.engineOptions()) { _, new in new }
+        }
         return options
     }
 
@@ -409,7 +443,7 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
                   separator != line.startIndex else {
                 throw DownloadDraftError.invalidHeader(line)
             }
-            try validateHeaderValue(line, label: "Custom header")
+            try validateHeaderValue(line, label: String(localized: "Custom header"))
             lines.append(line)
         }
         return lines
@@ -425,12 +459,13 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
         let trimmed = resource.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let lowered = trimmed.lowercased()
+        if lowered.hasPrefix("ftp://") { return nil }
         if isBareBitTorrentInfoHash(trimmed) { return .magnet }
         if lowered.hasPrefix("thunder://") { return .thunder }
         if lowered.hasPrefix("magnet:") { return .magnet }
         if lowered.hasPrefix("ed2k://") { return .ed2k }
         if isTorrentResource(trimmed) { return .bitTorrent }
-        if lowered.hasPrefix("ftp://") || lowered.hasPrefix("sftp://") { return .ftp }
+        if lowered.hasPrefix("sftp://") { return .sftp }
         if lowered.hasSuffix(".meta4") || lowered.hasSuffix(".metalink") { return .metalink }
         if lowered.hasPrefix("http://") || lowered.hasPrefix("https://") { return .http }
         return nil
@@ -505,23 +540,29 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
 
 nonisolated enum DownloadDraftError: LocalizedError, Sendable {
     case emptyResource
+    case unsupportedProtocol
     case invalidThunderLink(String)
     case invalidHeader(String)
     case outputNameRequiresSingleTask
     case bitTorrentSelectionRequiresSingleResource
+    case documentRequiresSingleResource
 
     var errorDescription: String? {
         switch self {
+        case .unsupportedProtocol:
+            String(localized: "This protocol is not supported. Use HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, or Metalink. FTP is no longer supported by Aria2 Next.")
         case .emptyResource:
-            "Enter at least one download link."
+            String(localized: "Enter at least one download link.")
         case .invalidThunderLink(let value):
-            "Thunder link could not be decoded: \(value)"
+            String(localized: "Thunder link could not be decoded: \(value)")
         case .invalidHeader(let value):
-            "Header value is invalid: \(value)"
+            String(localized: "Header value is invalid: \(value)")
         case .outputNameRequiresSingleTask:
-            "Output filename can only be set for one task or for a mirror group."
+            String(localized: "Output filename can only be set for one task or for a mirror group.")
         case .bitTorrentSelectionRequiresSingleResource:
-            "Add one Magnet or torrent at a time to choose files before downloading."
+            String(localized: "Add one Magnet or torrent at a time to choose files before downloading.")
+        case .documentRequiresSingleResource:
+            String(localized: "Review one Torrent or Metalink file at a time. Use File → Open Download File… to queue multiple files.")
         }
     }
 }
@@ -536,10 +577,10 @@ nonisolated enum FileAllocationMode: String, CaseIterable, Codable, Identifiable
 
     var title: String {
         switch self {
-        case .none: "None"
-        case .trunc: "Truncate"
-        case .prealloc: "Preallocate"
-        case .falloc: "Fallocate"
+        case .none: String(localized: "None")
+        case .trunc: String(localized: "Truncate")
+        case .prealloc: String(localized: "Preallocate")
+        case .falloc: String(localized: "Fallocate")
         }
     }
 }
@@ -555,11 +596,11 @@ nonisolated enum TrackerSyncInterval: Int, CaseIterable, Identifiable, Sendable 
 
     var title: String {
         switch self {
-        case .everyStartup: "Every startup"
-        case .sixHours: "Every 6 hours"
-        case .twelveHours: "Every 12 hours"
-        case .daily: "Daily"
-        case .weekly: "Weekly"
+        case .everyStartup: String(localized: "Every startup")
+        case .sixHours: String(localized: "Every 6 hours")
+        case .twelveHours: String(localized: "Every 12 hours")
+        case .daily: String(localized: "Daily")
+        case .weekly: String(localized: "Weekly")
         }
     }
 }
@@ -572,8 +613,8 @@ nonisolated enum BitTorrentSharingMode: String, CaseIterable, Identifiable, Send
 
     var title: String {
         switch self {
-        case .stopByCondition: "Stop by ratio or time"
-        case .manualStop: "Seed until manually stopped"
+        case .stopByCondition: String(localized: "Stop by ratio or time")
+        case .manualStop: String(localized: "Seed until manually stopped")
         }
     }
 }
@@ -788,7 +829,7 @@ nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSo
 
         for urlString in urls {
             guard let url = URL(string: urlString) else {
-                failures.append(TrackerSourceFetchFailure(url: urlString, reason: "Invalid URL."))
+                failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "Invalid URL.")))
                 continue
             }
             do {
@@ -798,17 +839,17 @@ nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSo
                     failures.append(
                         TrackerSourceFetchFailure(
                             url: urlString,
-                            reason: "HTTP \(httpResponse.statusCode)."
+                            reason: String(localized: "HTTP \(httpResponse.statusCode).")
                         )
                     )
                     continue
                 }
                 guard let text = String(data: body, encoding: .utf8) else {
-                    failures.append(TrackerSourceFetchFailure(url: urlString, reason: "Response is not valid UTF-8."))
+                    failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "Response is not valid UTF-8.")))
                     continue
                 }
                 guard !TrackerText.trackers(from: text).isEmpty else {
-                    failures.append(TrackerSourceFetchFailure(url: urlString, reason: "No trackers found."))
+                    failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "No trackers found.")))
                     continue
                 }
                 data.append(text)
@@ -869,7 +910,7 @@ nonisolated struct URLSessionED2KBootstrapFetcher: ED2KBootstrapFetching {
     private func download(urlString: String, proxyURL: String) async throws -> Data {
         guard ED2KBootstrapURLValidator.isValid(urlString),
               let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            throw ED2KBootstrapFetchFailure(reason: "ED2K bootstrap URL must use HTTP or HTTPS.")
+            throw ED2KBootstrapFetchFailure(reason: String(localized: "ED2K bootstrap URL must use HTTP or HTTPS."))
         }
 
         let session = URLSession(configuration: sessionConfiguration(proxyURL: proxyURL))
@@ -877,10 +918,10 @@ nonisolated struct URLSessionED2KBootstrapFetcher: ED2KBootstrapFetching {
         let (data, response) = try await session.data(from: url)
         if let httpResponse = response as? HTTPURLResponse,
            !(200..<300).contains(httpResponse.statusCode) {
-            throw ED2KBootstrapFetchFailure(reason: "ED2K bootstrap file returned HTTP \(httpResponse.statusCode).")
+            throw ED2KBootstrapFetchFailure(reason: String(localized: "ED2K bootstrap file returned HTTP \(httpResponse.statusCode)."))
         }
         guard !data.isEmpty, data.count <= Self.maxBootstrapFileSize else {
-            throw ED2KBootstrapFetchFailure(reason: "Invalid ED2K bootstrap file size: \(data.count).")
+            throw ED2KBootstrapFetchFailure(reason: String(localized: "Invalid ED2K bootstrap file size: \(data.count)."))
         }
         return data
     }
@@ -1059,11 +1100,11 @@ nonisolated enum ED2KSearchFileType: String, CaseIterable, Identifiable, Sendabl
 
     var title: String {
         switch self {
-        case .any: "Any"
-        case .audio: "Audio"
-        case .video: "Video"
-        case .document: "Document"
-        case .archive: "Archive"
+        case .any: String(localized: "Any")
+        case .audio: String(localized: "Audio")
+        case .video: String(localized: "Video")
+        case .document: String(localized: "Document")
+        case .archive: String(localized: "Archive")
         }
     }
 }
@@ -1115,7 +1156,7 @@ nonisolated struct ED2KSearchResult: Identifiable, Decodable, Equatable, Sendabl
     }
 
     var displayName: String {
-        name?.trimmedForEngine.nonEmptyValue ?? "Unnamed ED2K file"
+        name?.trimmedForEngine.nonEmptyValue ?? String(localized: "Unnamed ED2K file")
     }
 
     var lengthBytes: Int64 {
@@ -1370,31 +1411,31 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     var missingLaunchRequirements: [String] {
         var requirements: [String] = []
         if rpcToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            requirements.append("Generate an RPC token")
+            requirements.append(String(localized: "Generate an RPC token"))
         }
         if !(1...65535).contains(rpcPort) {
-            requirements.append("Set RPC port between 1 and 65535")
+            requirements.append(String(localized: "Set RPC port between 1 and 65535"))
         }
         if !(1...65535).contains(listenPort) {
-            requirements.append("Set BT listen port between 1 and 65535")
+            requirements.append(String(localized: "Set BT listen port between 1 and 65535"))
         }
         if !(1...65535).contains(dhtListenPort) {
-            requirements.append("Set DHT listen port between 1 and 65535")
+            requirements.append(String(localized: "Set DHT listen port between 1 and 65535"))
         }
         if !Self.validED2KListenPortRange.contains(ed2kListenPort) {
-            requirements.append("Set ED2K listen port between 0 and 65535")
+            requirements.append(String(localized: "Set ED2K listen port between 0 and 65535"))
         }
         if !Self.validED2KListenPortRange.contains(ed2kUDPListenPort) {
-            requirements.append("Set ED2K UDP listen port between 0 and 65535")
+            requirements.append(String(localized: "Set ED2K UDP listen port between 0 and 65535"))
         }
         if !(1...100).contains(ed2kUploadSlots) {
-            requirements.append("Set ED2K upload slots between 1 and 100")
+            requirements.append(String(localized: "Set ED2K upload slots between 1 and 100"))
         }
         if !(10...600).contains(ed2kSearchTimeoutSeconds) {
-            requirements.append("Set ED2K search timeout between 10 and 600 seconds")
+            requirements.append(String(localized: "Set ED2K search timeout between 10 and 600 seconds"))
         }
         if !hasDownloadDirectoryAccess {
-            requirements.append("Choose a default download folder")
+            requirements.append(String(localized: "Choose a default download folder"))
         }
         return requirements
     }
@@ -1411,30 +1452,30 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             throw EngineError.invalidRPCPort(rpcPort)
         }
         guard (1...65535).contains(listenPort) else {
-            throw EngineError.invalidListenPort(label: "BT listen port", port: listenPort)
+            throw EngineError.invalidListenPort(label: String(localized: "BT listen port"), port: listenPort)
         }
         guard (1...65535).contains(dhtListenPort) else {
-            throw EngineError.invalidListenPort(label: "DHT listen port", port: dhtListenPort)
+            throw EngineError.invalidListenPort(label: String(localized: "DHT listen port"), port: dhtListenPort)
         }
         guard Self.validED2KListenPortRange.contains(ed2kListenPort) else {
             throw EngineError.invalidNumericSetting(
-                label: "ED2K listen port",
+                label: String(localized: "ED2K listen port"),
                 value: ed2kListenPort,
                 range: Self.validED2KListenPortRange
             )
         }
         guard Self.validED2KListenPortRange.contains(ed2kUDPListenPort) else {
             throw EngineError.invalidNumericSetting(
-                label: "ED2K UDP listen port",
+                label: String(localized: "ED2K UDP listen port"),
                 value: ed2kUDPListenPort,
                 range: Self.validED2KListenPortRange
             )
         }
         guard (1...100).contains(ed2kUploadSlots) else {
-            throw EngineError.invalidNumericSetting(label: "ED2K upload slots", value: ed2kUploadSlots, range: 1...100)
+            throw EngineError.invalidNumericSetting(label: String(localized: "ED2K upload slots"), value: ed2kUploadSlots, range: 1...100)
         }
         guard (10...600).contains(ed2kSearchTimeoutSeconds) else {
-            throw EngineError.invalidNumericSetting(label: "ED2K search timeout", value: ed2kSearchTimeoutSeconds, range: 10...600)
+            throw EngineError.invalidNumericSetting(label: String(localized: "ED2K search timeout"), value: ed2kSearchTimeoutSeconds, range: 10...600)
         }
         guard hasDownloadDirectoryAccess else {
             throw EngineError.missingDownloadDirectory
@@ -1506,6 +1547,10 @@ nonisolated struct EngineSettings: Equatable, Sendable {
 nonisolated struct AppPreferences: Equatable, Sendable {
     var launchAtLogin = false
     var showMenuBar = true
+    var notifyOnDownloadCompletion = false
+    var bandwidthSchedule = BandwidthSchedule()
+    var browserCaptureEnabled = false
+    var browserCaptureToken = ""
     var keepRunningAfterClose = true
     var autoRevealCompletedFile = true
     var askBeforeOverwrite = true
@@ -1587,17 +1632,17 @@ nonisolated enum ByteFormat {
     static func duration(_ seconds: Int) -> String {
         let clampedSeconds = max(0, seconds)
         if clampedSeconds < 60 {
-            return "\(clampedSeconds)s"
+            return String(localized: "\(clampedSeconds)s")
         }
 
         let minutes = clampedSeconds / 60
         let remainingSeconds = clampedSeconds % 60
         if minutes < 60 {
-            return "\(minutes)m \(remainingSeconds)s"
+            return String(localized: "\(minutes)m \(remainingSeconds)s")
         }
 
         let hours = minutes / 60
         let remainingMinutes = minutes % 60
-        return "\(hours)h \(remainingMinutes)m"
+        return String(localized: "\(hours)h \(remainingMinutes)m")
     }
 }

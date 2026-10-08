@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EmptyContentState: View {
     var title: String
@@ -24,30 +25,24 @@ struct EmptyContentState: View {
     }
 }
 
-struct StatusBadge: View {
-    var status: DownloadStatus
-    var isSelected = false
-    @Environment(\.colorSchemeContrast) private var contrast
+/// Use Finder's file-type artwork without reading the downloaded file or generating thumbnails.
+struct DownloadTaskIcon: View {
+    let task: DownloadTask
+    var size: CGFloat = 28
+    @MainActor private static var icons: [UTType: NSImage] = [:]
+
+    private var icon: NSImage {
+        let type = task.isTorrentLike ? UTType.folder :
+            (UTType(filenameExtension: (task.name as NSString).pathExtension) ?? .data)
+        if let icon = Self.icons[type] { return icon }
+        let icon = NSWorkspace.shared.icon(for: type)
+        Self.icons[type] = icon
+        return icon
+    }
 
     var body: some View {
-        Label {
-            Text(status.rawValue)
-        } icon: {
-            Image(systemName: status.symbolName)
-                .foregroundStyle(isSelected ? Color.primary : status.tint)
-        }
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background((isSelected ? Color.primary : status.tint).opacity(0.10), in: Capsule())
-            .overlay {
-                if contrast == .increased {
-                    Capsule().strokeBorder(.primary.opacity(0.55), lineWidth: 1)
-                }
-            }
+        Image(nsImage: icon).resizable().scaledToFit()
+            .frame(width: size, height: size).accessibilityHidden(true)
     }
 }
 
@@ -60,7 +55,7 @@ struct EngineUpdateBadge: View {
         HStack(spacing: 3) {
             Image(systemName: "arrow.up")
                 .foregroundStyle(Color.accentColor)
-            Text("New")
+            Text(String(localized: "New"))
                 .foregroundStyle(.primary)
         }
         .font(.caption2.weight(.semibold))
@@ -81,7 +76,7 @@ struct EngineUpdateBadge: View {
                 )
         }
         .fixedSize()
-        .accessibilityLabel("Engine update available")
+        .accessibilityLabel(String(localized: "Engine update available"))
         .accessibilityIdentifier("sidebar-engine-update-badge")
     }
 }
@@ -98,14 +93,6 @@ struct SpeedSparkline: View {
             let step = size.width / CGFloat(max(values.count - 1, 1))
             let baseline = size.height - 1
 
-            for index in values.indices {
-                let x = CGFloat(index) * step
-                var guide = Path()
-                guide.move(to: CGPoint(x: x, y: baseline))
-                guide.addLine(to: CGPoint(x: x, y: size.height * 0.58))
-                context.stroke(guide, with: .color(.accentColor.opacity(0.10)), lineWidth: 1)
-            }
-
             var path = Path()
             for index in values.indices {
                 let x = CGFloat(index) * step
@@ -121,11 +108,16 @@ struct SpeedSparkline: View {
             fill.addLine(to: CGPoint(x: size.width, y: baseline))
             fill.addLine(to: CGPoint(x: 0, y: baseline))
             fill.closeSubpath()
-            context.fill(fill, with: .color(.accentColor.opacity(0.16)))
-            context.stroke(path, with: .color(.accentColor), lineWidth: 2.5)
+            let hasActivity = values.contains { $0 > 0 }
+            if hasActivity {
+                context.fill(fill, with: .linearGradient(Gradient(colors: [.accentColor.opacity(0.16), .accentColor.opacity(0.015)]),
+                    startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
+                context.stroke(path, with: .color(.accentColor), lineWidth: 1.5)
+            }
         }
         .frame(height: height)
-        .accessibilityLabel("Recent download speed")
+        .accessibilityLabel(String(localized: "Recent download speed"))
+        .accessibilityValue(String(localized: "Current \(ByteFormat.speed(samples.last?.downloadBytesPerSecond ?? 0)), peak \(ByteFormat.speed(samples.map(\.downloadBytesPerSecond).max() ?? 0))"))
     }
 
     private var normalizedValues: [CGFloat] {
@@ -140,47 +132,19 @@ struct SpeedSparkline: View {
     }
 }
 
-struct MetricColumn: View {
-    var title: String
-    var value: String
-    var symbol: String
-    var tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: symbol)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .contentPanel()
-    }
-}
-
-/// Content surfaces stay opaque; system navigation and toolbars supply their own material.
+/// GroupBox supplies the platform surface; the group owns its content inset.
 private struct ContentPanelModifier: ViewModifier {
-    @Environment(\.colorSchemeContrast) private var contrast
-    var cornerRadius: CGFloat
-
     func body(content: Content) -> some View {
-        content
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(contrast == .increased ? Color.primary.opacity(0.5) : Color(nsColor: .separatorColor),
-                                  lineWidth: contrast == .increased ? 1 : 0.5)
-            }
+        GroupBox {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AppLayout.groupInset)
+        }
     }
 }
 
 extension View {
-    func contentPanel(cornerRadius: CGFloat = 10) -> some View {
-        modifier(ContentPanelModifier(cornerRadius: cornerRadius))
+    func contentPanel() -> some View {
+        modifier(ContentPanelModifier())
     }
 }
