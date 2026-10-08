@@ -99,14 +99,14 @@ Scripts/create-dmg.sh
 
 The packaging dependencies are version- and hash-pinned and installed into a temporary virtual environment. Finder layout metadata is generated with [dmgbuild](https://dmgbuild.readthedocs.io/), without UI automation. The script checks the app, XPC service, entitlements, signatures, architecture, notices, and Applications shortcut, and rejects any embedded engine payload.
 
-Before a release, update `MARKETING_VERSION` in the app target to match the tag's base version. Write complete release notes in an annotated tag:
+Before a release, update `MARKETING_VERSION` in the app target to match the tag's base version. **All release titles and notes must be in English.** Save complete notes in `Documentation/Releases/<tag>.md` and commit them before creating the annotated tag:
 
 ```sh
-git tag -a v0.0.1-beta.2
+git tag -a v0.0.1-beta.2 --cleanup=verbatim -F Documentation/Releases/v0.0.1-beta.2.md
 git push origin v0.0.1-beta.2
 ```
 
-Tags with a prerelease suffix are marked as GitHub pre-releases. Release notes come from the tag message. The workflow uses GitHub's [`xcode-27` Apple Silicon runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
+Tags with a prerelease suffix are marked as GitHub pre-releases. The workflow requires the matching notes file and publishes it directly, preserving its Markdown headings. To correct an existing release, edit its GitHub notes and update the corresponding file without moving the published tag or replacing its assets. The workflow uses GitHub's [`xcode-27` Apple Silicon runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
 
 Release files use names such as `ChopChop-v0.0.1-beta.2-macos-arm64.dmg` and `ChopChop-v0.0.1-beta.2-macos-arm64.dmg.sha256`.
 
