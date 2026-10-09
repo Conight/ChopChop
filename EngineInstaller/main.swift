@@ -1,13 +1,19 @@
+import Darwin
 import Foundation
 import Security
 
-/// Private, on-demand installer. It only accepts a release version and the app's Engines folder.
-/// The UI and engine remain sandboxed; this service owns executable creation so installation
-/// does not require a user-selected executable location or any administrator privileges.
+/// Authenticated on-demand installer for the managed Engine and signed ChopChop updates.
+/// The UI and Engine remain sandboxed; this service creates executables and stages updates
+/// without administrator privileges or a user-selected executable location.
 final class EngineInstallerService: NSObject, EngineInstallerProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var task: Task<Void, Never>?
     private weak var connection: NSXPCConnection?
+    private var appTask: Task<Void, Never>?
+    private var appJob: AppUpdateInstallation.Job?
+    private var appToken: String?
+    private var appWorker: Process?
+    private var cancelled = false
 
     init(connection: NSXPCConnection) { self.connection = connection }
 
@@ -49,10 +55,82 @@ final class EngineInstallerService: NSObject, EngineInstallerProtocol, @unchecke
         }
     }
 
-    func cancel() {
+    func cancel(preservePrepared: Bool = false) {
         lock.lock()
         task?.cancel()
+        cancelled = true
+        appTask?.cancel()
+        if !preservePrepared, appWorker?.isRunning != true, let appJob,
+           !AppUpdateInstallation.workerIsRunning(in: appJob.directory) { try? FileManager.default.removeItem(at: appJob.directory) }
         lock.unlock()
+    }
+
+    func discardUpdate(reply: @escaping @Sendable () -> Void) { cancel(); reply() }
+
+    func resumeUpdate(version: String, reply: @escaping @Sendable (String?, String?) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        guard appTask == nil, !cancelled, let connection, let version = AppVersion(version) else {
+            reply(nil, AppUpdateError.installerUnavailable.rawValue); return
+        }
+        let pid = connection.processIdentifier
+        appTask = Task { [self] in
+            do {
+                guard let job = try AppUpdateInstallation.resume(version: version, target: AppUpdateInstallation.installedApp(), parentPID: pid) else { reply(nil, nil); return }
+                let token = UUID().uuidString
+                let accepted = lock.withLock {
+                    guard !cancelled else { return false }
+                    appJob = job; appToken = token; return true
+                }
+                guard accepted else { throw CancellationError() }
+                reply(token, nil)
+            } catch { reply(nil, (error as? AppUpdateError ?? .invalidApplication).rawValue) }
+        }
+    }
+
+    func updateInstallationStatus(token: String, reply: @escaping @Sendable (String) -> Void) {
+        let status: AppUpdateInstallationStatus = lock.withLock {
+            guard token == appToken else { return .failed }
+            if appWorker?.isRunning == true || appJob.map({ AppUpdateInstallation.workerIsRunning(in: $0.directory) }) == true { return .waitingForExit }
+            if let job = appJob, let data = try? Data(contentsOf: job.directory.appendingPathComponent("worker-error.json")),
+               (try? JSONDecoder().decode(AppUpdateError.self, from: data)) == .terminationTimedOut { return .terminationTimedOut }
+            return .failed
+        }
+        reply(status.rawValue)
+    }
+
+    func prepare(version: String, reply: @escaping @Sendable (String?, String?) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        guard appTask == nil, !cancelled, let connection else { reply(nil, AppUpdateError.installerUnavailable.rawValue); return }
+        let pid = connection.processIdentifier
+        appTask = Task { [self] in
+            do {
+                guard let version = AppVersion(version) else { throw AppUpdateError.invalidResponse }
+                let job = try await AppUpdateInstallation.prepare(version: version, target: AppUpdateInstallation.installedApp(), parentPID: pid) { [weak self] update in
+                    guard let data = try? JSONEncoder().encode(update),
+                          let reporter = self?.connection?.remoteObjectProxy as? EngineInstallerProgressReporting else { return }
+                    reporter.reportAppUpdateProgress(data)
+                }
+                let token = UUID().uuidString
+                let accepted = self.lock.withLock {
+                    guard !self.cancelled else { return false }
+                    self.appJob = job; self.appToken = token
+                    return true
+                }
+                guard accepted else { try? FileManager.default.removeItem(at: job.directory); throw CancellationError() }
+                reply(token, nil)
+            } catch { reply(nil, (error as? AppUpdateError ?? .downloadFailed).rawValue) }
+        }
+    }
+
+    func install(token: String, reply: @escaping @Sendable (Bool, String?) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        guard !cancelled, token == appToken, let job = appJob else { reply(false, AppUpdateError.installerUnavailable.rawValue); return }
+        // Installation handoff is idempotent when a client reconnects or retries a lost acknowledgement.
+        if appWorker?.isRunning == true || AppUpdateInstallation.workerIsRunning(in: job.directory) { reply(true, nil); return }
+        do {
+            appWorker = try AppUpdateInstallation.launchWorker(job)
+            reply(true, nil)
+        } catch { reply(false, (error as? AppUpdateError ?? .installationFailed).rawValue) }
     }
 }
 
@@ -73,13 +151,20 @@ final class InstallerDelegate: NSObject, NSXPCListenerDelegate {
         let service = EngineInstallerService(connection: connection)
         connection.exportedInterface = NSXPCInterface(with: EngineInstallerProtocol.self)
         connection.exportedObject = service
-        connection.invalidationHandler = { service.cancel() }
+        connection.invalidationHandler = { service.cancel(preservePrepared: true) }
         connection.resume()
         return true
     }
 }
 
-let delegate = InstallerDelegate()
-let listener = NSXPCListener.service()
-listener.delegate = delegate
-listener.resume()
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--apply-app-update" {
+    // The worker must outlive both the app and the on-demand XPC service's process group.
+    guard getpgrp() == getpid() || setpgid(0, 0) == 0 else { exit(1) }
+    do { try AppUpdateInstallation.applyJob(at: URL(fileURLWithPath: CommandLine.arguments[2])) }
+    catch { exit(1) }
+} else {
+    let delegate = InstallerDelegate()
+    let listener = NSXPCListener.service()
+    listener.delegate = delegate
+    listener.resume()
+}

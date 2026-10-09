@@ -35,6 +35,8 @@ nonisolated final class EngineInstallerRequest: NSObject, EngineInstallerProgres
         updates.continuation.yield(update)
     }
 
+    func reportAppUpdateProgress(_ data: Data) {}
+
     private func start(version: String, bookmark: Data, continuation: CheckedContinuation<String, any Error>) {
         lock.lock()
         if let result {

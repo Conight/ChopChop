@@ -60,43 +60,62 @@ struct TaskInspectorTabs: NSViewRepresentable {
 
 struct TaskInspectorView: View {
     @EnvironmentObject private var store: DownloadStore
-    @State private var tab: InspectorTab
+    @State private var showsSpeedLimits = false
+    @State private var localTab: InspectorTab
+    private var tabSelection: Binding<InspectorTab>?
+    private var selection: Binding<InspectorTab> { tabSelection ?? $localTab }
+    private var tab: InspectorTab { selection.wrappedValue }
     var task: DownloadTask
+    var sectionRequest: TaskDetailRequest?
 
-    init(task: DownloadTask, initialTab: InspectorTab = .overview) {
+    init(task: DownloadTask, initialTab: InspectorTab = .overview, selection: Binding<InspectorTab>? = nil, sectionRequest: TaskDetailRequest? = nil) {
         self.task = task
-        _tab = State(initialValue: initialTab)
+        self.sectionRequest = sectionRequest
+        _localTab = State(initialValue: initialTab)
+        tabSelection = selection
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                .padding(.bottom, 20)
+                .padding(.horizontal, AppLayout.detailInset)
+                .padding(.top, AppLayout.detailInset)
+                .padding(.bottom, AppLayout.detailSectionSpacing)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("details-header")
-            TaskInspectorTabs(selection: $tab)
+            TaskInspectorTabs(selection: selection)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    switch tab {
-                    case .overview: overview
-                    case .files: files
-                    case .network: network
-                    case .logs: logs
+                .padding(.horizontal, AppLayout.detailInset)
+                .padding(.bottom, AppLayout.detailTabSpacing)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppLayout.detailSectionSpacing) {
+                        switch tab {
+                        case .overview: overview
+                        case .files: files
+                        case .network: network
+                        case .logs: logs
+                        }
+                    }
+                    .id(task.id) // Reset task-specific editors, keeping the surrounding tabs and window stable.
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, AppLayout.detailInset)
+                    .padding(.bottom, AppLayout.detailInset)
+                }
+                .onChange(of: sectionRequest, initial: true) { _, request in
+                    guard let request else { return }
+                    Task { @MainActor in
+                        await Task.yield()
+                        if request.section == .speedLimits { showsSpeedLimits = true }
+                        proxy.scrollTo(request.section, anchor: .top)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
             }
             .accessibilityIdentifier("details-content")
         }
         .background { DownloadWorkspaceBackdrop().ignoresSafeArea() }
-        .controlSize(.regular)
+        .onChange(of: task.id) { _, _ in showsSpeedLimits = false }
+        .desktopControls()
         .buttonStyle(.bordered)
         .task(id: task.id) {
             await store.refreshDetails(for: task.id)
@@ -108,14 +127,14 @@ struct TaskInspectorView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 20) {
-            HStack(alignment: .top, spacing: 20) {
+        VStack(spacing: AppLayout.detailSectionSpacing) {
+            HStack(alignment: .top, spacing: AppLayout.detailSectionSpacing) {
                 DownloadTaskIcon(task: task, size: 88)
                     .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(task.name)
-                            .font(.title2.weight(.semibold))
+                            .font(AppTypography.windowTitle)
                             .lineLimit(2).truncationMode(.middle)
                             .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled).help(task.name)
@@ -168,7 +187,7 @@ struct TaskInspectorView: View {
     }
 
     private var overview: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: AppLayout.detailSectionSpacing) {
             if let error = task.errorMessage, task.status == .failed {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.red).textSelection(.enabled)
@@ -198,11 +217,21 @@ struct TaskInspectorView: View {
             if task.media != nil { MediaTaskActions(task: task).labelStyle(.titleOnly) }
             if task.canRepairConnection || canSchedule {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(String(localized: "Task settings")).font(.headline)
+                    Text(String(localized: "Task settings")).font(AppTypography.sectionTitle)
                     VStack(alignment: .leading, spacing: 12) {
+                        if canSchedule {
+                            DisclosureGroup(String(localized: "Speed Limits"), isExpanded: $showsSpeedLimits) {
+                                TaskBandwidthView(task: task).padding(.top, AppLayout.controlSpacing)
+                            }.id(TaskDetailSection.speedLimits)
+                            Divider()
+                        }
                         if task.canRepairConnection { DownloadRepairView(task: task) }
                         if task.canRepairConnection && canSchedule { Divider() }
-                        if canSchedule { TaskScheduleView(task: task) }
+                        if canSchedule {
+                            TaskScheduleView(task: task, initiallyExpanded: sectionRequest?.section == .schedule)
+                                .id(sectionRequest?.section == .schedule)
+                                .id(TaskDetailSection.schedule)
+                        }
                     }.contentPanel()
                 }
             }
@@ -212,7 +241,7 @@ struct TaskInspectorView: View {
     private func informationRow(_ title: String, _ value: String, symbol: String? = nil, divider: Bool = true) -> some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 16) {
-                Text(title).foregroundStyle(.secondary).frame(width: 112, alignment: .leading)
+                Text(title).foregroundStyle(.secondary).frame(width: AppLayout.detailLabelWidth, alignment: .leading)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let symbol { Image(systemName: symbol).foregroundStyle(Color.accentColor) }
                     Text(value).textSelection(.enabled)
@@ -229,21 +258,22 @@ struct TaskInspectorView: View {
         task.isAvailableInEngine && task.primaryControlAction != nil && !task.requiresFileSelection
     }
 
+    private var commandContext: DownloadActionContext { DownloadActionContext(store: store, taskID: task.id) }
+
     @ViewBuilder
     private var overviewActions: some View {
         if let action = task.primaryControlAction {
             if action == .resume { controlButton(for: action).buttonStyle(.borderedProminent) }
             else { controlButton(for: action) }
         }
-        Button(String(localized: "Show in Finder"), systemImage: "folder") { store.showInFinder(task) }
-            .disabled(DownloadFileLocation.revealURL(for: task) == nil)
+        DownloadActionButton(action: .reveal, context: commandContext)
             .help(String(localized: "Show in Finder"))
         Menu {
             if task.canEditAndAddAgain {
-                Button(String(localized: "Edit and Add Again…")) { store.editAndAddAgain(task) }
+                DownloadActionButton(action: .editAgain, context: commandContext)
                 Divider()
             }
-            Button(String(localized: "Remove Download…"), role: .destructive) { store.beginRemove(task) }
+            DownloadActionButton(action: .remove, context: commandContext)
         } label: {
             Label(String(localized: "More Actions"), systemImage: "ellipsis")
         }
@@ -253,15 +283,11 @@ struct TaskInspectorView: View {
 
     private func controlButton(for action: DownloadTaskControlAction) -> some View {
         Button {
-            Task {
-                switch action {
-                case .pause: await store.pause(task)
-                case .resume: await store.resume(task)
-                }
-            }
+            (action == .pause ? DownloadAction.pause : .resume).perform(in: commandContext)
         } label: {
             Label(action.helpTitle, systemImage: action.symbolName)
         }
+        .disabled(!(action == .pause ? DownloadAction.pause : .resume).isEnabled(in: commandContext))
         .help(action.helpTitle)
     }
 
@@ -269,7 +295,7 @@ struct TaskInspectorView: View {
         VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
             if task.isTorrentLike, task.isAvailableInEngine, task.primaryControlAction != nil,
                !task.files.isEmpty, !task.isFetchingMetadata, store.engineCapabilities?.supportsTorrentManagement == true {
-                BitTorrentManagementView(task: task)
+                BitTorrentManagementView(task: task).id(task.id)
             } else if task.files.isEmpty {
                 Text(String(localized: "No file list reported by Aria2 Next yet."))
                     .font(.callout)
@@ -277,30 +303,7 @@ struct TaskInspectorView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentPanel()
             } else {
-                ForEach(task.files) { file in
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack {
-                            Image(systemName: file.isSelected ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(file.isSelected ? .green : .secondary)
-                            Text(URL(fileURLWithPath: file.path).lastPathComponent)
-                                .lineLimit(1)
-                            Spacer()
-                        }
-                        DownloadFileProgressView(file: file)
-                        if file.isCompleteOnDisk && (file.length > 0 || task.status == .completed) {
-                            DownloadedFileActions(file: file)
-                            FileVerificationView(file: file)
-                        }
-                    }
-                    .contentPanel()
-                    .contextMenu {
-                        if let url = DownloadFileLocation.existingFile(file.path) {
-                            Button(String(localized: "Show in Finder"), systemImage: "folder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([url])
-                            }
-                        }
-                    }
-                }
+                DownloadFilesTable(files: task.files, directory: task.torrentDirectory ?? task.destination).id(task.id)
             }
         }
     }

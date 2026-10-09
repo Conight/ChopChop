@@ -23,6 +23,7 @@ jobs:
         shell: bash
     env:
       OUTPUT_DIR: build/distribution
+      CHOPCHOP_UPDATE_PUBLIC_KEY: ${{ vars.CHOPCHOP_UPDATE_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,10 +50,24 @@ jobs:
           if settings['MARKETING_VERSION'] != version:
               sys.exit(f"Tag version {version} does not match MARKETING_VERSION {settings['MARKETING_VERSION']}")
           PY
+      - name: Require the pinned update public key
+        run: |
+          python3 - <<'PYKEY'
+          import os, base64, pathlib
+          key = base64.b64decode(os.environ['CHOPCHOP_UPDATE_PUBLIC_KEY'], validate=True)
+          if len(key) != 32:
+              raise SystemExit('Configure CHOPCHOP_UPDATE_PUBLIC_KEY before publishing signed updates.')
+          if os.environ['CHOPCHOP_UPDATE_PUBLIC_KEY'].strip() != pathlib.Path('Configuration/UpdatePublicKey.txt').read_text().strip():
+              raise SystemExit('Repository and release signing keys differ. Do not rotate the update key accidentally.')
+          PYKEY
       - name: Verify all features and package DMG
         env:
           CHOPCHOP_RELEASE_VERSION: ${{ github.ref_name }}
         run: Scripts/verify.sh --package "${OUTPUT_DIR}" "ChopChop-${GITHUB_REF_NAME}-macos-arm64"
+      - name: Sign the verified update package
+        env:
+          CHOPCHOP_UPDATE_PRIVATE_KEY: ${{ secrets.CHOPCHOP_UPDATE_PRIVATE_KEY }}
+        run: Scripts/sign-update-dmg.sh "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg" "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-update.json"
       - name: Verify checksums
         run: |
           cd "${OUTPUT_DIR}"
@@ -70,6 +85,7 @@ jobs:
           assets=(
             "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg#ChopChop for Apple Silicon"
             "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg.sha256#DMG SHA-256 checksum"
+            "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-update.json#Signed update manifest"
           )
           if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber

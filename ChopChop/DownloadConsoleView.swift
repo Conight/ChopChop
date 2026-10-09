@@ -3,6 +3,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct DownloadConsoleView: View {
+    var supportNavigation: AppSupportNavigation?
+    var updates: AppUpdateCoordinator?
+    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
+    @StateObject private var commandSearch = CommandSearchPresentation()
     @ObservedObject var inputCoordinator: DownloadInputCoordinator
     @EnvironmentObject private var store: DownloadStore
     @Environment(\.controlActiveState) private var controlActiveState
@@ -15,7 +20,9 @@ struct DownloadConsoleView: View {
     @StateObject private var detailsPresentation = TaskDetailsPresentation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation()) {
+    init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation(), updates: AppUpdateCoordinator? = nil, supportNavigation: AppSupportNavigation? = nil) {
+        self.supportNavigation = supportNavigation
+        self.updates = updates
         _inputCoordinator = ObservedObject(wrappedValue: inputCoordinator)
         _detailsPresentation = StateObject(wrappedValue: presentation)
     }
@@ -34,6 +41,7 @@ struct DownloadConsoleView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
             DownloadSidebar(selection: $sidebarSelection)
+                .desktopControls()
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 320)
         } detail: {
@@ -45,6 +53,7 @@ struct DownloadConsoleView: View {
                         .environmentObject(detailsPresentation)
                     if showsStatusBar { DownloadStatusBar() }
                 }
+                .desktopControls()
                 .frame(width: available.size.width, height: available.size.height)
             }
             .navigationTitle(currentDestination.localizedTitle)
@@ -74,34 +83,22 @@ struct DownloadConsoleView: View {
 
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button(String(localized: "Refresh Downloads"), systemImage: "arrow.clockwise") {
-                            runStoreTask { await store.refreshTasks() }
-                        }.disabled(!store.canStopEngine)
+                        Button(String(localized: "Search Commands…"), systemImage: "magnifyingglass") { presentCommandSearch() }
                         Divider()
-                        Button(String(localized: "Pause All")) { runStoreTask { await store.pauseAll() } }
-                            .disabled(!store.canStopEngine)
-                        Button(String(localized: "Force Pause All")) { runStoreTask { await store.forcePauseAll() } }
-                            .disabled(!store.canStopEngine)
-                        Button(String(localized: "Resume All")) { runStoreTask { await store.resumeAll() } }
-                            .disabled(!store.canStopEngine)
-                        Divider()
-                        Button(String(localized: "Clear Finished Records"), role: .destructive) {
-                            runStoreTask { await store.purgeCompletedRecords() }
+                        ForEach([DownloadAction.refresh, .pauseAll, .forcePauseAll, .resumeAll, .clearFinished]) { action in
+                            DownloadActionButton(action: action, context: commandContext)
                         }
-                        .disabled(!store.canClearFinishedRecords)
                         Divider()
                         Menu(String(localized: "Engine")) {
-                            Button(String(localized: "Start Engine")) { runStoreTask { await store.startEngine() } }
-                                .disabled(!store.canStartEngine)
-                            Button(String(localized: "Restart Engine")) { runStoreTask { await store.restartEngine() } }
-                                .disabled(!store.canRestartEngine)
-                            Button(String(localized: "Stop Engine")) { runStoreTask { await store.stopEngine() } }
-                                .disabled(!store.canStopEngine)
+                            ForEach([DownloadAction.startEngine, .restartEngine, .stopEngine, .engineSettings]) { action in
+                                DownloadActionButton(action: action, context: commandContext)
+                            }
                         }
                     } label: {
                         Label(String(localized: "More"), systemImage: "ellipsis")
                     }
                     .labelStyle(.iconOnly)
+                    .menuIndicator(.hidden)
                     .help(String(localized: "More Actions"))
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -112,6 +109,11 @@ struct DownloadConsoleView: View {
                     .disabled(store.selectedTask == nil)
                     .help(detailsPresentation.isPresented ? String(localized: "Hide Details") : String(localized: "Show Details"))
                     .accessibilityIdentifier("toolbar-inspector-button")
+                }
+                if let updates {
+                    ToolbarItem(placement: .primaryAction) {
+                        AppUpdateIndicator(updates: updates)
+                    }
                 }
             }
             .searchable(text: $store.searchQuery, placement: .toolbar, prompt: String(localized: "Search downloads"))
@@ -134,15 +136,7 @@ struct DownloadConsoleView: View {
         .background(DownloadWindowIdentity())
         .background(TaskDetailsWindowAnchor(presentation: detailsPresentation))
         .frame(minWidth: 900, minHeight: 600)
-        .focusedSceneValue(\.downloadWindowActions, DownloadWindowActions(
-            newDownload: scheduleAddDownloadPanelPresentation,
-            pasteDownload: pasteClipboardIntoDraft,
-            openDownloadFile: openDownloadFile,
-            toggleDetails: toggleDetails,
-            detailsPresented: detailsPresentation.isPresented,
-            hasSelection: store.selectedTask != nil,
-            canPresentDownload: inputCoordinator.owner == nil && !store.engineSetupState.requiresInstallation
-        ))
+        .focusedSceneValue(\.downloadWindowActions, windowActions)
         .onChange(of: store.selectedTask?.id, initial: true) { _, id in
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                 detailsPresentation.selectionChanged(to: id)
@@ -166,10 +160,12 @@ struct DownloadConsoleView: View {
             guard controlActiveState == .key || detailsPresentation.panel?.isKeyWindow == true,
                   !isAddPanelPresented else { return }
             guard store.claimAlert(alert) else { return }
+            commandSearch.dismiss(returnFocus: false)
             detailsPresentation.dismiss()
             presentedAlert = alert
         }
         .onReceive(inputCoordinator.$revision) { _ in
+            commandSearch.dismiss(returnFocus: false)
             detailsPresentation.dismiss()
             schedulePendingImport()
         }
@@ -177,6 +173,7 @@ struct DownloadConsoleView: View {
         .onChange(of: controlActiveState) { _, _ in schedulePendingImport() }
         .onChange(of: store.selectedDestination) { _, destination in sidebarSelection = destination }
         .onDisappear {
+            commandSearch.dismiss(returnFocus: false)
             detailsPresentation.dismiss(returnFocus: false)
             guard inputCoordinator.owner == windowID else { return }
             Task { @MainActor in
@@ -219,13 +216,13 @@ struct DownloadConsoleView: View {
                     )
                 }
             }
-            .disabled(!request.task.hasReportedTrashableFiles)
+            .disabled(!request.canTrashFiles)
             Button(String(localized: "Cancel"), role: .cancel) {
                 suppressRemovalConfirmationAfterChoice = false
                 store.cancelRemoval(request)
             }
         } message: { request in
-            Text(String(localized: "\"\(request.task.name)\" will be removed from Aria2 Next. You can keep downloaded files or move the files reported by Aria2 Next to Trash."))
+            Text(request.message)
         }
         .dialogIcon(Image(systemName: "trash"))
         .dialogSeverity(.standard)
@@ -237,6 +234,42 @@ struct DownloadConsoleView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+    }
+
+    private var commandContext: DownloadActionContext {
+        DownloadActionContext(store: store, taskID: store.selectedTaskID, window: windowActions, taskIDs: store.selectedTaskIDs)
+    }
+
+    private var windowActions: DownloadWindowActions {
+        DownloadWindowActions(newDownload: scheduleAddDownloadPanelPresentation,
+            pasteDownload: pasteClipboardIntoDraft, openDownloadFile: openDownloadFile,
+            toggleDetails: toggleDetails, detailsPresented: detailsPresentation.isPresented,
+            hasSelection: store.selectedTask != nil,
+            canPresentDownload: inputCoordinator.owner == nil && !store.engineSetupState.requiresInstallation,
+            showDetails: { section in
+                detailsPresentation.selectionChanged(to: store.selectedTaskID)
+                if let section {
+                    detailsPresentation.selectedTab = .overview
+                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+                }
+                presentDetails()
+            }, searchCommands: presentCommandSearch,
+            openEngineSettings: { store.requestEngineSettings(); openSettings() },
+            checkUpdates: updates.map { updates in { @MainActor in
+                openWindow(id: AppWindowID.updates)
+                Task { await updates.check() }
+            } },
+            openDiagnostics: supportNavigation.map { navigation in { @MainActor in
+                navigation.diagnosticPreviewRequested = true
+                openWindow(id: AppWindowID.help)
+            } },
+            openHelp: { openWindow(id: AppWindowID.help) })
+    }
+
+    private func presentCommandSearch() {
+        guard !isAddPanelPresented, presentedAlert == nil, store.removalRequest == nil else { return }
+        detailsPresentation.dismiss()
+        commandSearch.present(owner: detailsPresentation.owner, store: store) { commandContext }
     }
 
     private func toggleDetails() {
@@ -551,7 +584,7 @@ private struct DownloadCanvas: View {
                 BrowserCaptureView()
             } else {
                 VStack(spacing: 0) {
-                    if let issue = store.connectionIssue ?? store.historyIssue ?? store.downloadPlanIssue ?? store.bandwidthPlanIssue {
+                    if let issue = store.connectionIssue ?? store.historyIssue ?? store.downloadPlanIssue ?? store.bandwidthPlanIssue ?? store.batchOperationIssue {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "exclamationmark.triangle")
                             Text(issue).lineLimit(3).textSelection(.enabled)
@@ -562,9 +595,26 @@ private struct DownloadCanvas: View {
                         .accessibilityIdentifier("download-connection-status")
                         Divider()
                     }
-                    List(selection: $store.selectedTaskID) {
+                    if store.selectedTaskIDs.count > 1 {
+                        HStack(spacing: 12) {
+                            Text(String(localized: "\(store.selectedTaskIDs.count) selected")).foregroundStyle(.secondary)
+                            Spacer()
+                            let context = DownloadActionContext(store: store, taskIDs: store.selectedTaskIDs)
+                            DownloadActionButton(action: .pause, context: context).labelStyle(.iconOnly)
+                            DownloadActionButton(action: .resume, context: context).labelStyle(.iconOnly)
+                            DownloadActionButton(action: .remove, context: context).labelStyle(.iconOnly)
+                        }.padding(.horizontal, AppLayout.pageInset).padding(.vertical, 8)
+                    }
+                    List(selection: $store.selectedTaskIDs) {
                         ForEach(visibleTasks) { task in
-                            DownloadTaskRow(task: task, showDetails: showDetails)
+                            DownloadTaskRow(store: store, detailsPresentation: detailsPresentation,
+                                row: store.listPresentation.row(for: task),
+                                isSelected: store.selectedTaskIDs.contains(task.id),
+                                isExpanded: detailsPresentation.expandedTaskID == task.id,
+                                actionsEnabled: DownloadAction.engineReady(in: store),
+                                isUpdatingEngine: store.isUpdatingEngine,
+                                scheduleArmed: store.armedScheduledTaskIDs.contains(task.id),
+                                destination: destination, showDetails: showDetails)
                                 .tag(task.id)
                         }
                     }
@@ -649,8 +699,7 @@ private struct DownloadCanvas: View {
     }
 
     private func clearHiddenSelection() {
-        guard let id = store.selectedTaskID else { return }
-        if !visibleTasks.contains(where: { $0.id == id }) { store.selectedTaskID = nil }
+        store.selectedTaskIDs.formIntersection(visibleTasks.map(\.id))
     }
 }
 
@@ -706,11 +755,30 @@ struct DownloadStatusBar: View {
 }
 
 private struct DownloadTaskRow: View {
-    @EnvironmentObject private var store: DownloadStore
-    @EnvironmentObject private var detailsPresentation: TaskDetailsPresentation
+    let store: DownloadStore
+    let detailsPresentation: TaskDetailsPresentation
+    @ObservedObject var row: DownloadRowState
     @Environment(\.colorSchemeContrast) private var contrast
-    var task: DownloadTask
+    var isSelected: Bool
+    var isExpanded: Bool
+    var actionsEnabled: Bool
+    var isUpdatingEngine: Bool
+    var scheduleArmed: Bool
+    var destination: SidebarDestination
     var showDetails: () -> Void
+    private var task: DownloadTask { row.task }
+
+    private var commandContext: DownloadActionContext {
+        DownloadActionContext(store: store, taskID: task.id, window: DownloadWindowActions(
+            hasSelection: true, showDetails: { section in
+                selectAndExpand()
+                if let section {
+                    detailsPresentation.selectedTab = .overview
+                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+                }
+                showDetails()
+            }), taskIDs: DownloadSelection.contextIDs(clicked: task.id, selected: store.selectedTaskIDs))
+    }
 
     private var expansion: Binding<Bool> {
         Binding(get: { detailsPresentation.expandedTaskID == task.id }, set: { expanded in
@@ -725,11 +793,7 @@ private struct DownloadTaskRow: View {
 
     private func selectAndExpand() {
         store.selectedTaskID = task.id
-        detailsPresentation.expandedTaskID = task.id
-    }
-
-    private var isSelected: Bool {
-        store.selectedTaskID == task.id
+        detailsPresentation.selectionChanged(to: task.id)
     }
 
     var body: some View {
@@ -741,10 +805,10 @@ private struct DownloadTaskRow: View {
         .listRowInsets(EdgeInsets(top: 11, leading: 8, bottom: 11, trailing: 12))
         .listRowSeparator(.hidden)
         .listRowBackground(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: AppLayout.rowCornerRadius)
                 .fill(isSelected ? Color.clear : Color(nsColor: .controlBackgroundColor))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10).strokeBorder(
+                    RoundedRectangle(cornerRadius: AppLayout.rowCornerRadius).strokeBorder(
                         Color(nsColor: .separatorColor).opacity(isSelected ? 0 : (contrast == .increased ? 1 : 0.24)), lineWidth: 0.5)
                 }
                 .padding(.vertical, 3)
@@ -752,43 +816,55 @@ private struct DownloadTaskRow: View {
         )
         .contentShape(Rectangle())
         .contextMenu {
-            Button(String(localized: "Show Details…"), systemImage: "info.circle") {
-                selectAndExpand()
-                if !detailsPresentation.isPresented { showDetails() }
-            }
+            DownloadActionButton(action: .details, context: commandContext)
             Divider()
-            if DownloadFileLocation.revealURL(for: task) != nil {
-                Button(String(localized: "Show in Finder"), systemImage: "folder") { store.showInFinder(task) }
+            if DownloadAction.reveal.isEnabled(in: commandContext) {
+                DownloadActionButton(action: .reveal, context: commandContext)
                 Divider()
             }
-            if let action = task.primaryControlAction {
-                Button(action.helpTitle) {
-                    Task {
-                        if action == .pause { await store.pause(task) }
-                        else { await store.resume(task) }
-                    }
-                }
+            if commandContext.tasks.count > 1 {
+                DownloadActionButton(action: .pause, context: commandContext)
+                DownloadActionButton(action: .resume, context: commandContext)
+            } else if let action = task.primaryControlAction {
+                DownloadActionButton(action: action == .pause ? .pause : .resume, context: commandContext)
             }
-            if task.canFinishRecording {
-                Button(String(localized: "Finish Recording and Save")) { Task { await store.finishRecording(task) } }
+            if task.isAvailableInEngine, task.primaryControlAction != nil, !task.requiresFileSelection {
+                DownloadActionButton(action: .speedLimits, context: commandContext)
+                DownloadActionButton(action: .schedule, context: commandContext)
             }
-            if task.canRetryMedia {
-                Button(String(localized: "Retry with Saved Progress")) { Task { await store.retryMedia(task) } }
-            }
-            if task.canEditAndAddAgain {
-                Button(String(localized: "Edit and Add Again…")) { store.editAndAddAgain(task) }
-            }
-            if task.queuePosition != nil {
-                Button(String(localized: "Move to Top of Queue")) { Task { await store.moveQueuedTask(task.id) } }
-            }
-            Button(String(localized: "Remove Download…"), role: .destructive) { store.beginRemove(task) }
+            if task.canFinishRecording { DownloadActionButton(action: .finishRecording, context: commandContext) }
+            if task.canRetryMedia { DownloadActionButton(action: .retryMedia, context: commandContext) }
+            if task.canEditAndAddAgain { DownloadActionButton(action: .editAgain, context: commandContext) }
+            if task.queuePosition != nil { DownloadActionButton(action: .moveToTop, context: commandContext) }
+            DownloadActionButton(action: .remove, context: commandContext)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("task-row-\(task.id)")
-        .modifier(QueueReordering(task: task))
+        .modifier(QueueReordering(store: store, task: task))
     }
 
     private var rowLabel: some View {
+        DownloadTaskRowLabel(store: store, row: row, isSelected: isSelected,
+            actionsEnabled: actionsEnabled, scheduleArmed: scheduleArmed)
+            .equatable()
+    }
+}
+
+private struct DownloadTaskRowLabel: View, Equatable {
+    let store: DownloadStore
+    @ObservedObject var row: DownloadRowState
+    let isSelected: Bool
+    let actionsEnabled: Bool
+    let scheduleArmed: Bool
+    private var task: DownloadTask { row.task }
+    private var commandContext: DownloadActionContext { DownloadActionContext(store: store, taskID: task.id) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.row === rhs.row && lhs.isSelected == rhs.isSelected &&
+        lhs.actionsEnabled == rhs.actionsEnabled && lhs.scheduleArmed == rhs.scheduleArmed
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
             HStack(alignment: .center, spacing: AppLayout.controlSpacing) {
                 HStack(alignment: .center, spacing: AppLayout.controlSpacing) {
@@ -802,7 +878,7 @@ private struct DownloadTaskRow: View {
                         .fixedSize()
                 }
                 .contentShape(Rectangle())
-                .onTapGesture(perform: selectAndExpand)
+
                 primaryAction.frame(width: 20)
             }
             VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
@@ -813,7 +889,7 @@ private struct DownloadTaskRow: View {
                     transferLine(includingETA: false)
                 }
                 if let scheduled = task.scheduledStart {
-                    Label("\(scheduled.formatted(date: .abbreviated, time: .shortened)) · \(store.armedScheduledTaskIDs.contains(task.id) ? String(localized: "Scheduled") : String(localized: "Schedule disabled"))", systemImage: "calendar")
+                    Label("\(scheduled.formatted(date: .abbreviated, time: .shortened)) · \(scheduleArmed ? String(localized: "Scheduled") : String(localized: "Schedule disabled"))", systemImage: "calendar")
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if let error = task.errorMessage, task.status == .failed {
@@ -822,7 +898,7 @@ private struct DownloadTaskRow: View {
             }
             .padding(.leading, AppLayout.taskTextInset)
             .contentShape(Rectangle())
-            .onTapGesture(perform: selectAndExpand)
+
         }
         .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + AppLayout.taskTextInset }
         .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
@@ -852,14 +928,12 @@ private struct DownloadTaskRow: View {
     private var primaryAction: some View {
         if let action = task.primaryControlAction {
             Button {
-                Task {
-                    if action == .pause { await store.pause(task) }
-                    else { await store.resume(task) }
-                }
+                (action == .pause ? DownloadAction.pause : .resume).perform(in: commandContext)
             } label: {
                 Label("\(action.helpTitle) \(task.name)", systemImage: action.symbolName).labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless).controlSize(.small)
+            .disabled(!actionsEnabled)
             .help(action.helpTitle)
             .accessibilityLabel("\(action.helpTitle) \(task.name)")
             .accessibilityIdentifier("task-\(task.id)-\(action.accessibilityName)-button")

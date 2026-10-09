@@ -42,6 +42,7 @@ Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$valida
 "$PYTHON" Scripts/smoke-aria2-next.py
 "$PYTHON" Scripts/smoke-media.py
 Scripts/check.sh release
+CHOPCHOP_VALIDATION_ROOT="$validation_root" "$PYTHON" Scripts/smoke-app-update.py
 app="$CHOPCHOP_DERIVED_DATA/Build/Products/Release/ChopChop.app"
 "$PYTHON" Scripts/verify-release-app.py "$app"
 if [[ "${1:-}" == --package && $# == 3 ]]; then

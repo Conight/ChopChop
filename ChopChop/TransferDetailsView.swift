@@ -123,6 +123,7 @@ struct TransferDetailsView: View {
     @EnvironmentObject private var store: DownloadStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var monitor = TransferDetailMonitor()
+    @State private var windowVisible = false
     let task: DownloadTask
 
     var body: some View {
@@ -145,15 +146,16 @@ struct TransferDetailsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             } else if let issue = monitor.issue {
                 Label(issue, systemImage: "wifi.exclamationmark").font(.callout).foregroundStyle(.secondary)
-            } else if task.isAvailableInEngine && scenePhase == .active {
+            } else if task.isAvailableInEngine && scenePhase == .active && windowVisible {
                 ProgressView(String(localized: "Loading transfer details…")).controlSize(.small)
             } else {
                 Text(String(localized: "Live details are available while this window and the engine are active."))
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
-        .task(id: "\(task.id):\(task.isAvailableInEngine):\(scenePhase == .active):\(store.isUpdatingEngine)") {
-            guard scenePhase == .active, task.isAvailableInEngine, !store.isUpdatingEngine else { return }
+        .background(WindowVisibilityReader(visible: $windowVisible).frame(width: 0, height: 0))
+        .task(id: "\(task.id):\(task.isAvailableInEngine):\(scenePhase == .active && windowVisible):\(store.isUpdatingEngine)") {
+            guard scenePhase == .active && windowVisible, task.isAvailableInEngine, !store.isUpdatingEngine else { return }
             let id = task.id, torrent = task.isTorrentLike, store = store
             await monitor.observe {
                 let client = try await store.transferClient(for: id)
@@ -180,46 +182,6 @@ struct TransferRateSummary: View {
             Text(String(localized: "\(snapshot.connections) active connections")).font(.caption).foregroundStyle(.secondary)
             if isTorrent, let uploaded = snapshot.uploaded {
                 Text(String(localized: "Uploaded \(ByteFormat.size(uploaded))")).font(.caption).foregroundStyle(.secondary)
-            }
-        }.contentPanel()
-    }
-}
-
-struct PeerTransfersView: View {
-    let peers: [PeerTransfer]
-    @State private var search = ""
-    @State private var sort = "address"
-    @State private var showAll = false
-    private var filtered: [PeerTransfer] {
-        peers.filter { search.isEmpty || $0.address.localizedStandardContains(search) || ($0.peerClientName ?? "").localizedStandardContains(search) }
-            .sorted {
-                if sort == "down", $0.down != $1.down { return $0.down > $1.down }
-                if sort == "up", $0.up != $1.up { return $0.up > $1.up }
-                return $0.id.localizedStandardCompare($1.id) == .orderedAscending
-            }
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
-            Text(String(localized: "Peers (\(peers.count))")).font(.headline)
-            if peers.isEmpty {
-                Text(String(localized: "No live peers. Paused tasks do not keep peer connections."))
-                    .font(.callout).foregroundStyle(.secondary)
-            } else {
-                TextField(String(localized: "Filter address or client"), text: $search).nativeTextFieldStyle()
-                Picker(String(localized: "Sort peers"), selection: $sort) {
-                    Text(String(localized: "Address")).tag("address")
-                    Text(String(localized: "Download speed")).tag("down")
-                    Text(String(localized: "Upload speed")).tag("up")
-                }.controlSize(.small)
-                if filtered.isEmpty { Text(String(localized: "No matching peers")).font(.caption).foregroundStyle(.secondary) }
-                ForEach(Array(filtered.prefix(showAll ? filtered.count : 12))) { peer in
-                    PeerTransferRow(peer: peer)
-                    Divider()
-                }
-                if filtered.count > 12 {
-                    Button(showAll ? String(localized: "Show fewer peers") : String(localized: "Show all \(filtered.count) peers")) { showAll.toggle() }
-                        .controlSize(.small)
-                }
             }
         }.contentPanel()
     }
@@ -263,34 +225,6 @@ struct PeerTransferRow: View {
                 }.padding(.top, 6).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             }.font(.caption).foregroundStyle(.secondary)
         }
-    }
-}
-
-struct ServerTransfersView: View {
-    let servers: [ServerTransfer]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(String(localized: "Server transfers")).font(.headline)
-            if servers.isEmpty {
-                Text(String(localized: "No active server connections reported."))
-                    .foregroundStyle(.secondary).font(.callout)
-            }
-            ForEach(Array(servers.enumerated()), id: \.element.id) { index, server in
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text(String(localized: "Server \(index + 1)"))
-                        Spacer()
-                        Text(ByteFormat.speed(server.downloadSpeed)).monospacedDigit()
-                    }.font(.callout)
-                    Text("\(server.transport) · \(server.address)").font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(2).textSelection(.enabled)
-                    if server.fileIndex > 0 { Text(String(localized: "File \(server.fileIndex)")).font(.caption).foregroundStyle(.secondary) }
-                }
-                Divider()
-            }
-            Text(String(localized: "HTTP entries are server summaries and can combine multiple connections. Individual connection speeds, byte ranges and progress are not exposed by this engine."))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.contentPanel()
     }
 }
 

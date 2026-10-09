@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -45,60 +46,42 @@ nonisolated struct DiagnosticReport: Encodable, Sendable {
 
 struct AppUpdateSettingsView: View {
     @ObservedObject var updates: AppUpdateCoordinator
+    var openUpdates: () -> Void
     var body: some View {
         Section(String(localized: "ChopChop Updates")) {
             LabeledContent(String(localized: "Installed version"), value: updates.build.displayVersion)
+            Picker("Update Channel", selection: $updates.channel) {
+                ForEach(AppUpdateChannel.allCases, id: \.self) { Text($0.title).tag($0) }
+            }.disabled(updates.busy || !updates.canChangeChannel)
             Toggle(String(localized: "Automatically check for ChopChop updates"), isOn: Binding(
                 get: { updates.build.version != nil && updates.automaticallyChecks },
                 set: { updates.automaticallyChecks = $0 }))
                 .disabled(updates.build.version == nil)
             Text(String(localized: "Checks at most once a day. You choose when to download and install updates."))
                 .font(.callout).foregroundStyle(.secondary)
-            if updates.build.version == nil {
-                Text(String(localized: "This is a development build. Automatic update checks are disabled; you can check published releases manually."))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .font(.callout).foregroundStyle(.secondary)
+            Button(updates.updateAvailable ? String(localized: "View Update…") : String(localized: "Check ChopChop Updates…")) {
+                openUpdates()
+                Task { await updates.check() }
             }
-            switch updates.state {
-            case .idle: EmptyView()
-            case .checking: ProgressView(String(localized: "Checking ChopChop updates…")).controlSize(.small)
-            case .current: Label(String(localized: "No newer release is available."), systemImage: "checkmark.circle")
-            case .available(let release):
-                Label(String(localized: "ChopChop \(release.version.description) is available"), systemImage: "arrow.down.circle")
-                if !release.notes.isEmpty {
-                    DisclosureGroup(String(localized: "What’s New")) {
-                        Text(verbatim: release.notes).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                Link(String(localized: "Download from GitHub…"), destination: release.pageURL)
-                Text(String(localized: "Download the DMG, quit ChopChop, and replace the app in Applications. Your downloads and settings are kept."))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .font(.callout).foregroundStyle(.secondary)
-            case .failed(let reason):
-                Label(errorMessage(reason), systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.secondary)
-            }
-            Button(String(localized: "Check ChopChop Updates")) { Task { await updates.check() } }
-                .disabled(updates.state == .checking)
-        }
-    }
-    private func errorMessage(_ error: AppUpdateError) -> String {
-        switch error {
-        case .offline: String(localized: "Could not connect to GitHub. Check your connection and try again.")
-        case .rateLimited: String(localized: "GitHub is limiting update checks. Please try again later.")
-        case .invalidResponse: String(localized: "GitHub returned an unreadable release list. Please try again later.")
-        case .noCompatibleRelease: String(localized: "A newer release has no ready Apple Silicon DMG. Please check again later.")
-        case .serviceUnavailable: String(localized: "The update service is unavailable. Please try again later.")
         }
     }
 }
 
+@MainActor
+final class AppSupportNavigation: ObservableObject {
+    @Published var diagnosticPreviewRequested = false
+}
+
 struct AppSupportView: View {
+    @ObservedObject var navigation: AppSupportNavigation
     @EnvironmentObject private var store: DownloadStore
     @State private var report: String?
     @State private var exportStatus: String?
 
-    init(initialReport: String? = nil) { _report = State(initialValue: initialReport) }
+    init(initialReport: String? = nil, navigation: AppSupportNavigation = AppSupportNavigation()) {
+        _report = State(initialValue: initialReport)
+        self.navigation = navigation
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,8 +100,7 @@ struct AppSupportView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Link(String(localized: "Open GitHub Issues…"), destination: URL(string: "https://github.com/Conight/ChopChop/issues/new/choose")!)
                     Button(String(localized: "Preview Diagnostic Report")) {
-                        do { report = try DiagnosticReport(store: store).json(); exportStatus = nil }
-                        catch { exportStatus = String(localized: "Could not prepare diagnostics. Please try again.") }
+                        previewDiagnostics()
                     }
                     Text(String(localized: "Includes versions, supported engine features, task counts and issue codes. Excludes download names, links, file paths, authentication and raw logs. Nothing is uploaded automatically."))
                         .fixedSize(horizontal: false, vertical: true)
@@ -133,6 +115,15 @@ struct AppSupportView: View {
             }.formStyle(.grouped)
         }
         .frame(minWidth: 480, idealWidth: 600, minHeight: 400, idealHeight: 600)
+        .desktopControls()
+        .onChange(of: navigation.diagnosticPreviewRequested, initial: true) { _, requested in
+            if requested { previewDiagnostics(); navigation.diagnosticPreviewRequested = false }
+        }
+    }
+
+    private func previewDiagnostics() {
+        do { report = try DiagnosticReport(store: store).json(); exportStatus = nil }
+        catch { exportStatus = String(localized: "Could not prepare diagnostics. Please try again.") }
     }
 
     private func export(_ report: String) {
@@ -149,18 +140,26 @@ struct AppSupportView: View {
 
 struct AppSupportCommands: Commands {
     @ObservedObject var updates: AppUpdateCoordinator
-    @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
+    let store: DownloadStore
+    let navigation: AppSupportNavigation
+    private var context: DownloadActionContext {
+        DownloadActionContext(store: store, window: DownloadWindowActions(
+            checkUpdates: {
+                openWindow(id: AppWindowID.updates)
+                Task { await updates.check() }
+            }, openDiagnostics: {
+                navigation.diagnosticPreviewRequested = true
+                openWindow(id: AppWindowID.help)
+            }, openHelp: { openWindow(id: AppWindowID.help) }))
+    }
     var body: some Commands {
         CommandGroup(after: .appInfo) {
-            Button(String(localized: "Check ChopChop Updates…")) {
-                updates.settingsRequested = true
-                openSettings()
-                Task { await updates.check() }
-            }
+            DownloadActionButton(action: .checkUpdates, context: context)
         }
         CommandGroup(replacing: .help) {
-            Button(String(localized: "ChopChop Help")) { openWindow(id: AppWindowID.help) }
+            DownloadActionButton(action: .help, context: context)
+            DownloadActionButton(action: .diagnostics, context: context)
         }
     }
 }
@@ -168,6 +167,7 @@ struct AppSupportCommands: Commands {
 enum AppWindowID {
     static let downloads = "downloads"
     static let help = "help"
+    static let updates = "updates"
 }
 
 /// Bind SwiftUI's scene action once; window reopening never depends on translated menu labels.

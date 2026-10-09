@@ -8,9 +8,11 @@
 import SwiftUI
 
 struct ContentView: View {
+    var updates: AppUpdateCoordinator? = nil
+    var supportNavigation: AppSupportNavigation? = nil
     @EnvironmentObject private var store: DownloadStore
     var body: some View {
-        DownloadConsoleView(inputCoordinator: store.inputCoordinator)
+        DownloadConsoleView(inputCoordinator: store.inputCoordinator, updates: updates, supportNavigation: supportNavigation)
             .sheet(isPresented: Binding(
                 get: { store.engineSetupState.requiresInstallation },
                 set: { _ in }

@@ -13,6 +13,7 @@ import SwiftUI
 struct ChopChopApp: App {
     @NSApplicationDelegateAdaptor(ChopChopAppDelegate.self) private var appDelegate
     @StateObject private var store: DownloadStore
+    @StateObject private var supportNavigation = AppSupportNavigation()
     @StateObject private var updates = AppUpdateCoordinator()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,7 +26,7 @@ struct ChopChopApp: App {
 
     var body: some Scene {
         WindowGroup(id: AppWindowID.downloads) {
-            ContentView()
+            ContentView(updates: updates, supportNavigation: supportNavigation)
                 .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
                     guard !AppLaunchConfiguration.isTestAutomation else { return }
@@ -47,12 +48,20 @@ struct ChopChopApp: App {
         .restorationBehavior(.disabled)
         .commands {
             DownloadCommands(store: store)
-            AppSupportCommands(updates: updates)
+            AppSupportCommands(updates: updates, store: store, navigation: supportNavigation)
         }
 
         Window(String(localized: "ChopChop Help"), id: AppWindowID.help) {
-            AppSupportView().environmentObject(store)
+            AppSupportView(navigation: supportNavigation).environmentObject(store)
         }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window(String(localized: "ChopChop Updates"), id: AppWindowID.updates) {
+            AppUpdateWindow(updates: updates)
+        }
+        .defaultSize(width: 540, height: 500)
+        .windowResizability(.contentMinSize)
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
@@ -61,7 +70,7 @@ struct ChopChopApp: App {
                 .environmentObject(store)
                 .environmentObject(updates)
         }
-        .defaultSize(width: 860, height: 640)
+        .defaultSize(width: 940, height: 640)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
     }
@@ -121,7 +130,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !AppLaunchConfiguration.isTestAutomation else { return .terminateNow }
-        guard !isFinishingTermination else { return .terminateNow }
+        guard !isFinishingTermination else { return .terminateLater }
         guard let store else { return .terminateNow }
         isFinishingTermination = true
 

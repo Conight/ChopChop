@@ -35,6 +35,23 @@
         }
       }
     },
+    "%@ KiB/s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ KiB/s"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ KiB/s"
+          }
+        }
+      }
+    },
     "%@ Open Engine settings for details.": {
       "extractionState": "manual",
       "localizations": {
@@ -290,6 +307,23 @@
         }
       }
     },
+    "%@/s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/s"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/秒"
+          }
+        }
+      }
+    },
     "%@: %@": {
       "extractionState": "manual",
       "localizations": {
@@ -446,6 +480,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 个下载已完成"
+          }
+        }
+      }
+    },
+    "%lld downloads need file or track selection. Resume them individually to choose what to download.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld downloads need file or track selection. Resume them individually to choose what to download."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个下载需要选择文件或轨道，请分别继续这些任务以选择下载内容。"
           }
         }
       }
@@ -634,6 +685,23 @@
         }
       }
     },
+    "%lld operations failed. %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld operations failed. %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项操作失败。%@"
+          }
+        }
+      }
+    },
     "%lld results": {
       "extractionState": "manual",
       "localizations": {
@@ -705,6 +773,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 个做种节点"
+          }
+        }
+      }
+    },
+    "%lld selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld selected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择 %lld 项"
           }
         }
       }
@@ -898,6 +983,23 @@
         }
       }
     },
+    "0 retries indefinitely. Default: unlimited.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0 retries indefinitely. Default: unlimited."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0 表示持续重试，默认不限制次数。"
+          }
+        }
+      }
+    },
     "1 source": {
       "extractionState": "manual",
       "localizations": {
@@ -1047,6 +1149,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "较新版本尚无可用的 Apple 芯片 DMG。请稍后再检查。"
+          }
+        }
+      }
+    },
+    "A newer release is listed, but its macOS installer is not available yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A newer release is listed, but its macOS installer is not available yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发现了新版本，但适用于 macOS 的安装包尚未就绪。"
+          }
+        }
+      }
+    },
+    "Across all tasks. Default: unlimited. Scheduled bandwidth can override this limit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Across all tasks. Default: unlimited. Scheduled bandwidth can override this limit."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适用于所有任务，默认不限速；定时带宽设置可以覆盖此限制。"
           }
         }
       }
@@ -1204,6 +1339,23 @@
         }
       }
     },
+    "Add Paused": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加并暂停"
+          }
+        }
+      }
+    },
     "Add a link or open a download file. Restored downloads stay paused until you resume them.": {
       "extractionState": "manual",
       "localizations": {
@@ -1351,6 +1503,23 @@
         }
       }
     },
+    "Added selected torrent files, paused.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added selected torrent files, paused."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已添加所选种子文件，保持暂停。"
+          }
+        }
+      }
+    },
     "Adding…": {
       "extractionState": "manual",
       "localizations": {
@@ -1453,6 +1622,23 @@
         }
       }
     },
+    "After adding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After adding"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加后"
+          }
+        }
+      }
+    },
     "Algorithm": {
       "extractionState": "manual",
       "localizations": {
@@ -1534,6 +1720,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "磁盘上已有的文件会保留。"
+          }
+        }
+      }
+    },
+    "An update is available.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An update is available."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有新版本可用。"
           }
         }
       }
@@ -2490,6 +2693,23 @@
         }
       }
     },
+    "Bandwidth Schedule": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandwidth Schedule"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定时带宽"
+          }
+        }
+      }
+    },
     "Best available": {
       "extractionState": "manual",
       "localizations": {
@@ -2677,6 +2897,23 @@
         }
       }
     },
+    "Cancel Download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Download"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消下载"
+          }
+        }
+      }
+    },
     "Cancel Schedule": {
       "extractionState": "manual",
       "localizations": {
@@ -2707,6 +2944,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消搜索"
+          }
+        }
+      }
+    },
+    "Cancel Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消更新"
           }
         }
       }
@@ -2779,6 +3033,23 @@
         }
       }
     },
+    "Changing the RPC port or token requires restarting the engine.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changing the RPC port or token requires restarting the engine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改 RPC 端口或令牌后，需要重启引擎。"
+          }
+        }
+      }
+    },
     "Check ChopChop Updates": {
       "extractionState": "manual",
       "localizations": {
@@ -2826,6 +3097,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "检查更新"
+          }
+        }
+      }
+    },
+    "Check for new versions of ChopChop.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for new versions of ChopChop."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查是否有可用的 ChopChop 新版本。"
           }
         }
       }
@@ -3357,6 +3645,40 @@
         }
       }
     },
+    "ChopChop cannot update in this location. Move it to a writable Applications folder and reopen it, or install manually.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop cannot update in this location. Move it to a writable Applications folder and reopen it, or install manually."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 无法在当前位置更新。请将应用移至可写入的“应用程序”文件夹后重新打开，或手动安装。"
+          }
+        }
+      }
+    },
+    "ChopChop did not quit in time. Your current app is unchanged. Try installing again when it is ready to quit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop did not quit in time. Your current app is unchanged. Try installing again when it is ready to quit."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 未能及时退出，当前应用未被更改。请在可以退出时重试安装。"
+          }
+        }
+      }
+    },
     "ChopChop downloads and verifies the update before restarting the engine. Downloads briefly pause during the restart.": {
       "extractionState": "manual",
       "localizations": {
@@ -3404,6 +3726,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "可在添加下载窗口中添加 HTTP、HTTPS、SFTP、Magnet、ED2K、Torrent 和 Metalink 下载。"
+          }
+        }
+      }
+    },
+    "ChopChop will open the installer, save your downloads, and quit. Then drag ChopChop to Applications to finish updating.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop will open the installer, save your downloads, and quit. Then drag ChopChop to Applications to finish updating."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 将打开安装程序、保存下载任务并退出。然后将 ChopChop 拖入“应用程序”以完成更新。"
+          }
+        }
+      }
+    },
+    "ChopChop will save your downloads, quit, and reopen. Downloads and seeding will stay paused.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop will save your downloads, quit, and reopen. Downloads and seeding will stay paused."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 将保存下载任务、退出并重新打开。下载与做种任务将保持暂停。"
           }
         }
       }
@@ -3540,6 +3896,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "剪贴板中没有下载链接。"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
           }
         }
       }
@@ -3778,6 +4150,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在连接的节点"
+          }
+        }
+      }
+    },
+    "Connecting to GitHub…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to GitHub…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接 GitHub…"
           }
         }
       }
@@ -4292,6 +4681,23 @@
         }
       }
     },
+    "Currently unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Currently unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前不可用"
+          }
+        }
+      }
+    },
     "Custom": {
       "extractionState": "manual",
       "localizations": {
@@ -4373,6 +4779,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "DASH 视频或直播"
+          }
+        }
+      }
+    },
+    "DHT": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DHT"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DHT"
           }
         }
       }
@@ -4479,6 +4902,23 @@
         }
       }
     },
+    "Delay between retries. Default: 10 seconds.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delay between retries. Default: 10 seconds."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两次重试之间的等待时间，默认为 10 秒。"
+          }
+        }
+      }
+    },
     "Describe what you expected and what happened. You can preview and export a small diagnostic report to attach yourself.": {
       "extractionState": "manual",
       "localizations": {
@@ -4577,6 +5017,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已停用"
+          }
+        }
+      }
+    },
+    "Discard Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard Update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "丢弃更新"
           }
         }
       }
@@ -4683,6 +5140,23 @@
         }
       }
     },
+    "Download Completion Notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Completion Notifications"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载完成通知"
+          }
+        }
+      }
+    },
     "Download Details": {
       "extractionState": "manual",
       "localizations": {
@@ -4734,6 +5208,22 @@
         }
       }
     },
+    "Download Installer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Installer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载安装包"
+          }
+        }
+      }
+    },
     "Download Selected Files": {
       "extractionState": "manual",
       "localizations": {
@@ -4781,6 +5271,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "下载摘要"
+          }
+        }
+      }
+    },
+    "Download Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载更新"
           }
         }
       }
@@ -4883,6 +5390,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已设置下载目录。"
+          }
+        }
+      }
+    },
+    "Download files": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载文件"
           }
         }
       }
@@ -5091,6 +5615,22 @@
         }
       }
     },
+    "Download the installer here, then open it to install this update.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the installer here, then open it to install this update."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此下载安装包，下载完成后打开安装。"
+          }
+        }
+      }
+    },
     "Downloaded": {
       "extractionState": "manual",
       "localizations": {
@@ -5159,6 +5699,23 @@
         }
       }
     },
+    "Downloading update…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading update…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载更新…"
+          }
+        }
+      }
+    },
     "Downloads": {
       "extractionState": "manual",
       "localizations": {
@@ -5172,6 +5729,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "下载"
+          }
+        }
+      }
+    },
+    "Downloads are being saved. If quitting was interrupted, try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads are being saved. If quitting was interrupted, try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在保存下载任务。如果退出被中断，可以重试。"
           }
         }
       }
@@ -5291,6 +5865,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "ED2K 搜索不可用"
+          }
+        }
+      }
+    },
+    "ED2K Servers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ED2K Servers"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ED2K 服务器"
           }
         }
       }
@@ -5913,6 +6504,23 @@
         }
       }
     },
+    "Engine Settings…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engine Settings…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎设置…"
+          }
+        }
+      }
+    },
     "Engine Update": {
       "extractionState": "manual",
       "localizations": {
@@ -6508,6 +7116,23 @@
         }
       }
     },
+    "File": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
     "File %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -6657,6 +7282,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "筛选地址或客户端"
+          }
+        }
+      }
+    },
+    "Filter files": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选文件"
           }
         }
       }
@@ -7306,6 +7948,23 @@
         }
       }
     },
+    "Hide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏"
+          }
+        }
+      }
+    },
     "Hide Details": {
       "extractionState": "manual",
       "localizations": {
@@ -7595,6 +8254,23 @@
         }
       }
     },
+    "Install and Restart": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install and Restart"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装并重启"
+          }
+        }
+      }
+    },
     "Installation failed": {
       "extractionState": "manual",
       "localizations": {
@@ -7625,6 +8301,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已安装版本"
+          }
+        }
+      }
+    },
+    "Installer downloaded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer downloaded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装包已下载"
           }
         }
       }
@@ -7710,6 +8402,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "保持 ChopChop 运行，并开启上方的接收开关。就绪后，此 Mac 仅接受已配对扩展发送的链接。"
+          }
+        }
+      }
+    },
+    "Keep paused": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持暂停"
           }
         }
       }
@@ -8275,6 +8984,40 @@
         }
       }
     },
+    "Maximum parallel parts per task. Small files and servers without range support may use fewer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum parallel parts per task. Small files and servers without range support may use fewer."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个任务的最大并行分段数。小文件或不支持分段的服务器可能使用更少连接。"
+          }
+        }
+      }
+    },
+    "Maximum time spent seeding after completion. Default: 2,880 minutes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum time spent seeding after completion. Default: 2,880 minutes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载完成后做种的最长时间，默认为 2,880 分钟。"
+          }
+        }
+      }
+    },
     "Media Task": {
       "extractionState": "manual",
       "localizations": {
@@ -8717,6 +9460,23 @@
         }
       }
     },
+    "No Matching Commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching Commands"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的命令"
+          }
+        }
+      }
+    },
     "No Matching Downloads": {
       "extractionState": "manual",
       "localizations": {
@@ -8904,6 +9664,23 @@
         }
       }
     },
+    "No matching files": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的文件"
+          }
+        }
+      }
+    },
     "No matching peers": {
       "extractionState": "manual",
       "localizations": {
@@ -8917,6 +9694,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有匹配的节点"
+          }
+        }
+      }
+    },
+    "No matching settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的设置"
           }
         }
       }
@@ -9380,6 +10174,22 @@
         }
       }
     },
+    "Open Installer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Installer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开安装包"
+          }
+        }
+      }
+    },
     "Open Metalink files": {
       "extractionState": "manual",
       "localizations": {
@@ -9444,6 +10254,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 chrome://extensions 或 edge://extensions，开启开发者模式，选择“加载已解压的扩展程序”，再选择导出的文件夹。"
+          }
+        }
+      }
+    },
+    "Open the installer, then drag ChopChop to Applications to finish updating.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the installer, then drag ChopChop to Applications to finish updating."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开安装包，然后将 ChopChop 拖入“应用程序”完成更新。"
           }
         }
       }
@@ -9754,6 +10580,23 @@
         }
       }
     },
+    "Pause Selected Downloads": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause Selected Downloads"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停所选下载"
+          }
+        }
+      }
+    },
     "Pause downloads and cancel enabled scheduled starts in ChopChop.": {
       "extractionState": "manual",
       "localizations": {
@@ -9958,6 +10801,23 @@
         }
       }
     },
+    "Per torrent. Default: 128. Higher limits use more memory and connections.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per torrent. Default: 128. Higher limits use more memory and connections."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个种子的连接上限，默认为 128；调高会占用更多内存和连接。"
+          }
+        }
+      }
+    },
     "Persistent settings storage is unavailable.": {
       "extractionState": "manual",
       "localizations": {
@@ -10094,6 +10954,23 @@
         }
       }
     },
+    "Pre-releases": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pre-releases"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预发布版"
+          }
+        }
+      }
+    },
     "Preallocate": {
       "extractionState": "manual",
       "localizations": {
@@ -10141,6 +11018,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在准备引擎…"
+          }
+        }
+      }
+    },
+    "Preparing update…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing update…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备更新…"
           }
         }
       }
@@ -10298,6 +11192,23 @@
         }
       }
     },
+    "Protocol": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protocol"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "协议"
+          }
+        }
+      }
+    },
     "Protocols": {
       "extractionState": "manual",
       "localizations": {
@@ -10451,6 +11362,23 @@
         }
       }
     },
+    "Quit and Open Installer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit and Open Installer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出并打开安装程序"
+          }
+        }
+      }
+    },
     "RPC Token Failed": {
       "extractionState": "manual",
       "localizations": {
@@ -10464,6 +11392,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "RPC 令牌生成失败"
+          }
+        }
+      }
+    },
+    "RPC port": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RPC port"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RPC 端口"
           }
         }
       }
@@ -10651,6 +11596,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在读取种子中的文件列表。确认选择后才会开始下载文件。"
+          }
+        }
+      }
+    },
+    "Ready to install": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready to install"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已准备好安装"
           }
         }
       }
@@ -10944,6 +11906,23 @@
         }
       }
     },
+    "Refresh Order": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Order"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新排序"
+          }
+        }
+      }
+    },
     "Rejected data": {
       "extractionState": "manual",
       "localizations": {
@@ -11012,6 +11991,23 @@
         }
       }
     },
+    "Remove %lld selected downloads? You can keep downloaded files or move the files reported by Aria2 Next to Trash.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %lld selected downloads? You can keep downloaded files or move the files reported by Aria2 Next to Trash."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除所选的 %lld 个下载？可以保留下载文件，或将 Aria2 Next 报告的文件移到废纸篓。"
+          }
+        }
+      }
+    },
     "Remove Custom Source": {
       "extractionState": "manual",
       "localizations": {
@@ -11076,6 +12072,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除失败"
+          }
+        }
+      }
+    },
+    "Remove Selected Downloads…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Selected Downloads…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除所选下载…"
           }
         }
       }
@@ -11488,6 +12501,23 @@
         }
       }
     },
+    "Resume Selected Downloads": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume Selected Downloads"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续所选下载"
+          }
+        }
+      }
+    },
     "Retry": {
       "extractionState": "manual",
       "localizations": {
@@ -11535,6 +12565,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法重试媒体下载"
+          }
+        }
+      }
+    },
+    "Retry Quit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry Quit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试退出"
           }
         }
       }
@@ -12066,6 +13113,23 @@
         }
       }
     },
+    "Saving downloads and restarting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving downloads and restarting…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在保存下载任务并重启…"
+          }
+        }
+      }
+    },
     "Saving your downloads…": {
       "extractionState": "manual",
       "localizations": {
@@ -12079,6 +13143,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在保存下载任务…"
+          }
+        }
+      }
+    },
+    "Schedule Download…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schedule Download…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计划下载…"
           }
         }
       }
@@ -12168,6 +13249,57 @@
         }
       }
     },
+    "Search Commands…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Commands…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索命令…"
+          }
+        }
+      }
+    },
+    "Search ED2K": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search ED2K"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索 ED2K"
+          }
+        }
+      }
+    },
+    "Search commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search commands"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索命令"
+          }
+        }
+      }
+    },
     "Search downloads": {
       "extractionState": "manual",
       "localizations": {
@@ -12198,6 +13330,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索文件"
+          }
+        }
+      }
+    },
+    "Search settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索设置"
           }
         }
       }
@@ -12440,6 +13589,23 @@
         }
       }
     },
+    "Selected Download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected Download"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选下载"
+          }
+        }
+      }
+    },
     "Selected source": {
       "extractionState": "manual",
       "localizations": {
@@ -12678,6 +13844,23 @@
         }
       }
     },
+    "Set Priority": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Priority"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置优先级"
+          }
+        }
+      }
+    },
     "Set RPC port between 1 and 65535": {
       "extractionState": "manual",
       "localizations": {
@@ -12691,6 +13874,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "将 RPC 端口设为 1 到 65535"
+          }
+        }
+      }
+    },
+    "Set Task Speed Limits…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Task Speed Limits…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置任务限速…"
           }
         }
       }
@@ -13205,6 +14405,23 @@
         }
       }
     },
+    "Speed Limits": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed Limits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "速度限制"
+          }
+        }
+      }
+    },
     "Speed limits saved": {
       "extractionState": "manual",
       "localizations": {
@@ -13235,6 +14452,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "分段数"
+          }
+        }
+      }
+    },
+    "Stable Releases": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stable Releases"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正式版"
           }
         }
       }
@@ -13451,6 +14685,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "开始录制"
+          }
+        }
+      }
+    },
+    "Start downloading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start downloading"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始下载"
           }
         }
       }
@@ -13999,6 +15250,23 @@
         }
       }
     },
+    "Tasks that can run together. Default: 6.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasks that can run together. Default: 6."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可同时运行的任务数，默认为 6。"
+          }
+        }
+      }
+    },
     "Temporary upload slot granted": {
       "extractionState": "manual",
       "localizations": {
@@ -14046,6 +15314,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "下载服务器返回 HTTP %lld。请稍后重试。"
+          }
+        }
+      }
+    },
+    "The downloaded app is incompatible or damaged. Your current app has not been changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The downloaded app is incompatible or damaged. Your current app has not been changed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的应用不兼容或已损坏，当前应用未被更改。"
           }
         }
       }
@@ -14267,6 +15552,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "安装程序连接已中断。请重试。"
+          }
+        }
+      }
+    },
+    "The installer could not be opened. Download it again and retry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The installer could not be opened. Download it again and retry."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开安装包。请重新下载后再试。"
           }
         }
       }
@@ -14560,6 +15861,40 @@
         }
       }
     },
+    "The update could not be installed. Your previous app has been kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update could not be installed. Your previous app has been kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法安装更新，旧版本应用已保留。"
+          }
+        }
+      }
+    },
+    "The update could not be verified. Your current app has not been changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update could not be verified. Your current app has not been changed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法验证更新，当前应用未被更改。"
+          }
+        }
+      }
+    },
     "The update couldn’t be completed": {
       "extractionState": "manual",
       "localizations": {
@@ -14573,6 +15908,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法完成更新"
+          }
+        }
+      }
+    },
+    "The update download failed. Check your connection and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update download failed. Check your connection and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新下载失败，请检查网络连接后重试。"
+          }
+        }
+      }
+    },
+    "The update installer could not be reached. Reopen ChopChop and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update installer could not be reached. Reopen ChopChop and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接更新安装程序，请重新打开 ChopChop 后重试。"
           }
         }
       }
@@ -14624,6 +15993,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "这些数值是上限。实际连接数取决于文件大小、分段请求支持和服务器限制；媒体和 ED2K 使用独立的传输策略。"
+          }
+        }
+      }
+    },
+    "This build does not have an update verification key. Download and install the release manually.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build does not have an update verification key. Download and install the release manually."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此构建未配置更新验证密钥，请手动下载并安装新版本。"
           }
         }
       }
@@ -14764,6 +16150,23 @@
         }
       }
     },
+    "This release is available for manual installation only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This release is available for manual installation only."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本仅支持手动下载安装。"
+          }
+        }
+      }
+    },
     "This source cannot be replaced safely. Add a new download for a different host, media presentation, or a task that already has partial data.": {
       "extractionState": "manual",
       "localizations": {
@@ -14832,6 +16235,23 @@
         }
       }
     },
+    "This update requires a newer version of macOS.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This update requires a newer version of macOS."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此更新需要更高版本的 macOS。"
+          }
+        }
+      }
+    },
     "This video already includes audio. Choose its included audio or no audio.": {
       "extractionState": "manual",
       "localizations": {
@@ -14883,6 +16303,23 @@
         }
       }
     },
+    "Time allowed to establish a connection. Default: 10 seconds.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time allowed to establish a connection. Default: 10 seconds."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立连接的最长等待时间，默认为 10 秒。"
+          }
+        }
+      }
+    },
     "Time ranges apply to videos. For a live stream, set a recording duration instead.": {
       "extractionState": "manual",
       "localizations": {
@@ -14913,6 +16350,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "预计剩余时间"
+          }
+        }
+      }
+    },
+    "Time without receiving data before retrying. Default: 10 seconds.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time without receiving data before retrying. Default: 10 seconds."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未收到数据后触发重试的等待时间，默认为 10 秒。"
           }
         }
       }
@@ -15427,6 +16881,22 @@
         }
       }
     },
+    "Try Again": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
     "Try a different name or save location.": {
       "extractionState": "manual",
       "localizations": {
@@ -15716,6 +17186,56 @@
         }
       }
     },
+    "Update Available": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Available"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有可用更新"
+          }
+        }
+      }
+    },
+    "Update Channel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Channel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新频道"
+          }
+        }
+      }
+    },
+    "Update Failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新失败"
+          }
+        }
+      }
+    },
     "Update canceled. Aria2 Next %@ is still installed.": {
       "extractionState": "manual",
       "localizations": {
@@ -15729,6 +17249,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新已取消。仍安装着 Aria2 Next %@。"
+          }
+        }
+      }
+    },
+    "Update download progress": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update download progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新下载进度"
           }
         }
       }
@@ -15916,6 +17453,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "已上传 %@"
+          }
+        }
+      }
+    },
+    "Uploaded bytes divided by downloaded bytes. Default: 2.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uploaded bytes divided by downloaded bytes. Default: 2."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上传量与下载量的比值，默认为 2。"
+          }
+        }
+      }
+    },
+    "Upper limit for each server, per task. Default: 64; the server may allow fewer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upper limit for each server, per task. Default: 64; the server may allow fewer."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个任务连接同一服务器的数量上限，默认为 64；实际数量受服务器限制。"
           }
         }
       }
@@ -16124,6 +17695,40 @@
         }
       }
     },
+    "User-Agent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User-Agent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User-Agent"
+          }
+        }
+      }
+    },
+    "Values update live. Sort again to reorder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Values update live. Sort again to reorder."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数值实时更新，重新排序后调整行顺序。"
+          }
+        }
+      }
+    },
     "Verify Checksum": {
       "extractionState": "manual",
       "localizations": {
@@ -16188,6 +17793,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在校验下载…"
+          }
+        }
+      }
+    },
+    "Verifying update…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifying update…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在验证更新…"
           }
         }
       }
@@ -16260,6 +17882,40 @@
         }
       }
     },
+    "View ChopChop Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View ChopChop Update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看 ChopChop 更新"
+          }
+        }
+      }
+    },
+    "View Update…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Update…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看更新…"
+          }
+        }
+      }
+    },
     "Wait for the engine update to finish.": {
       "extractionState": "manual",
       "localizations": {
@@ -16290,6 +17946,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting for ChopChop to quit…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for ChopChop to quit…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 ChopChop 退出…"
           }
         }
       }
@@ -16430,6 +18103,23 @@
         }
       }
     },
+    "You can hide this window. The update will continue.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can hide this window. The update will continue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏此窗口后，更新仍会继续。"
+          }
+        }
+      }
+    },
     "Your current engine stays available while the update downloads and is verified.": {
       "extractionState": "manual",
       "localizations": {
@@ -16477,6 +18167,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新引擎前已备份原有任务列表。旧版本中未完成的下载可能会从头开始；已有的部分文件会保留。\n\n备份：%@"
+          }
+        }
+      }
+    },
+    "You’ll stay on this pre-release until a newer stable version is available.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You’ll stay on this pre-release until a newer stable version is available."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在更新的正式版发布前，将继续保留当前预发布版本。"
           }
         }
       }
@@ -16562,6 +18269,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "server.met 地址"
+          }
+        }
+      }
+    },
+    "↑ ↓ to select · Return to run · Esc to close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑ ↓ to select · Return to run · Esc to close"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑ ↓ 选择 · 回车执行 · Esc 关闭"
           }
         }
       }

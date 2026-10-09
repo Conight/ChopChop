@@ -207,7 +207,7 @@ final class MediaDownloadCoordinator: ObservableObject {
         selection = .restored(from: options, media: media)
     }
 
-    func confirm(using client: Aria2RPCClient) async -> Bool {
+    func confirm(using client: Aria2RPCClient, startPaused: Bool = false) async -> Bool {
         guard phase == .ready, let gid, let snapshot else { return false }
         let request = generation
         do {
@@ -217,7 +217,7 @@ final class MediaDownloadCoordinator: ObservableObject {
             guard current.status == .paused else { throw DownloadOperationError(String(localized: "This media task is no longer paused. Refresh its state before continuing.")) }
             try await client.changeOption(gid: gid, options: options)
             guard request == generation else { return false }
-            try await client.resume(gid)
+            if !startPaused { try await client.resume(gid) }
             guard request == generation else { return false }
             self.gid = nil; self.snapshot = nil; phase = .idle; ownsTask = false; error = nil
             do { try await client.saveSession() } catch { onSaveError?(DownloadPrivacy.redact(error.localizedDescription)) }

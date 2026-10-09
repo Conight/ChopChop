@@ -104,7 +104,7 @@ nonisolated enum EngineDownload {
     }
     static func sha256(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 
-    static func runTool(_ path: String, arguments: [String]) async throws -> String {
+    static func runTool(_ path: String, arguments: [String], timeoutInterval: TimeInterval = 20) async throws -> String {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: path)
@@ -118,7 +118,7 @@ nonisolated enum EngineDownload {
             let result: (Int32, Data) = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .utility).async {
                     let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
-                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 20, execute: timeout)
+                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeoutInterval, execute: timeout)
                     let data = output.fileHandleForReading.readDataToEndOfFile()
                     process.waitUntilExit()
                     timeout.cancel()

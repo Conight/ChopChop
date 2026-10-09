@@ -32,4 +32,5 @@ exec /usr/bin/xcodebuild -project "$repo_root/ChopChop.xcodeproj" \
     -scheme ChopChop -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "${CHOPCHOP_DERIVED_DATA:-$repo_root/DerivedData}" \
     CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES \
+    CHOPCHOP_UPDATE_PUBLIC_KEY="${CHOPCHOP_UPDATE_PUBLIC_KEY-$(cat "$repo_root/Configuration/UpdatePublicKey.txt")}" \
     CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" "$@"

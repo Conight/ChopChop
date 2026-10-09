@@ -6,7 +6,6 @@ struct AddDownloadPanel: View {
     @EnvironmentObject private var store: DownloadStore
     @ObservedObject var mediaCoordinator: MediaDownloadCoordinator
     @State private var isShowingAdvanced: Bool
-    @State private var contentHeight: CGFloat = 230
     @State private var submissionError: UserFacingAlert?
     @State private var isSubmitting = false
     @FocusState private var linksAreFocused: Bool
@@ -18,11 +17,20 @@ struct AddDownloadPanel: View {
         self.onDismiss = onDismiss
     }
 
+    private var artworkWidth: CGFloat {
+        store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented || isShowingAdvanced
+            ? AppLayout.compactArtworkWidth : AppLayout.artworkWidth
+    }
+
+    private var bodyHeight: CGFloat {
+        artworkWidth == AppLayout.artworkWidth ? 220 : AppLayout.sheetBodyHeight
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(store.bitTorrentSelectionSession == nil ? String(localized: "Add Download") : String(localized: "Choose Torrent Files"))
-                    .font(.title2.weight(.semibold))
+                    .font(AppTypography.windowTitle)
                     .accessibilityIdentifier("add-download-title")
                 Text(store.bitTorrentSelectionSession == nil ? String(localized: "Review your links or files before starting a download.") : String(localized: "Choose what to save before the download begins."))
                     .font(.callout).foregroundStyle(.secondary)
@@ -34,7 +42,7 @@ struct AddDownloadPanel: View {
             if let session = store.bitTorrentSelectionSession {
                 BitTorrentFileSelectionView(session: session)
                     .padding(.horizontal, AppLayout.focusClearance)
-                    .frame(minHeight: 180, idealHeight: 360, maxHeight: 420)
+                    .frame(minHeight: 100, idealHeight: AppLayout.sheetBodyHeight, maxHeight: AppLayout.sheetBodyHeight)
             } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
@@ -50,7 +58,7 @@ struct AddDownloadPanel: View {
                     if !store.importIssues.isEmpty {
                         VStack(alignment: .leading, spacing: 5) {
                             Label(String(localized: "Some items need attention"), systemImage: "exclamationmark.triangle.fill")
-                                .font(.callout.weight(.medium)).symbolRenderingMode(.multicolor)
+                                .font(AppTypography.fieldLabel).symbolRenderingMode(.multicolor)
                             ForEach(store.importIssues, id: \.self) { issue in
                                 Text(issue).font(.callout).foregroundStyle(.secondary)
                             }
@@ -74,7 +82,7 @@ struct AddDownloadPanel: View {
                     if let error = submissionError {
                         VStack(alignment: .leading, spacing: 5) {
                             Label(error.title, systemImage: "exclamationmark.triangle.fill")
-                                .font(.callout.weight(.medium))
+                                .font(AppTypography.fieldLabel)
                                 .symbolRenderingMode(.multicolor)
                             Text(error.message).font(.callout).foregroundStyle(.secondary)
                                 .textSelection(.enabled)
@@ -85,10 +93,9 @@ struct AddDownloadPanel: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(AppLayout.focusClearance) // Align content with the header/footer and retain focus-ring clearance.
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(minHeight: 0, idealHeight: min(contentHeight, 420), maxHeight: min(contentHeight, 420))
+            .frame(minHeight: 0, idealHeight: bodyHeight, maxHeight: bodyHeight)
 
             }
 
@@ -98,13 +105,13 @@ struct AddDownloadPanel: View {
                 .padding(.horizontal, AppLayout.focusClearance)
         }
         .padding(AppLayout.pageInset)
-        .frame(minWidth: 480, idealWidth: 560, maxWidth: 660)
-        // The form determines the height. A background rail cannot stretch the sheet
-        // or reduce the existing 480-point minimum space available to its controls.
-        .padding(.leading, 180)
+        .frame(maxWidth: .infinity)
+        .padding(.leading, artworkWidth)
         .background(alignment: .leading) {
-            DownloadArtwork().frame(width: 180)
+            DownloadArtwork(showsBrand: artworkWidth == AppLayout.artworkWidth).frame(width: artworkWidth)
         }
+        .frame(minWidth: AppLayout.sheetMinimumWidth, idealWidth: AppLayout.sheetWidth, maxWidth: 840)
+        .desktopControls()
         .presentationSizing(.fitted)
         .background(Color(nsColor: .windowBackgroundColor))
         .defaultFocus($linksAreFocused, true)
@@ -119,7 +126,7 @@ struct AddDownloadPanel: View {
     private var linksInput: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text(String(localized: "Links or files")).font(.callout.weight(.medium))
+                Text(String(localized: "Links or files")).font(AppTypography.fieldLabel)
                 Spacer()
                 Button(String(localized: "Open File…"), action: chooseDownloadFile)
                     .disabled(isSubmitting || mediaCoordinator.isPresented)
@@ -177,7 +184,7 @@ struct AddDownloadPanel: View {
 
     private var saveLocation: some View {
         HStack(spacing: 10) {
-            Text(String(localized: "Save to")).font(.callout.weight(.medium))
+            Text(String(localized: "Save to")).font(AppTypography.fieldLabel)
             if store.addDraft.savePath.isEmpty {
                 Text(String(localized: "Choose a folder")).foregroundStyle(.secondary)
                 Spacer()
@@ -194,29 +201,43 @@ struct AddDownloadPanel: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 10) {
-            if store.bitTorrentSelectionSession != nil {
-                Button(String(localized: "Change Source")) {
-                    Task { await store.cancelBitTorrentFileSelection() }
+        VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
+            HStack {
+                Text(String(localized: "After adding")).font(AppTypography.fieldLabel)
+                Picker(String(localized: "After adding"), selection: $store.addDraft.startPaused) {
+                    Text(String(localized: "Start downloading")).tag(false)
+                    Text(String(localized: "Keep paused")).tag(true)
                 }
-                .disabled(isSubmitting && !store.isResolvingBitTorrentFiles)
-            } else if isSubmitting { ProgressView().controlSize(.small) }
-            Spacer()
-            Button(String(localized: "Cancel"), role: .cancel, action: dismiss)
-                .keyboardShortcut(.cancelAction)
-                .disabled(isSubmitting && !store.isResolvingBitTorrentFiles && mediaCoordinator.phase != .inspecting)
-                .accessibilityIdentifier("add-download-cancel-button")
-            Button(primaryButtonTitle, action: submit)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(primaryButtonDisabled)
-                .accessibilityIdentifier("add-download-submit-button")
+                .labelsHidden().fixedSize()
+                .disabled(isSubmitting)
+                .accessibilityIdentifier("add-download-start-option")
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: AppLayout.controlSpacing) {
+                if store.bitTorrentSelectionSession != nil {
+                    Button(String(localized: "Change Source")) {
+                        Task { await store.cancelBitTorrentFileSelection() }
+                    }
+                    .disabled(isSubmitting && !store.isResolvingBitTorrentFiles)
+                } else if isSubmitting { ProgressView().controlSize(.small) }
+                Spacer()
+                Button(String(localized: "Cancel"), role: .cancel, action: dismiss)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isSubmitting && !store.isResolvingBitTorrentFiles && mediaCoordinator.phase != .inspecting)
+                    .accessibilityIdentifier("add-download-cancel-button")
+                Button(primaryButtonTitle, action: submit)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(primaryButtonDisabled)
+                    .accessibilityIdentifier("add-download-submit-button")
+            }
         }
         .controlSize(.regular)
     }
 
     private var primaryButtonTitle: String {
         if mediaCoordinator.phase == .inspecting { return String(localized: "Inspecting…") }
+        if store.addDraft.startPaused && (mediaCoordinator.phase == .ready || store.bitTorrentSelectionSession?.phase == .ready) { return String(localized: "Add Paused") }
         if mediaCoordinator.phase == .ready { return mediaCoordinator.snapshot?.live == "true" ? String(localized: "Start Recording") : String(localized: "Download Selected Tracks") }
         if let session = store.bitTorrentSelectionSession {
             switch session.phase {
@@ -228,6 +249,7 @@ struct AddDownloadPanel: View {
         if isSubmitting { return String(localized: "Adding…") }
         if store.addDraft.shouldInspectMedia { return String(localized: "Inspect Media…") }
         if store.addDraft.shouldResolveBitTorrentFilesBeforeSubmit { return String(localized: "Choose Files…") }
+        if store.addDraft.startPaused { return String(localized: "Add Paused") }
         let count = store.addDraft.resourceLines.count
         return count > 1 && !store.addDraft.treatLinesAsMirrors ? String(localized: "Start \(count) Downloads") : String(localized: "Start Download")
     }
@@ -333,20 +355,22 @@ private struct AddDownloadOptions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
             VStack(spacing: 12) {
-                row(String(localized: "Filename")) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        TextField(String(localized: "Use the original filename"), text: $store.addDraft.outputName)
-                        if store.addDraft.isBatch && !store.addDraft.treatLinesAsMirrors {
-                            Text(String(localized: "Leave empty when adding separate downloads."))
-                                .font(.caption).foregroundStyle(.secondary)
+                if store.addDraft.supportsOutputOptions {
+                    row(String(localized: "Filename")) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField(String(localized: "Use the original filename"), text: $store.addDraft.outputName)
+                            if store.addDraft.isBatch && !store.addDraft.treatLinesAsMirrors {
+                                Text(String(localized: "Leave empty when adding separate downloads."))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
-                }
-                row(String(localized: "Connections")) {
-                    Stepper(value: $store.addDraft.splitCount, in: 1...256) {
-                        Text("\(store.addDraft.splitCount)").monospacedDigit()
+                    row(String(localized: "Connections")) {
+                        Stepper(value: $store.addDraft.splitCount, in: 1...256) {
+                            Text("\(store.addDraft.splitCount)").monospacedDigit()
+                        }
+                        .frame(width: 100)
                     }
-                    .frame(width: 100)
                 }
                 row(String(localized: "Download speed")) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -368,8 +392,9 @@ private struct AddDownloadOptions: View {
                     }
                 }
             }
+            if store.addDraft.containsHTTPSource {
             Divider()
-            Text(String(localized: "HTTP Request")).font(.callout.weight(.medium))
+            Text(String(localized: "HTTP Request")).font(AppTypography.fieldLabel)
             VStack(spacing: 12) {
                 row("User-Agent") { TextField(String(localized: "Default"), text: $store.addDraft.userAgent) }
                 row("Referer") { TextField(String(localized: "Optional"), text: $store.addDraft.referer) }
@@ -382,6 +407,7 @@ private struct AddDownloadOptions: View {
                         .font(.system(.callout, design: .monospaced))
                 }
             }
+            }
         }
         .nativeTextFieldStyle()
         .controlSize(.regular)
@@ -390,7 +416,7 @@ private struct AddDownloadOptions: View {
     private func row<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title).foregroundStyle(.secondary)
-                .frame(width: 106, alignment: .trailing)
+                .frame(width: AppLayout.formLabelWidth, alignment: .trailing)
             content().frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 .accessibilityLabel(title)
         }

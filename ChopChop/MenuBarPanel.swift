@@ -50,20 +50,20 @@ struct MenuBarPanel: View {
 
             HStack {
                 Button {
-                    Task { await store.pauseAll() }
+                    DownloadAction.pauseAll.perform(in: DownloadActionContext(store: store))
                 } label: {
                     Label(String(localized: "Pause All"), systemImage: "pause.fill")
                 }
                 .buttonStyle(.bordered)
-                .disabled(!store.tasks.contains { $0.primaryControlAction == .pause } || store.isUpdatingEngine)
+                .disabled(!store.tasks.contains { $0.primaryControlAction == .pause } || !DownloadAction.engineReady(in: store))
 
                 Button {
-                    Task { await store.resumeAll() }
+                    DownloadAction.resumeAll.perform(in: DownloadActionContext(store: store))
                 } label: {
                     Label(String(localized: "Resume"), systemImage: "play.fill")
                 }
                 .buttonStyle(.bordered)
-                .disabled(!store.tasks.contains { $0.primaryControlAction == .resume } || store.isUpdatingEngine)
+                .disabled(!store.tasks.contains { $0.primaryControlAction == .resume } || !DownloadAction.engineReady(in: store))
 
                 Button {
                     store.requestAddPanel()
@@ -90,6 +90,7 @@ struct MenuBarPanel: View {
         }
         .padding(16)
         .frame(width: 360)
+        .desktopControls()
     }
 
     private func transferMetric(_ title: String, value: String, symbol: String) -> some View {

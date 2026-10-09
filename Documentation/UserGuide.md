@@ -8,7 +8,7 @@
 
 1. 将 ChopChop 拖入“应用程序”后打开。首次使用时，选择“下载并启动”安装 Aria2 Next。引擎由应用管理，无需选择安装位置。
 2. 在空列表中选择“粘贴链接”或“打开 Torrent 或 Metalink…”，也可将链接和文件拖入窗口。
-3. 确认保存位置和启动选项。第一次访问自选文件夹时，使用系统文件选择器授予访问权限。
+3. 确认保存位置，在“添加后”选择“开始下载”或“保持暂停”。第一次访问自选文件夹时，使用系统文件选择器授予访问权限。
 4. 确认添加后，在任务行查看进度、速度和错误。恢复的下载和 BT 做种默认暂停；需要时手动继续。
 
 未知大小的下载显示已下载量，媒体任务显示媒体进度；获取元数据、校验和整理文件不会显示虚假的百分比。视频功能接受直接 HLS／DASH 地址，并不解析任意视频网站网页。
@@ -16,6 +16,8 @@
 单击任务，在这一行下方展开保存位置和常用设置；一次只展开一个任务。点击系统展开三角可以收起摘要。Engine 在线时可修改任务的下载限速，BT 任务还可修改上传限速，点击“应用”保存；单位为 KiB/s，0 表示移除该任务的限速，全局限制仍然有效，不会停止做种，也不会自动继续暂停的任务。
 
 选中任务后按 **空格** 打开独立的“下载详情”面板，再按空格或 Esc 关闭。面板可调整大小，主窗口仍可操作；在列表中用上下方向键选择其他任务，面板跟随切换。也可用摘要中的“显示详情…”、工具栏按钮或 `⌥⌘I`。正在编辑输入框时，空格和方向键仍用于输入。详情包含概览、文件、网络和日志；已下载文件的“快速查看”使用 macOS 系统预览。
+
+详情面板在本次运行中记住大小、位置和标签页；切换任务时保留当前标签。使用 **⇧⌘P** 或“下载 → 搜索命令…”搜索操作，包括添加、暂停／继续、任务限速、计划下载、引擎设置和诊断预览。上下键选择、回车执行、Esc 关闭；当前不可用的操作会禁用。命令搜索不会上传诊断。
 
 左侧导航栏保持显示，可拖动分隔线调整宽度，没有收起按钮。主窗口最小内容尺寸为 900 × 600 点；打开详情不会增加分栏或改变主窗口大小。底部窄状态栏始终从左侧栏右边缘延伸到窗口最右边，显示全部任务的进行中数量、已完成数量和总大小，不受筛选影响。
 
@@ -39,7 +41,7 @@
 
 设置使用通用、下载、网络、BitTorrent、ED2K、集成和引擎七个一级分类。每个分类的选项在同一页面分组平铺，向下滚动即可查看；Tracker 来源和列表也直接在 BitTorrent 页面编辑，无需进入子页面。网络、BitTorrent 和 ED2K 的“应用设置”按钮固定在底部。
 
-- **ChopChop 应用**：应用菜单 → 检查 ChopChop 更新…，或设置 → 通用。可关闭每日更新检查。发现新版本后，点击 GitHub 下载入口，退出应用并替换“应用程序”中的副本。任务、设置和引擎存放于应用之外，会保留。
+- **ChopChop 应用**：应用菜单 → 检查 ChopChop 更新…，或设置 → 通用。可关闭每日更新检查，并选择稳定版或预发布版。点击“下载更新”后，独立进度页显示百分比、已下载大小和速度；连接、校验和准备阶段显示对应状态。可取消下载，隐藏窗口则继续下载。支持签名更新时可“安装并重新启动”；旧版安装包下载完成后，选择“退出并打开安装程序”，应用保存任务并退出后，再将新 App 拖入“应用程序”。任务、设置和引擎存放于应用之外，会保留。
 - **Aria2 Next 引擎**：点击主窗口左下角整个引擎状态区域，进入引擎设置。可在应用内下载安装更新，并查看真实进度。
 
 开发构建没有发布标签，只提供手动检查；正式构建只提示正式版，测试构建同时接受更新的测试版和正式版。检查失败不会影响已有下载。
@@ -94,6 +96,8 @@ Skipped files have no completion bar. BT v1 files can share pieces, so downloadi
 
 Live telemetry refreshes while the Network tab and window are active. The engine updates BT piece data about every five seconds, so the map may briefly lag file progress. Endpoint details stay in memory and are excluded from saved history and diagnostic exports; server paths, queries and credentials are not displayed. Media and ED2K retain their protocol-specific views.
 
+Choose **Start downloading** or **Keep paused** in the Add Download footer. Torrent metadata and media tracks can still be inspected before keeping the selected payload paused. Details remember their size, position and selected tab during the current app session. Use **Shift–Command–P** or **Downloads → Search Commands…** to find actions, including task speed limits, scheduling, engine settings and diagnostic preview. Arrow keys select, Return runs, and Esc closes; unavailable actions remain disabled. Diagnostics are previewed locally, never uploaded by the command.
+
 ### Chrome and Edge
 
 Settings → Integrations → Browser Integration guides you through enabling reception, exporting the extension, loading it with your browser's Developer mode, and saving its pairing code. Keep the exported folder. The extension is not published to a browser store and does not support Safari.
@@ -104,7 +108,7 @@ Keep ChopChop running when sending links. If the extension cannot connect, open 
 
 Settings has seven top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations and Engine. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Network, BitTorrent and ED2K keep Apply Settings at the bottom.
 
-**App updates:** use ChopChop → Check ChopChop Updates… or Settings → General. Daily checks can be disabled. Download the DMG from the linked GitHub release, quit ChopChop, and replace the Applications copy. Existing tasks, settings and the engine are kept outside the app bundle.
+**App updates:** use ChopChop → Check ChopChop Updates… or Settings → General. Daily checks can be disabled. Choose Download Update to download directly in ChopChop; the update window shows progress and installation options. Existing tasks, settings and the engine are kept outside the app bundle.
 
 **Engine updates:** click the Engine area in the lower-left sidebar to manage and update Aria2 Next inside ChopChop, with download progress.
 
@@ -115,3 +119,25 @@ Completion notifications are opt-in in General settings. Saved history remains a
 Help → ChopChop Help lets you preview and export diagnostics. The report contains versions, capabilities, task counts and issue codes, excluding names, URLs, paths, credentials and raw logs. Nothing is uploaded automatically. Review the report before optionally attaching it to a [GitHub issue](https://github.com/Conight/ChopChop/issues/new/choose), along with reproduction steps and expected/actual behavior.
 
 The app follows the macOS app language, and the extension follows the browser language. Simplified Chinese and English are supported, with English as the fallback.
+
+### Settings search, multiple selection, and compact details
+
+Use the single **Search settings** field above the sidebar to find a control in English or Simplified Chinese. Results appear below the field without pushing the settings page down. Choose a result, or use Up/Down and Return, to open its category and scroll to the control; no outlines or flashing highlights are added. Escape dismisses the search. The seven categories remain one level deep. Numeric settings explain their units, defaults and scope. Network changes still require **Apply Settings**; listening-port changes require an engine restart.
+
+Use Command-click to select individual tasks and Shift-click for a range. The selection bar and Downloads menu can pause, resume or remove selected tasks. Right-clicking inside the selection operates on that selection; right-clicking another task operates on that task. Removal confirms the captured selection once. Batch Resume and Resume All leave tasks requiring torrent-file or media-track selection paused; resume those tasks individually to finish choosing content. Partial failures appear in the download page.
+
+**Files** uses a sortable table with a file filter. Torrent rows keep relative folder paths. Select several files and use **Set Priority**, then **Apply to This Torrent**. Select one file for its progress, Finder, sharing and checksum tools. **Network** uses compact native peer and server tables; select a peer for connection details. Peer values update live, while row order stays stable until you sort again or choose **Refresh Order**.
+
+Background task refresh is less frequent when idle or hidden. Download schedules run independently, and restored tasks still require manual resumption. Detailed peer/piece requests stop when the Details window is hidden or inactive.
+
+### Updating ChopChop
+
+Choose **ChopChop → Check ChopChop Updates** to open the update window. Select **Stable Releases** for stable versions, or **Pre-releases** to include betas as well. Settings → General controls automatic daily checking; background checks do not interrupt your work.
+
+Review the release notes, then choose **Download Update**. The window switches to a dedicated progress page showing the percentage, bytes received and measured speed. Unknown totals, connection, verification and preparation use an indeterminate bar with the current stage. Progress and cancellation stay visible even if you previously scrolled to the bottom of the notes. **Hide** leaves the download running; reopen the update window to see its progress.
+
+For a signed update, choose **Install and Restart** when preparation finishes. ChopChop saves its sessions before quitting. Downloads and BitTorrent seeding remain paused when it reopens. You can cancel the download or discard a prepared update.
+
+Older releases without signed update metadata still download directly in ChopChop, with progress, cancellation and SHA-256 verification. When the download finishes, choose **Quit and Open Installer**: ChopChop opens the DMG, saves its downloads and exits. Then drag ChopChop to Applications. If opening fails, the app stays open and **Try Again** reuses the verified download. **Show in Finder** reveals the DMG without quitting. Unwritable installation locations also offer **Download Installer**. Engine updates are managed separately in Engine settings.
+
+Downloaded installers and prepared signed updates can be recovered after reopening ChopChop; their files are verified again before use. While waiting for termination, **Retry Quit** requests a normal exit and never force-quits ongoing session saving. If the installer stops waiting, the app reports the failure and offers a retry of the prepared package.

@@ -98,34 +98,8 @@ struct BitTorrentManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let options {
-                ForEach(task.files) { file in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(URL(fileURLWithPath: file.path).lastPathComponent).lineLimit(2)
-                        HStack {
-                            Text(ByteFormat.size(file.length)).font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Picker(String(localized: "Priority"), selection: priorityBinding(file.index)) {
-                                ForEach(TorrentFilePriority.allCases) { value in Text(value.title).tag(value) }
-                            }.pickerStyle(.menu).labelsHidden().frame(maxWidth: 110)
-                        }
-                        if (options.priorities[file.index] != .off) != file.isSelected {
-                            Label(String(localized: "Selection change not applied"), systemImage: "clock")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        DownloadFileProgressView(file: file)
-                        if file.isCompleteOnDisk {
-                            DownloadedFileActions(file: file)
-                            FileVerificationView(file: file)
-                        }
-                    }.contentPanel()
-                        .contextMenu {
-                            if let url = DownloadFileLocation.existingFile(file.path) {
-                                Button(String(localized: "Show in Finder"), systemImage: "folder") {
-                                    NSWorkspace.shared.activateFileViewerSelecting([url])
-                                }
-                            }
-                        }
-                }
+                DownloadFilesTable(files: task.files, directory: task.torrentDirectory ?? task.destination,
+                    priorities: Binding(get: { self.options?.priorities ?? [:] }, set: { self.options?.priorities = $0; saved = false }))
                 Toggle(String(localized: "Download in order"), isOn: optionBinding(\.sequential, fallback: options.sequential))
                 Toggle(String(localized: "Prioritize first and last pieces"), isOn: optionBinding(\.previewPieces, fallback: options.previewPieces))
                 DisclosureGroup(String(localized: "Sharing Limits")) {
@@ -161,9 +135,6 @@ struct BitTorrentManagementView: View {
         }
     }
 
-    private func priorityBinding(_ index: Int) -> Binding<TorrentFilePriority> {
-        Binding(get: { options?.priorities[index] ?? .normal }, set: { options?.priorities[index] = $0; saved = false })
-    }
     private func optionBinding<Value>(_ key: WritableKeyPath<BitTorrentTaskOptions, Value>, fallback: Value) -> Binding<Value> {
         Binding(get: { options?[keyPath: key] ?? fallback }, set: { options?[keyPath: key] = $0; saved = false })
     }

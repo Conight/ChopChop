@@ -56,7 +56,7 @@ nonisolated struct QueuedDownloadReference: Codable, Transferable {
 }
 
 struct QueueReordering: ViewModifier {
-    @EnvironmentObject private var store: DownloadStore
+    let store: DownloadStore
     let task: DownloadTask
     func body(content: Content) -> some View {
         if task.isAvailableInEngine && (task.status == .waiting || task.status == .paused) {

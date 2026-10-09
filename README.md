@@ -35,7 +35,7 @@ Removing quarantine does not sign, notarize, or verify a download. Only do this 
 ## Features
 
 - Simplified Chinese and English interfaces, including the browser extension and App Shortcuts.
-- Separate ChopChop update checks with release notes and manual GitHub downloads.
+- A dedicated ChopChop update window with native Markdown release notes, stable/pre-release channels, direct downloads with progress, and verified installation and restart using Ed25519-signed update manifests.
 - In-app help and previewable diagnostic export, with no automatic upload or download identifiers.
 
 - Add individual links, batches, or mirrors; choose the destination and optional request settings.
@@ -90,7 +90,9 @@ The shared CI/release gate checks localization, Swift/RPC and browser tests, Chi
 
 ## Release packaging
 
-Like RemoteDock, ChopChop publishes a DMG and SHA-256 checksum from an annotated version tag. The workflow runs the shared verification gate, builds an arm64 Release app, and verifies the final mounted DMG before publication. The complete tag is embedded for application update comparisons, including prerelease ordering.
+ChopChop publishes a DMG, SHA-256 checksum, and Ed25519-signed update manifest from an annotated version tag. The workflow runs the shared verification gate, builds an arm64 Release app, and verifies the final mounted DMG before signing and publication. The complete tag is embedded for application update comparisons, including prerelease ordering.
+
+The app pins the public key in `Configuration/UpdatePublicKey.txt`; the release workflow requires the same `CHOPCHOP_UPDATE_PUBLIC_KEY` repository variable and uses the `CHOPCHOP_UPDATE_PRIVATE_KEY` Actions secret only in its signing step. The private key is never bundled. Update signatures do not replace Apple Developer ID signing or notarization. Beta.1 and beta.2 users must install beta.3 manually once to obtain the signed in-app updater.
 
 ```sh
 # Python 3.10+ is required; python3.14 is preferred, or set PYTHON explicitly.
@@ -99,11 +101,11 @@ Scripts/create-dmg.sh
 
 The packaging dependencies are version- and hash-pinned and installed into a temporary virtual environment. Finder layout metadata is generated with [dmgbuild](https://dmgbuild.readthedocs.io/), without UI automation. The script checks the app, XPC service, entitlements, signatures, architecture, notices, and Applications shortcut, and rejects any embedded engine payload.
 
-Before a release, update `MARKETING_VERSION` in the app target to match the tag's base version. **All release titles and notes must be in English.** Save complete notes in `Documentation/Releases/<tag>.md` and commit them before creating the annotated tag:
+Before a release, update `MARKETING_VERSION` in the app target to match the tag's base version and increment `CURRENT_PROJECT_VERSION`. **All release titles and notes must be in English.** Save complete notes in `Documentation/Releases/<tag>.md` and commit them before creating the annotated tag:
 
 ```sh
-git tag -a v0.0.1-beta.2 --cleanup=verbatim -F Documentation/Releases/v0.0.1-beta.2.md
-git push origin v0.0.1-beta.2
+git tag -a v0.0.1-beta.3 --cleanup=verbatim -F Documentation/Releases/v0.0.1-beta.3.md
+git push origin v0.0.1-beta.3
 ```
 
 Tags with a prerelease suffix are marked as GitHub pre-releases. The workflow requires the matching notes file and publishes it directly, preserving its Markdown headings. To correct an existing release, edit its GitHub notes and update the corresponding file without moving the published tag or replacing its assets. The workflow uses GitHub's [`xcode-27` Apple Silicon runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).

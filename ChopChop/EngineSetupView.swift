@@ -7,7 +7,7 @@ struct EngineSetupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
             Label(String(localized: "Aria2 Next Required"), systemImage: "arrow.down.circle.fill")
-                .font(.title2.bold())
+                .font(AppTypography.windowTitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(String(localized: "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically."))
@@ -37,6 +37,7 @@ struct EngineSetupView: View {
         }
         .padding(AppLayout.pageInset + AppLayout.focusClearance)
         .frame(minWidth: 400, idealWidth: 500, maxWidth: 540, minHeight: 340, idealHeight: 400, maxHeight: 500)
+        .desktopControls()
         .interactiveDismissDisabled()
     }
 

@@ -312,6 +312,7 @@ nonisolated struct SpeedSample: Identifiable, Hashable, Sendable {
 
 nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var rawInput = ""
+    var startPaused = false
     var outputName = ""
     var savePath = ""
     var treatLinesAsMirrors = false
@@ -327,6 +328,17 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var importedDocuments: [String: ImportedDownloadDocument] = [:]
     var media = MediaDownloadOptions()
     var torrentDirectory: String? = nil
+
+    var containsHTTPSource: Bool {
+        resourceLines.contains {
+            let scheme = URL(string: $0)?.scheme?.lowercased()
+            return scheme == "http" || scheme == "https" || Self.detectProtocol(for: $0) == .metalink
+        }
+    }
+
+    var supportsOutputOptions: Bool {
+        resourceLines.contains { [.http, .sftp].contains(Self.detectProtocol(for: $0)) }
+    }
 
     var detectedProtocol: TaskProtocol? {
         resourceLines.first.flatMap(Self.detectProtocol)
@@ -381,7 +393,7 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
             throw DownloadDraftError.outputNameRequiresSingleTask
         }
 
-        var options: [String: String] = ["pause": "false"]
+        var options: [String: String] = ["pause": startPaused.description]
         if !outputName.trimmedForEngine.isEmpty {
             options["out"] = outputName.trimmedForEngine
         }

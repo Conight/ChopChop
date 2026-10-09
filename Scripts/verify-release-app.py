@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the app and installer service, and reject embedded engine payloads."""
 
+import base64
 import json
 import os
 import pathlib
@@ -51,6 +52,10 @@ def verify(app):
     for name in ("Aria2Next-COPYING.txt", "Aria2Next-NOTICE.txt"):
         require((app / "Contents/Resources" / name).read_bytes() == (root / "Vendor/Aria2Next" / name).read_bytes(),
                 f"Engine license notice differs: {name}")
+    update_key = info.get("ChopChopUpdatePublicKey", "")
+    require(update_key == os.environ.get("CHOPCHOP_UPDATE_PUBLIC_KEY", (root / "Configuration/UpdatePublicKey.txt").read_text().strip()), "Update public key does not match build configuration")
+    if update_key:
+        require(len(base64.b64decode(update_key, validate=True)) == 32, "Invalid update verification public key")
     tag = info.get("ChopChopReleaseVersion")
     expected_tag = os.environ.get("CHOPCHOP_RELEASE_VERSION", "development")
     require(tag == expected_tag, "Full release tag is missing or does not match the build")

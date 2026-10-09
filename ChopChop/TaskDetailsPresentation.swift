@@ -2,10 +2,20 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum TaskDetailSection: Hashable { case speedLimits, schedule }
+struct TaskDetailRequest: Equatable {
+    let id = UUID()
+    var section: TaskDetailSection
+}
+
 /// Window-local presentation state. Download selection and engine state stay in the store.
 @MainActor
 final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegate {
     @Published var expandedTaskID: String?
+    @Published var sectionRequest: TaskDetailRequest?
+    @Published var selectedTab: InspectorTab = .overview
+    private var rememberedFrame: NSRect?
+    private var observedTaskID: String?
     @Published private(set) var isPresented = false
     @Published private(set) var scenePhase: ScenePhase = .inactive
     private(set) weak var owner: NSWindow?
@@ -35,6 +45,8 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
     }
 
     func selectionChanged(to id: String?) {
+        if observedTaskID != id { sectionRequest = nil }
+        observedTaskID = id
         expandedTaskID = id
         if id == nil { dismiss(returnFocus: false) }
     }
@@ -71,12 +83,10 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
         panel.contentViewController = content
         panel.alphaValue = owner.alphaValue
         let screen = owner.screen?.visibleFrame ?? owner.frame
-        var frame = panel.frame
-        frame.size.width = min(frame.width, screen.width)
-        frame.size.height = min(frame.height, screen.height)
-        frame.origin.x = min(max(owner.frame.midX - frame.width / 2, screen.minX), screen.maxX - frame.width)
-        frame.origin.y = min(max(owner.frame.midY - frame.height / 2, screen.minY), screen.maxY - frame.height)
-        panel.setFrame(frame, display: false)
+        let proposed = rememberedFrame ?? NSRect(
+            x: owner.frame.midX - panel.frame.width / 2, y: owner.frame.midY - panel.frame.height / 2,
+            width: panel.frame.width, height: panel.frame.height)
+        panel.setFrame(Self.fittedFrame(proposed, screens: NSScreen.screens.map(\.visibleFrame), fallback: screen), display: false)
         owner.addChildWindow(panel, ordered: .above)
         isPresented = true
         updateActivity()
@@ -89,6 +99,7 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
         isPresented = false
         scenePhase = .inactive
         if let panel {
+            rememberedFrame = panel.frame
             owner?.removeChildWindow(panel)
             panel.orderOut(nil)
             panel.contentViewController = nil // Cancels task-scoped RPC observation.
@@ -99,6 +110,27 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
             if let returnResponder { owner.makeFirstResponder(returnResponder) }
         }
         returnResponder = nil
+    }
+
+    /// Use the display containing the saved panel; recover onto the owner display when it disappears.
+    static func fittedFrame(_ proposed: NSRect, screens: [NSRect], fallback: NSRect) -> NSRect {
+        let display = screens.max { a, b in
+            let x = a.intersection(proposed), y = b.intersection(proposed)
+            return (x.isNull ? 0 : x.width * x.height) < (y.isNull ? 0 : y.width * y.height)
+        }.flatMap { $0.intersects(proposed) ? $0 : nil } ?? fallback
+        var frame = proposed
+        frame.size.width = min(frame.width, display.width)
+        frame.size.height = min(frame.height, display.height)
+        frame.origin.x = min(max(frame.minX, display.minX), display.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, display.minY), display.maxY - frame.height)
+        return frame
+    }
+
+    func windowDidMove(_ notification: Notification) { rememberVisibleFrame() }
+    func windowDidResize(_ notification: Notification) { rememberVisibleFrame() }
+    private func rememberVisibleFrame() {
+        guard isPresented, let panel else { return }
+        rememberedFrame = panel.frame
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -159,7 +191,7 @@ private struct TaskDetailsPanelContent: View {
     var body: some View {
         Group {
             if let task = store.selectedTask {
-                TaskInspectorView(task: task).id(task.id)
+                TaskInspectorView(task: task, selection: $presentation.selectedTab, sectionRequest: presentation.sectionRequest)
             }
         }
         .environmentObject(store)

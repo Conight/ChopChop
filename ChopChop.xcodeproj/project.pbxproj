@@ -65,6 +65,39 @@
 		62B00000000000000000000B /* TaskDetailsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000B /* TaskDetailsPresentation.swift */; };
 		62B00000000000000000000C /* TaskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000C /* TaskSummaryView.swift */; };
 		62B00000000000000000000D /* DownloadArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000D /* DownloadArtwork.swift */; };
+		62B000000000000000000010 /* DownloadListPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A000000000000000000010 /* DownloadListPresentation.swift */; };
+		62B00000000000000000000F /* CommandSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000F /* CommandSearch.swift */; };
+		62B00000000000000000000E /* DownloadAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A00000000000000000000E /* DownloadAction.swift */; };
+		4EA992F4D4F721923FD2606E /* SettingsGeneralPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D6DF6BF01C55B9D4BA354C /* SettingsGeneralPage.swift */; };
+		6CCAC4C39BFAC343932013C4 /* SettingsDownloadsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D78462BCB34FB1D35C32657 /* SettingsDownloadsPage.swift */; };
+		FD30D0BC1507D210E79985FD /* SettingsNetworkPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7ABB9F6651E7173B672A44 /* SettingsNetworkPage.swift */; };
+		27B750DE893C4588AC62ED3E /* SettingsBitTorrentPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB52D4C6EC638349784D07B /* SettingsBitTorrentPage.swift */; };
+		EAE1A559FE30E348304DFF49 /* SettingsED2KPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DFCCD191A2D88A14CBDBB9 /* SettingsED2KPage.swift */; };
+		D1F5E781D3A8E6F2DA334E86 /* SettingsIntegrationsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A535E717D334750D52C58372 /* SettingsIntegrationsPage.swift */; };
+		172760A8B9385AC8C8585AEF /* SettingsEnginePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2DAA41DBE251468A12E017 /* SettingsEnginePage.swift */; };
+		8F935B7C513893269CFFA0BD /* SettingsTrackerEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB60F50300208130EDB1425E /* SettingsTrackerEditors.swift */; };
+		7F86A90198316EE9994C3820 /* SettingsControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACA212227CC5DCAFB9A2F52 /* SettingsControls.swift */; };
+		0048CD96A4DE07CCA4072EED /* SettingsSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EECC66651144655627C2375 /* SettingsSearch.swift */; };
+		12049B2E5A1F41A4EB4586C6 /* DownloadBatchOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857DA7D02BF9C4668EBF1618 /* DownloadBatchOperations.swift */; };
+		2A60AD5B9C856CD7D2E9EF54 /* DownloadFilesTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A93FAFB0B164A3C9A45B99C /* DownloadFilesTable.swift */; };
+		67BB3B5D6E4D5FBB55E4F05A /* TransferTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4701EC39AD6F418C3B40C4 /* TransferTables.swift */; };
+		0E77091281BC3B3D0C69A11B /* DownloadRefreshPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D503D4A641B97055FF4318C /* DownloadRefreshPolicy.swift */; };
+		D92A6D0B6820C11D573006C8 /* DownloadStorePlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47E6FD0BD9CB800ED2B0EC1 /* DownloadStorePlanning.swift */; };
+		F422CEE44ADA8C39CB2037A5 /* DownloadStoreTaskOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF316FE3A79238BFCBA0D8D /* DownloadStoreTaskOperations.swift */; };
+		72663A2B0BD941B712C4188B /* DownloadStoreEngineSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAB301B3BDC86719EE8BD7D /* DownloadStoreEngineSync.swift */; };
+		695CF38777BD466C0952E7DA /* WindowVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68196A796BB4580AAD7B58D2 /* WindowVisibility.swift */; };
+        2C0D36F507C77FA6113413E5 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303275FC1DD200876C7BE606; };
+        1D65E17D1CD0B497B3574C67 /* AppVersion.swift in Installer */ = {isa = PBXBuildFile; fileRef = 303275FC1DD200876C7BE606; };
+        0CBA21600A42CCD454CC6B6B /* AppUpdatePackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EB8CA38CFBC2E60FEA9FC2; };
+        0D63C8C95F256AEADFB2110C /* AppUpdatePackage.swift in Installer */ = {isa = PBXBuildFile; fileRef = D8EB8CA38CFBC2E60FEA9FC2; };
+        8CB3898C4A60D11937170F1E /* AppUpdateTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5EAEAD975B8ABABA90C2B35; };
+        4A7C18EE79E1349B294C78B3 /* AppUpdateTransfer.swift in Installer */ = {isa = PBXBuildFile; fileRef = D5EAEAD975B8ABABA90C2B35; };
+        93A9EE4DF0628F74D1FE11CF /* AppUpdateInstallation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73985738D92B8BBE3800806; };
+        4D69CE29799D93126E8D8EE0 /* AppUpdateInstallation.swift in Installer */ = {isa = PBXBuildFile; fileRef = F73985738D92B8BBE3800806; };
+        AC595A69A2E4E7D3BF9AFC36 /* AppUpdateInstallerRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB35025290A108E07605E5B; };
+        2A64A742D2243F91D1B2B04F /* AppUpdateWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A617A827D1C8561C818C23; };
+		63B000000000000000000001 /* AppUpdateRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A000000000000000000001; };
+		63B000000000000000000002 /* ReleaseNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -153,6 +186,35 @@
 		62A00000000000000000000B /* TaskDetailsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailsPresentation.swift; sourceTree = "<group>"; };
 		62A00000000000000000000C /* TaskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSummaryView.swift; sourceTree = "<group>"; };
 		62A00000000000000000000D /* DownloadArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadArtwork.swift; sourceTree = "<group>"; };
+		62A000000000000000000010 /* DownloadListPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadListPresentation.swift; sourceTree = "<group>"; };
+		62A00000000000000000000F /* CommandSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandSearch.swift; sourceTree = "<group>"; };
+		62A00000000000000000000E /* DownloadAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadAction.swift; sourceTree = "<group>"; };
+		89D6DF6BF01C55B9D4BA354C /* SettingsGeneralPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGeneralPage.swift; sourceTree = "<group>"; };
+		2D78462BCB34FB1D35C32657 /* SettingsDownloadsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDownloadsPage.swift; sourceTree = "<group>"; };
+		1B7ABB9F6651E7173B672A44 /* SettingsNetworkPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNetworkPage.swift; sourceTree = "<group>"; };
+		5EB52D4C6EC638349784D07B /* SettingsBitTorrentPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBitTorrentPage.swift; sourceTree = "<group>"; };
+		70DFCCD191A2D88A14CBDBB9 /* SettingsED2KPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsED2KPage.swift; sourceTree = "<group>"; };
+		A535E717D334750D52C58372 /* SettingsIntegrationsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsIntegrationsPage.swift; sourceTree = "<group>"; };
+		BF2DAA41DBE251468A12E017 /* SettingsEnginePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnginePage.swift; sourceTree = "<group>"; };
+		EB60F50300208130EDB1425E /* SettingsTrackerEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTrackerEditors.swift; sourceTree = "<group>"; };
+		9ACA212227CC5DCAFB9A2F52 /* SettingsControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsControls.swift; sourceTree = "<group>"; };
+		3EECC66651144655627C2375 /* SettingsSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSearch.swift; sourceTree = "<group>"; };
+		857DA7D02BF9C4668EBF1618 /* DownloadBatchOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadBatchOperations.swift; sourceTree = "<group>"; };
+		9A93FAFB0B164A3C9A45B99C /* DownloadFilesTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFilesTable.swift; sourceTree = "<group>"; };
+		FF4701EC39AD6F418C3B40C4 /* TransferTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferTables.swift; sourceTree = "<group>"; };
+		3D503D4A641B97055FF4318C /* DownloadRefreshPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadRefreshPolicy.swift; sourceTree = "<group>"; };
+		A47E6FD0BD9CB800ED2B0EC1 /* DownloadStorePlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStorePlanning.swift; sourceTree = "<group>"; };
+		2CF316FE3A79238BFCBA0D8D /* DownloadStoreTaskOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreTaskOperations.swift; sourceTree = "<group>"; };
+		EBAB301B3BDC86719EE8BD7D /* DownloadStoreEngineSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreEngineSync.swift; sourceTree = "<group>"; };
+		68196A796BB4580AAD7B58D2 /* WindowVisibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowVisibility.swift; sourceTree = "<group>"; };
+        303275FC1DD200876C7BE606 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+        D8EB8CA38CFBC2E60FEA9FC2 /* AppUpdatePackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePackage.swift; sourceTree = "<group>"; };
+        D5EAEAD975B8ABABA90C2B35 /* AppUpdateTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateTransfer.swift; sourceTree = "<group>"; };
+        F73985738D92B8BBE3800806 /* AppUpdateInstallation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateInstallation.swift; sourceTree = "<group>"; };
+        ACB35025290A108E07605E5B /* AppUpdateInstallerRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateInstallerRequest.swift; sourceTree = "<group>"; };
+        D8A617A827D1C8561C818C23 /* AppUpdateWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateWindow.swift; sourceTree = "<group>"; };
+		63A000000000000000000001 /* AppUpdateRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateRecovery.swift; sourceTree = "<group>"; };
+		63A000000000000000000002 /* ReleaseNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -228,9 +290,38 @@
 				62A000000000000000000009 /* TransferDetails.swift */,
 				62A00000000000000000000C /* TaskSummaryView.swift */,
 				62A00000000000000000000D /* DownloadArtwork.swift */,
+				62A000000000000000000010 /* DownloadListPresentation.swift */,
+				62A00000000000000000000F /* CommandSearch.swift */,
+				89D6DF6BF01C55B9D4BA354C /* SettingsGeneralPage.swift */,
+				2D78462BCB34FB1D35C32657 /* SettingsDownloadsPage.swift */,
+				1B7ABB9F6651E7173B672A44 /* SettingsNetworkPage.swift */,
+				5EB52D4C6EC638349784D07B /* SettingsBitTorrentPage.swift */,
+				70DFCCD191A2D88A14CBDBB9 /* SettingsED2KPage.swift */,
+				A535E717D334750D52C58372 /* SettingsIntegrationsPage.swift */,
+				BF2DAA41DBE251468A12E017 /* SettingsEnginePage.swift */,
+				EB60F50300208130EDB1425E /* SettingsTrackerEditors.swift */,
+				9ACA212227CC5DCAFB9A2F52 /* SettingsControls.swift */,
+				3EECC66651144655627C2375 /* SettingsSearch.swift */,
+				857DA7D02BF9C4668EBF1618 /* DownloadBatchOperations.swift */,
+				9A93FAFB0B164A3C9A45B99C /* DownloadFilesTable.swift */,
+				FF4701EC39AD6F418C3B40C4 /* TransferTables.swift */,
+				3D503D4A641B97055FF4318C /* DownloadRefreshPolicy.swift */,
+				A47E6FD0BD9CB800ED2B0EC1 /* DownloadStorePlanning.swift */,
+				2CF316FE3A79238BFCBA0D8D /* DownloadStoreTaskOperations.swift */,
+				EBAB301B3BDC86719EE8BD7D /* DownloadStoreEngineSync.swift */,
+				68196A796BB4580AAD7B58D2 /* WindowVisibility.swift */,
+				62A00000000000000000000E /* DownloadAction.swift */,
 				62A00000000000000000000B /* TaskDetailsPresentation.swift */,
 				62A000000000000000000002 /* AppSupport.swift */,
 				62A000000000000000000001 /* AppUpdate.swift */,
+                63A000000000000000000001 /* AppUpdateRecovery.swift */,
+                D8A617A827D1C8561C818C23 /* AppUpdateWindow.swift */,
+                63A000000000000000000002 /* ReleaseNotesView.swift */,
+                ACB35025290A108E07605E5B /* AppUpdateInstallerRequest.swift */,
+                F73985738D92B8BBE3800806 /* AppUpdateInstallation.swift */,
+                D5EAEAD975B8ABABA90C2B35 /* AppUpdateTransfer.swift */,
+                D8EB8CA38CFBC2E60FEA9FC2 /* AppUpdatePackage.swift */,
+                303275FC1DD200876C7BE606 /* AppVersion.swift */,
 				60A000000000000000000018 /* EngineRelease.swift */,
 				60A000000000000000000019 /* EngineDownload.swift */,
 				60A00000000000000000001A /* EngineInstallerProtocol.swift */,
@@ -454,9 +545,38 @@
 				62B000000000000000000009 /* TransferDetails.swift in Sources */,
 				62B00000000000000000000C /* TaskSummaryView.swift in Sources */,
 				62B00000000000000000000D /* DownloadArtwork.swift in Sources */,
+				62B000000000000000000010 /* DownloadListPresentation.swift in Sources */,
+				62B00000000000000000000F /* CommandSearch.swift in Sources */,
+				4EA992F4D4F721923FD2606E /* SettingsGeneralPage.swift in Sources */,
+				6CCAC4C39BFAC343932013C4 /* SettingsDownloadsPage.swift in Sources */,
+				FD30D0BC1507D210E79985FD /* SettingsNetworkPage.swift in Sources */,
+				27B750DE893C4588AC62ED3E /* SettingsBitTorrentPage.swift in Sources */,
+				EAE1A559FE30E348304DFF49 /* SettingsED2KPage.swift in Sources */,
+				D1F5E781D3A8E6F2DA334E86 /* SettingsIntegrationsPage.swift in Sources */,
+				172760A8B9385AC8C8585AEF /* SettingsEnginePage.swift in Sources */,
+				8F935B7C513893269CFFA0BD /* SettingsTrackerEditors.swift in Sources */,
+				7F86A90198316EE9994C3820 /* SettingsControls.swift in Sources */,
+				0048CD96A4DE07CCA4072EED /* SettingsSearch.swift in Sources */,
+				12049B2E5A1F41A4EB4586C6 /* DownloadBatchOperations.swift in Sources */,
+				2A60AD5B9C856CD7D2E9EF54 /* DownloadFilesTable.swift in Sources */,
+				67BB3B5D6E4D5FBB55E4F05A /* TransferTables.swift in Sources */,
+				0E77091281BC3B3D0C69A11B /* DownloadRefreshPolicy.swift in Sources */,
+				D92A6D0B6820C11D573006C8 /* DownloadStorePlanning.swift in Sources */,
+				F422CEE44ADA8C39CB2037A5 /* DownloadStoreTaskOperations.swift in Sources */,
+				72663A2B0BD941B712C4188B /* DownloadStoreEngineSync.swift in Sources */,
+				695CF38777BD466C0952E7DA /* WindowVisibility.swift in Sources */,
+				62B00000000000000000000E /* DownloadAction.swift in Sources */,
 				62B00000000000000000000B /* TaskDetailsPresentation.swift in Sources */,
 				62B000000000000000000002 /* AppSupport.swift in Sources */,
 				62B000000000000000000001 /* AppUpdate.swift in Sources */,
+                63B000000000000000000001 /* AppUpdateRecovery.swift in Sources */,
+                2A64A742D2243F91D1B2B04F /* AppUpdateWindow.swift in Sources */,
+                63B000000000000000000002 /* ReleaseNotesView.swift in Sources */,
+                AC595A69A2E4E7D3BF9AFC36 /* AppUpdateInstallerRequest.swift in Sources */,
+                93A9EE4DF0628F74D1FE11CF /* AppUpdateInstallation.swift in Sources */,
+                8CB3898C4A60D11937170F1E /* AppUpdateTransfer.swift in Sources */,
+                0CBA21600A42CCD454CC6B6B /* AppUpdatePackage.swift in Sources */,
+                2C0D36F507C77FA6113413E5 /* AppVersion.swift in Sources */,
 				60B000000000000000000018 /* EngineRelease.swift in Sources */,
 				60B000000000000000000019 /* EngineDownload.swift in Sources */,
 				60B00000000000000000001A /* EngineInstallerProtocol.swift in Sources */,
@@ -509,7 +629,7 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 
-        61D000000000000000000002 /* Installer Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (61B000000000000000000002, 61B000000000000000000018, 61B000000000000000000019, 61B00000000000000000001A, ); runOnlyForDeploymentPostprocessing = 0; };
+        61D000000000000000000002 /* Installer Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (61B000000000000000000002, 4D69CE29799D93126E8D8EE0, 4A7C18EE79E1349B294C78B3, 0D63C8C95F256AEADFB2110C, 1D65E17D1CD0B497B3574C67, 61B000000000000000000018, 61B000000000000000000019, 61B00000000000000000001A, ); runOnlyForDeploymentPostprocessing = 0; };
 
 /* End PBXSourcesBuildPhase section */
 
@@ -658,7 +778,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -681,6 +801,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 			};
 			name = Debug;
 		};
@@ -695,7 +816,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -718,6 +839,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 			};
 			name = Release;
 		};
@@ -747,6 +869,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 			};
 			name = Debug;
 		};
@@ -776,6 +899,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 			};
 			name = Release;
 		};
@@ -796,6 +920,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Debug;
@@ -817,6 +942,7 @@
 				SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
 				TEST_TARGET_NAME = ChopChop;
 			};
 			name = Release;
@@ -838,6 +964,7 @@
             SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
             SWIFT_STRICT_CONCURRENCY = complete;
         }; name = Debug; };
 
@@ -858,6 +985,7 @@
             SWIFT_VERSION = 6.0;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				CHOPCHOP_RELEASE_VERSION = development;
+                CHOPCHOP_UPDATE_PUBLIC_KEY = "IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=";
             SWIFT_STRICT_CONCURRENCY = complete;
         }; name = Release; };
 

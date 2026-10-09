@@ -41,7 +41,7 @@ final class PublicBetaTests: XCTestCase {
         let client = GitHubAppReleaseClient(session: session)
         for (status, expected) in [(403, AppUpdateError.rateLimited), (429, .rateLimited), (503, .serviceUnavailable), (200, .invalidResponse), (0, .offline)] {
             ReleaseURLProtocol.responseStatus = status
-            do { _ = try await client.latest(for: AppVersion("0.0.1")); XCTFail("Expected failure") }
+            do { _ = try await client.latest(for: AppVersion("0.0.1"), channel: .stable); XCTFail("Expected failure") }
             catch { XCTAssertEqual(error as? AppUpdateError, expected) }
         }
     }
@@ -160,7 +160,7 @@ private actor ReleaseStub: AppReleaseFetching {
     var calls = 0
     let error: AppUpdateError
     init(error: AppUpdateError) { self.error = error }
-    func latest(for current: AppVersion?) async throws -> AppRelease? { calls += 1; throw error }
+    func latest(for current: AppVersion?, channel: AppUpdateChannel) async throws -> AppRelease? { calls += 1; throw error }
 }
 
 private final class ReleaseURLProtocol: URLProtocol, @unchecked Sendable {

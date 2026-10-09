@@ -8,6 +8,19 @@ final class DownloadReliabilityTests: XCTestCase {
         try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(json.utf8)).toTask()
     }
 
+    func testExplicitPausedAdditionAndProtocolSpecificControls() throws {
+        var draft = AddDownloadDraft(rawInput: "https://example.com/file.zip")
+        draft.startPaused = true
+        XCTAssertEqual(try draft.engineOptions(fallbackDirectory: nil, autoOrganize: false)["pause"], "true")
+        XCTAssertTrue(draft.containsHTTPSource); XCTAssertTrue(draft.supportsOutputOptions)
+        draft.rawInput = "https://example.com/private.torrent"
+        XCTAssertTrue(draft.containsHTTPSource, "Fetching remote torrent metadata can require HTTP authentication")
+        draft.rawInput = "sftp://example.com/file.zip"
+        XCTAssertFalse(draft.containsHTTPSource); XCTAssertTrue(draft.supportsOutputOptions)
+        draft.rawInput = "magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17"
+        XCTAssertFalse(draft.containsHTTPSource); XCTAssertFalse(draft.supportsOutputOptions)
+    }
+
     func testMediaProgressAndPhasesUseDurationRatherThanOutputBytes() throws {
         var value = try task(#"{"gid":"video","status":"active","totalLength":"0","completedLength":"0","media":{"state":"downloading","live":"false","duration":"60000","completedDuration":"20000","downloadedLength":"4194304"}}"#)
         XCTAssertEqual(try XCTUnwrap(value.progressState.fraction), 1.0 / 3, accuracy: 0.001)

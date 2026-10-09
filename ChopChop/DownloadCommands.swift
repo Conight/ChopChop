@@ -1,13 +1,19 @@
 import SwiftUI
 
 struct DownloadWindowActions {
-    var newDownload: @MainActor () -> Void
-    var pasteDownload: @MainActor () -> Void
-    var openDownloadFile: @MainActor () -> Void
-    var toggleDetails: @MainActor () -> Void
-    var detailsPresented: Bool
-    var hasSelection: Bool
-    var canPresentDownload: Bool
+    var newDownload: @MainActor () -> Void = {}
+    var pasteDownload: @MainActor () -> Void = {}
+    var openDownloadFile: @MainActor () -> Void = {}
+    var toggleDetails: @MainActor () -> Void = {}
+    var detailsPresented: Bool = false
+    var hasSelection: Bool = false
+    var canPresentDownload: Bool = false
+    var showDetails: (@MainActor (TaskDetailSection?) -> Void)? = nil
+    var searchCommands: (@MainActor () -> Void)? = nil
+    var openEngineSettings: (@MainActor () -> Void)? = nil
+    var checkUpdates: (@MainActor () -> Void)? = nil
+    var openDiagnostics: (@MainActor () -> Void)? = nil
+    var openHelp: (@MainActor () -> Void)? = nil
 }
 
 private struct DownloadWindowActionsKey: FocusedValueKey {
@@ -25,23 +31,15 @@ struct DownloadCommands: Commands {
     @ObservedObject var store: DownloadStore
     @FocusedValue(\.downloadWindowActions) private var actions
 
-    private var engineReady: Bool {
-        guard actions != nil, !store.isUpdatingEngine else { return false }
-        if case .running = store.runtime.phase { return true }
-        return false
+    private var context: DownloadActionContext {
+        DownloadActionContext(store: store, taskID: actions == nil ? nil : store.selectedTaskID, window: actions, taskIDs: actions == nil ? [] : store.selectedTaskIDs)
     }
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
-            Button(String(localized: "New Download…")) { actions?.newDownload() }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .disabled(actions?.canPresentDownload != true)
-            Button(String(localized: "Open Download File…")) { actions?.openDownloadFile() }
-                .keyboardShortcut("o")
-                .disabled(actions?.canPresentDownload != true)
-            Button(String(localized: "Paste Download Link…")) { actions?.pasteDownload() }
-                .keyboardShortcut("v", modifiers: [.command, .shift])
-                .disabled(actions?.canPresentDownload != true)
+            DownloadActionButton(action: .newDownload, context: context, usesShortcut: true)
+            DownloadActionButton(action: .openFile, context: context, usesShortcut: true)
+            DownloadActionButton(action: .pasteLink, context: context, usesShortcut: true)
         }
         CommandGroup(replacing: .sidebar) {
             Button(actions?.detailsPresented == true ? String(localized: "Hide Details") : String(localized: "Show Details")) {
@@ -51,48 +49,24 @@ struct DownloadCommands: Commands {
             .disabled(actions?.hasSelection != true)
         }
         CommandMenu(String(localized: "Downloads")) {
-            Button(String(localized: "Refresh Downloads")) { Task { await store.refreshTasks() } }
-                .keyboardShortcut("r")
-                .disabled(!engineReady)
+            Button(String(localized: "Search Commands…")) { actions?.searchCommands?() }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(actions?.searchCommands == nil)
+            DownloadActionButton(action: .refresh, context: context, usesShortcut: true)
             Divider()
-            Button(String(localized: "Show in Finder")) {
-                if let task = store.selectedTask { store.showInFinder(task) }
+            DownloadActionButton(action: .reveal, context: context, usesShortcut: true)
+            ForEach([DownloadAction.pause, .resume, .speedLimits, .schedule, .editAgain, .remove]) { action in
+                DownloadActionButton(action: action, context: context)
             }
-            .keyboardShortcut("r", modifiers: [.command, .shift])
-            .disabled(actions?.hasSelection != true || store.selectedTask.flatMap { DownloadFileLocation.revealURL(for: $0) } == nil)
-            Button(String(localized: "Pause Download")) {
-                if let task = store.selectedTask { Task { await store.pause(task) } }
-            }
-            .disabled(!engineReady || store.selectedTask?.primaryControlAction != .pause)
-            Button(String(localized: "Resume Download")) {
-                if let task = store.selectedTask { Task { await store.resume(task) } }
-            }
-            .disabled(!engineReady || store.selectedTask?.primaryControlAction != .resume)
-            Button(String(localized: "Edit and Add Again…")) {
-                if let task = store.selectedTask { store.editAndAddAgain(task) }
-            }
-            .disabled(store.selectedTask?.canEditAndAddAgain != true || store.isUpdatingEngine)
-            Button(String(localized: "Remove Download…")) {
-                if let task = store.selectedTask { store.beginRemove(task) }
-            }
-            .disabled(store.isUpdatingEngine || actions?.hasSelection != true)
             Divider()
-            Button(String(localized: "Pause All")) { Task { await store.pauseAll() } }
-                .disabled(!engineReady)
-            Button(String(localized: "Force Pause All")) { Task { await store.forcePauseAll() } }
-                .disabled(!engineReady)
-            Button(String(localized: "Resume All")) { Task { await store.resumeAll() } }
-                .disabled(!engineReady)
-            Button(String(localized: "Clear Finished Records")) { Task { await store.purgeCompletedRecords() } }
-                .disabled(!store.canClearFinishedRecords)
+            ForEach([DownloadAction.pauseAll, .forcePauseAll, .resumeAll, .clearFinished]) { action in
+                DownloadActionButton(action: action, context: context)
+            }
             Divider()
             Menu(String(localized: "Engine")) {
-                Button(String(localized: "Start Engine")) { Task { await store.startEngine() } }
-                    .disabled(!store.canStartEngine)
-                Button(String(localized: "Restart Engine")) { Task { await store.restartEngine() } }
-                    .disabled(!store.canRestartEngine)
-                Button(String(localized: "Stop Engine")) { Task { await store.stopEngine() } }
-                    .disabled(!store.canStopEngine)
+                ForEach([DownloadAction.startEngine, .restartEngine, .stopEngine, .engineSettings]) { action in
+                    DownloadActionButton(action: action, context: context)
+                }
             }
         }
     }

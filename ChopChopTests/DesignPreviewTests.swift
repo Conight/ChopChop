@@ -28,6 +28,21 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
+    func testBasicAddDownloadDoesNotReserveEmptyAdvancedSpace() async throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        store.addDraft.rawInput = "https://example.com/download.zip"
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-compact-final",
+            size: NSSize(width: 740, height: 420), appearance: .aqua, output: output, fitContent: true)
+        let host = NSHostingController(rootView: AddDownloadPanel(onDismiss: {}).environmentObject(store))
+        let size = host.sizeThatFits(in: NSSize(width: 740, height: 620))
+        XCTAssertLessThanOrEqual(size.height, 430, "Basic link entry should not leave a tall, empty advanced-options area")
+        print("COMPACT_ADD_PREVIEW_OUTPUT=\(output.path)")
+    }
+
+    @MainActor
     func testExpandedTaskControlsFitANarrowInspector() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
@@ -381,10 +396,10 @@ final class DesignPreviewTests: XCTestCase {
             for pane in SettingsPane.allCases {
                 let view = SettingsView(initialPane: pane).environmentObject(store).environmentObject(updates)
                 try await render(view, name: "settings-flat-\(pane.rawValue)-\(appearance.rawValue)",
-                                 size: NSSize(width: 760, height: 560), appearance: appearance, output: output)
+                                 size: NSSize(width: 860, height: 560), appearance: appearance, output: output)
                 if [.network, .bitTorrent, .ed2k, .engine, .integrations, .downloads, .general].contains(pane) {
                     try await render(view, name: "settings-flat-\(pane.rawValue)-bottom-\(appearance.rawValue)",
-                                     size: NSSize(width: 760, height: 560), appearance: appearance, output: output, scrollToBottom: true)
+                                     size: NSSize(width: 860, height: 560), appearance: appearance, output: output, scrollToBottom: true)
                 }
             }
         }
@@ -446,7 +461,7 @@ final class DesignPreviewTests: XCTestCase {
                              size: NSSize(width: 1100, height: 600), appearance: appearance, output: output)
             for pane in SettingsPane.allCases {
                 try await render(SettingsView(initialPane: pane).environmentObject(store).environmentObject(updates),
-                                 name: "settings-\(pane.rawValue)-\(name)", size: NSSize(width: 800, height: 620),
+                                 name: "settings-\(pane.rawValue)-\(name)", size: NSSize(width: 940, height: 640),
                                  appearance: appearance, output: output)
             }
             try await render(ScrollView { BrowserIntegrationView(server: store.browserCapture).padding(20) }.environmentObject(store), name: "browser-\(name)",
@@ -529,7 +544,7 @@ final class DesignPreviewTests: XCTestCase {
     private func render<V: View>(_ view: V, name: String, size: NSSize, appearance: NSAppearance.Name, output: URL,
                                  fitContent: Bool = false, scrollToBottom: Bool = false) async throws {
         let usesWindowChrome = name.hasPrefix("chrome-") || name.hasPrefix("main-") ||
-            name.hasPrefix("compact-") || name == "selected-details" || name == "search-empty"
+            name.hasPrefix("compact-") || name.hasPrefix("settings-") || name == "selected-details" || name == "search-empty"
         let oldAppearance = NSApp.appearance
         NSApp.appearance = NSAppearance(named: appearance)
         defer { NSApp.appearance = oldAppearance }
@@ -542,6 +557,7 @@ final class DesignPreviewTests: XCTestCase {
                               backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: appearance)
+        if name.hasPrefix("settings-") { window.toolbarStyle = .unified }
         window.contentViewController = controller
         window.setContentSize(size)
         defer { window.close() }
@@ -657,7 +673,14 @@ final class DesignPreviewTests: XCTestCase {
                 if let scroll = view as? NSScrollView { return scroll }
                 return view.subviews.lazy.compactMap { firstScrollView(in: $0) }.first
             }
-            let scroll = try XCTUnwrap(firstScrollView(in: controller.view))
+            func settingsScrollView(in view: NSView) -> NSScrollView? {
+                if let scroll = view as? NSScrollView,
+                   scroll.convert(scroll.bounds, to: controller.view).minX >= 190,
+                   scroll.bounds.width > 400 { return scroll }
+                return view.subviews.lazy.compactMap { settingsScrollView(in: $0) }.first
+            }
+            let scroll = try XCTUnwrap(name.hasPrefix("settings-")
+                                      ? settingsScrollView(in: controller.view) : firstScrollView(in: controller.view))
             let document = try XCTUnwrap(scroll.documentView)
             // Ask the native clip view for its actual end, including Form's safe-area insets.
             let end = scroll.contentView.constrainBoundsRect(NSRect(
@@ -678,12 +701,19 @@ final class DesignPreviewTests: XCTestCase {
             }
         }
         if name.hasPrefix("settings-") {
-            let toolbar = try XCTUnwrap(window.toolbar, "Settings navigation must live in the native toolbar")
-            XCTAssertGreaterThanOrEqual(toolbar.items.count, 1)
+            func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+            let (_, sidebar) = try splitItem(.sidebar, in: controller.view)
+            let frame = try XCTUnwrap(window.contentView?.superview)
+            let sidebarFrame = sidebar.viewController.view.convert(sidebar.viewController.view.bounds, to: frame)
+            XCTAssertEqual(sidebarFrame.maxY, frame.bounds.maxY, accuracy: 1, "Every settings pane must keep a full-height native sidebar")
+            XCTAssertEqual(sidebarFrame.width, 210, accuracy: 1)
+            let fields = descendants(controller.view).compactMap { $0 as? NSSearchField }
+            XCTAssertEqual(fields.count, 1, "Every category shares the single sidebar search field")
+            let search = try XCTUnwrap(fields.first)
+            XCTAssertLessThanOrEqual(search.convert(search.bounds, to: controller.view).maxX, 211)
             if name.hasPrefix("settings-flat-") {
                 XCTAssertEqual(controller.view.bounds.width, size.width, accuracy: 1)
-                XCTAssertEqual(controller.view.bounds.height, size.height, accuracy: 1)
-                func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+                XCTAssertEqual(controller.view.safeAreaRect.height, size.height, accuracy: 1)
                 let scrolls = descendants(controller.view).compactMap { $0 as? NSScrollView }
                 XCTAssertFalse(scrolls.isEmpty, "Flattened settings must remain vertically scrollable")
                 for scroll in scrolls {
@@ -756,7 +786,7 @@ private struct InvisibleSheetWindow: NSViewRepresentable {
 }
 
 private struct DesignReleaseClient: AppReleaseFetching {
-    func latest(for current: AppVersion?) async throws -> AppRelease? {
+    func latest(for current: AppVersion?, channel: AppUpdateChannel) async throws -> AppRelease? {
         AppRelease(version: AppVersion("0.0.2-beta.1")!, notes: "Improved downloads and recovery. 下载与恢复改进。")
     }
 }
