@@ -13,7 +13,10 @@ if [[ -n "${CHOPCHOP_VALIDATION_ROOT:-}" ]]; then
     validation_root="$CHOPCHOP_VALIDATION_ROOT"
     mkdir -p "$validation_root"
 else
-    validation_root="$(mktemp -d "${TMPDIR:-/tmp}/chopchop-verification.XXXXXX")"
+    # XPC may report /private-prefixed bundle paths for temporary-directory aliases.
+    # Use a regular writable location, as required by the production installer.
+    mkdir -p "$HOME/Library/Caches"
+    validation_root="$(mktemp -d "$HOME/Library/Caches/chopchop-verification.XXXXXX")"
     owns_validation_root=true
 fi
 cleanup() {

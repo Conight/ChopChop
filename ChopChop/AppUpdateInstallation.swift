@@ -232,10 +232,14 @@ nonisolated enum AppUpdateInstallation {
         defer { close(descriptor) }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw AppUpdateError.installerUnavailable }
         defer { _ = flock(descriptor, LOCK_UN) }
+        // Subscribe before acknowledging readiness: the app can quit as soon as
+        // it receives that acknowledgement. The kernel event tracks this process
+        // instance even if Launch Services retains the app's XPC/child processes.
+        let termination = try ProcessExitMonitor(processIdentifier: job.parentPID)
         try validateBundle(job.candidate, manifest: job.manifest, publicKey: job.publicKey, current: job.target)
         try JSONEncoder().encode(getpid()).write(to: job.directory.appendingPathComponent(AppUpdateStorage.workerReadyFile), options: .atomic)
         do {
-            try waitForTermination(of: parent)
+            try termination.wait()
             try finishInstallation(job, launch: { try openAndWait($0, reportFailure: $1) }, isRunning: { target in
                 NSWorkspace.shared.runningApplications.contains { !$0.isTerminated && $0.bundleURL?.resolvingSymlinksInPath() == target }
             })
@@ -246,10 +250,58 @@ nonisolated enum AppUpdateInstallation {
         }
     }
 
-    static func waitForTermination(of parent: NSRunningApplication, timeout: TimeInterval = 180) throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !parent.isTerminated && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
-        guard parent.isTerminated else { throw AppUpdateError.terminationTimedOut }
+    /// Wait for an actual process exit, not AppKit's asynchronously updated app
+    /// registration. This runs only in the detached installer, never on the UI.
+    final class ProcessExitMonitor {
+        private let queue: Int32
+        private let processIdentifier: pid_t
+        private var exited: Bool
+
+        init(processIdentifier: pid_t) throws {
+            guard processIdentifier > 0, processIdentifier != getpid() else { throw AppUpdateError.invalidApplication }
+            let descriptor = kqueue()
+            guard descriptor >= 0 else { throw AppUpdateError.installerUnavailable }
+            guard fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 0 else {
+                close(descriptor)
+                throw AppUpdateError.installerUnavailable
+            }
+            var event = kevent(ident: UInt(processIdentifier), filter: Int16(EVFILT_PROC),
+                               flags: UInt16(EV_ADD | EV_ENABLE | EV_ONESHOT), fflags: UInt32(NOTE_EXIT), data: 0, udata: nil)
+            let result = kevent(descriptor, &event, 1, nil, 0, nil)
+            let error = errno
+            // A manual quit can win the race between authentication and registration.
+            // Only ESRCH proves absence; permission and registration failures must fail closed.
+            guard result >= 0 || error == ESRCH else {
+                close(descriptor)
+                throw AppUpdateError.installerUnavailable
+            }
+            queue = descriptor
+            self.processIdentifier = processIdentifier
+            exited = result < 0
+        }
+
+        deinit { close(queue) }
+
+        func wait(timeout: TimeInterval = 180) throws {
+            guard timeout.isFinite, timeout >= 0 else { throw AppUpdateError.invalidApplication }
+            if exited { return }
+            // A wall-clock adjustment must not prolong the installation timeout.
+            let deadline = ProcessInfo.processInfo.systemUptime + timeout
+            while true {
+                let remaining = max(0, deadline - ProcessInfo.processInfo.systemUptime)
+                var interval = timespec(tv_sec: Int(remaining), tv_nsec: Int(remaining.truncatingRemainder(dividingBy: 1) * 1_000_000_000))
+                var event = kevent()
+                let count = kevent(queue, nil, 0, &event, 1, &interval)
+                if count < 0, errno == EINTR { continue }
+                guard count >= 0 else { throw AppUpdateError.installerUnavailable }
+                guard count > 0 else { throw AppUpdateError.terminationTimedOut }
+                guard event.flags & UInt16(EV_ERROR) == 0,
+                      event.filter == Int16(EVFILT_PROC), event.ident == UInt(processIdentifier),
+                      event.fflags & UInt32(NOTE_EXIT) != 0 else { throw AppUpdateError.installerUnavailable }
+                exited = true
+                return
+            }
+        }
     }
 
     /// Keep the old bundle until Launch Services reports that the new app finished launching.

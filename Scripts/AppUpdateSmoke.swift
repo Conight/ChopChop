@@ -8,6 +8,7 @@ import Foundation
     }
     static func main() throws {
         let args = CommandLine.arguments
+        if args[1] == "process-exit" { try verifyProcessExit(); return }
         if args[1] == "download-release" {
             // Explicit, opt-in read-only verification against a published release; never opens or installs it.
             Task {
@@ -79,7 +80,8 @@ import Foundation
         } else if args[1] == "waiting" {
             let parent = try unwrap(NSRunningApplication(processIdentifier: pid))
             defer { _ = parent.terminate() }
-            do { try AppUpdateInstallation.waitForTermination(of: parent, timeout: 0.1); throw NSError(domain: "Ignored running app", code: 2) }
+            let termination = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: pid)
+            do { try termination.wait(timeout: 0.1); throw NSError(domain: "Ignored running app", code: 2) }
             catch AppUpdateError.terminationTimedOut {}
             try require(!parent.isTerminated, "Timeout forcibly terminated the app")
             try require(try AppUpdateInstallation.inode(target) == job.originalInode, "Timeout changed the installed app")
@@ -102,6 +104,45 @@ import Foundation
             try AppUpdateInstallation.finishInstallation(job, launch: { _, _ in }, isRunning: { _ in false })
             try require(try AppUpdateInstallation.inode(target) != job.originalInode, "Successful exchange did not replace app")
             try require(!FileManager.default.fileExists(atPath: stage.path), "Successful exchange left backup")
+        } else if args[1] == "worker-xpc-self-quit" {
+            try JSONEncoder().encode(job).write(to: stage.appendingPathComponent("job.json"))
+            defer {
+                // Only stop this fixture's worker if the regression timed out.
+                if let data = try? Data(contentsOf: stage.appendingPathComponent("worker-ready")),
+                   let workerPID = try? JSONDecoder().decode(Int32.self, from: data) {
+                    var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+                    if proc_pidpath(workerPID, &path, UInt32(path.count)) > 0,
+                       String(cString: path).hasPrefix(target.path + "/Contents/XPCServices/") { kill(workerPID, SIGTERM) }
+                }
+                NSWorkspace.shared.runningApplications.filter { $0.bundleURL?.resolvingSymlinksInPath() == target }.forEach { _ = $0.terminate() }
+            }
+            try Data().write(to: root.appendingPathComponent("request-xpc-install"))
+            try wait("XPC service did not acknowledge installer handoff") {
+                FileManager.default.fileExists(atPath: root.appendingPathComponent("1-install-acknowledged").path) ||
+                FileManager.default.fileExists(atPath: root.appendingPathComponent("xpc-error").path)
+            }
+            if let error = try? String(contentsOf: root.appendingPathComponent("xpc-error"), encoding: .utf8) {
+                throw NSError(domain: "XPC handoff: " + error, code: 1)
+            }
+            try require(AppUpdateInstallation.workerIsRunning(in: stage), "XPC handoff did not start the production worker")
+            try require(try AppUpdateInstallation.inode(target) == job.originalInode, "XPC worker replaced a running app")
+            let parentExit = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: pid)
+            try Data().write(to: root.appendingPathComponent("request-quit-1"))
+            try parentExit.wait(timeout: 10)
+            try require(FileManager.default.fileExists(atPath: root.appendingPathComponent("1-terminated").path), "Fixture did not terminate normally")
+            try wait("XPC worker did not finish installation after the parent process exited") {
+                !FileManager.default.fileExists(atPath: stage.path)
+            }
+            try require(FileManager.default.fileExists(atPath: root.appendingPathComponent("1-saved").path), "XPC update skipped session cleanup")
+            try require(try AppUpdateInstallation.inode(target) != job.originalInode, "XPC update did not replace the app")
+            let exited = try root.appendingPathComponent("1-terminated").resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate!
+            let launched = try root.appendingPathComponent("2-launched").resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate!
+            let elapsed = launched.timeIntervalSince(exited)
+            try require(elapsed >= 0 && elapsed < 10, "XPC update waited too long after the parent exited: \(elapsed)s")
+            try require(NSWorkspace.shared.runningApplications.contains {
+                !$0.isTerminated && $0.isFinishedLaunching && $0.bundleURL?.resolvingSymlinksInPath() == target
+            }, "XPC update did not leave the replacement running")
+            print("XPC parent exit to replacement launch: \(String(format: "%.3f", elapsed))s")
         } else if args[1].hasPrefix("worker") {
             let file = stage.appendingPathComponent("job.json")
             try JSONEncoder().encode(job).write(to: file)
@@ -146,10 +187,50 @@ import Foundation
         print("Passed update \(args[1])")
     }
     static func unwrap<T>(_ value: T?) throws -> T { guard let value else { throw AppUpdateError.installationFailed }; return value }
-    static func wait(_ condition: () -> Bool) throws {
+    static func verifyProcessExit() throws {
+        func sleeper(_ seconds: String) throws -> Process {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+            process.arguments = [seconds]
+            try process.run()
+            return process
+        }
+        let live = try sleeper("60")
+        defer { if live.isRunning { live.terminate(); live.waitUntilExit() } }
+        let liveMonitor = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: live.processIdentifier)
+        do { try liveMonitor.wait(timeout: 0.05); throw NSError(domain: "Ignored live process", code: 1) }
+        catch AppUpdateError.terminationTimedOut {}
+        try require(live.isRunning, "A timeout terminated the app")
+        live.terminate()
+        // Do not pump the main run loop: the exit event must be sufficient.
+        try liveMonitor.wait(timeout: 3)
+        live.waitUntilExit()
+        try liveMonitor.wait(timeout: 0)
+
+        let natural = try sleeper("0.1")
+        let naturalMonitor = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: natural.processIdentifier)
+        try naturalMonitor.wait(timeout: 3)
+        natural.waitUntilExit()
+        try require(natural.terminationStatus == 0, "Changed natural process termination")
+
+        let queued = try sleeper("60")
+        defer { if queued.isRunning { queued.terminate(); queued.waitUntilExit() } }
+        let queuedMonitor = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: queued.processIdentifier)
+        queued.terminate(); queued.waitUntilExit()
+        try queuedMonitor.wait(timeout: 0)
+        // Registration after the process is already gone must also complete.
+        let absentMonitor = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: queued.processIdentifier)
+        try absentMonitor.wait(timeout: 0)
+        for pid in [pid_t(0), pid_t(-1), getpid()] {
+            do { _ = try AppUpdateInstallation.ProcessExitMonitor(processIdentifier: pid); throw NSError(domain: "Accepted invalid target", code: 1) }
+            catch AppUpdateError.invalidApplication {}
+        }
+        print("Passed kernel process-exit observation, live-process timeout, early-exit races and invalid targets without a main run loop")
+    }
+    static func wait(_ message: String = "Timed out waiting for worker", _ condition: () -> Bool) throws {
         let deadline = Date().addingTimeInterval(25)
         while !condition(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
-        try require(condition(), "Timed out waiting for worker")
+        try require(condition(), message)
     }
     final class ProgressLog: @unchecked Sendable {
         let lock = NSLock(); var values: [AppUpdateProgress] = []

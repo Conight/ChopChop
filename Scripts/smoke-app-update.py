@@ -45,7 +45,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 @contextlib.contextmanager
 def workspace():
-    with tempfile.TemporaryDirectory(prefix='app-update-smoke-', dir=os.environ.get('CHOPCHOP_VALIDATION_ROOT')) as temp:
+    # Match a normal installation path, avoiding /tmp and /var bundle-path aliases
+    # rejected by the actual XPC installer's canonical-location validation.
+    base = Path(os.environ.get('CHOPCHOP_VALIDATION_ROOT', Path.home()/'Library/Caches'))
+    base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='app-update-smoke-', dir=base) as temp:
         yield Path(temp).resolve()
 
 def verify_task_termination(root):
@@ -75,6 +79,7 @@ def main():
         sources = ['ReleaseConfiguration', 'AppUpdateStorage', 'AppVersion', 'AppUpdatePackage', 'AppUpdateTransfer', 'AppUpdateInstallation', 'EngineRelease', 'EngineDownload']
         run('xcrun', 'swiftc', '-parse-as-library', '-module-cache-path', root/'cache',
             *(REPO/'ChopChop'/f'{name}.swift' for name in sources), REPO/'Scripts/AppUpdateSmoke.swift', '-o', root/'smoke')
+        run(root/'smoke', 'process-exit', timeout=10)
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try: run(root/'smoke', 'transfer', f'http://127.0.0.1:{server.server_port}', root)
@@ -83,13 +88,14 @@ def main():
             release = json.loads(requested)
             run(root/'smoke', 'download-release', release['version'], release['size'], release['sha256'], root/'published-release', load()['CHOPCHOP_RELEASE_REPOSITORY'])
         run('xcrun', 'swiftc', '-parse-as-library', '-swift-version', '6', '-module-cache-path', root/'cache',
-            REPO/'ChopChop/AppTermination.swift', REPO/'Scripts/AppTerminationFixture.swift', '-o', root/'fixture')
+            *(REPO/'ChopChop'/f'{name}.swift' for name in ['AppTermination', 'ReleaseConfiguration', 'AppVersion', 'AppUpdatePackage', 'EngineInstallerProtocol']),
+            REPO/'Scripts/AppTerminationFixture.swift', '-o', root/'fixture')
         verify_task_termination(root)
         failing_source = root/'failing.swift'; failing_source.write_text('import Darwin\nexit(1)\n')
         run('xcrun', 'swiftc', '-module-cache-path', root/'cache', failing_source, '-o', root/'failing')
         helper = Path(os.environ['CHOPCHOP_DERIVED_DATA'])/'Build/Products/Release/ChopChop.app/Contents/XPCServices/EngineInstaller.xpc'
         if not helper.exists(): raise RuntimeError('Build Release before running updater smoke tests')
-        for mode in ('success', 'rollback', 'tamper', 'resume', 'waiting', 'worker', 'worker-self-quit', 'worker-failure'):
+        for mode in ('success', 'rollback', 'tamper', 'resume', 'waiting', 'worker', 'worker-self-quit', 'worker-xpc-self-quit', 'worker-failure'):
             case = root/mode; case.mkdir()
             public_key = run(root/'smoke', 'key', case/'key', capture_output=True, text=True).stdout.strip()
             for version, app in [('1.0.0-beta.1', case/'ChopChop.app'), ('1.0.0-beta.2', case/'.ChopChop-update-00000000-0000-4000-8000-000000000001/ChopChop.app')]:
@@ -97,6 +103,14 @@ def main():
                 (app/'Contents/Resources').mkdir()
                 shutil.copy2(root/('failing' if mode == 'worker-failure' and version.endswith('2') else 'fixture'), app/'Contents/MacOS/ChopChop')
                 shutil.copytree(helper, app/'Contents/XPCServices/EngineInstaller.xpc')
+                # Give the real embedded XPC service this disposable fork's identity.
+                xpc = app/'Contents/XPCServices/EngineInstaller.xpc'
+                info = plistlib.loads((xpc/'Contents/Info.plist').read_bytes())
+                info.update(CFBundleIdentifier='org.example.ChopChopFork.EngineInstaller',
+                            ChopChopAppIdentifier='org.example.ChopChopFork',
+                            ChopChopReleaseRepository='example/ChopChopFork', ChopChopUpdatePublicKey=public_key)
+                (xpc/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
+                run('codesign', '--force', '--sign', '-', '--options', 'runtime', xpc, capture_output=True)
                 (app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.example.ChopChopFork', ChopChopAppIdentifier='org.example.ChopChopFork', ChopChopReleaseRepository='example/ChopChopFork', CFBundleExecutable='ChopChop', CFBundleName='ChopChop Update Test', CFBundlePackageType='APPL', CFBundleVersion='2' if version.endswith('2') else '1', CFBundleShortVersionString='1.0.0', ChopChopReleaseVersion='v'+version, ChopChopUpdatePublicKey=public_key, LSMinimumSystemVersion='26.5', LSUIElement=True)))
                 run('codesign', '--force', '--sign', '-', '--options', 'runtime', app, capture_output=True)
             (case/'user-data').write_text('untouched')
