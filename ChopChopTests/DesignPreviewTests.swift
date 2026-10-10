@@ -155,8 +155,15 @@ final class DesignPreviewTests: XCTestCase {
 
         // Reproduce an actual sheet being resized and reused; recreating a root view
         // at each size would miss AppKit retaining the user's larger sheet frame.
+        // The native sheet still obeys its screen bounds, even though the invisible
+        // owner allows an oversized frame. CI's display can be only 1024 points wide.
+        let screen = try XCTUnwrap(sheet.screen ?? owner.screen)
+        let availableSize = sheet.contentRect(forFrameRect: screen.visibleFrame.insetBy(dx: 20, dy: 20)).size
+        let largeSize = NSSize(width: min(1040, availableSize.width), height: min(720, availableSize.height))
+        XCTAssertGreaterThan(largeSize.width, AppLayout.sheetWidth)
+        XCTAssertGreaterThan(largeSize.height, AppLayout.sheetHeight)
         for (label, size, appearance) in [
-            ("large", NSSize(width: 1040, height: 720), NSAppearance.Name.aqua),
+            ("large", largeSize, NSAppearance.Name.aqua),
             ("compact", NSSize(width: 660, height: AppLayout.sheetMinimumHeight), NSAppearance.Name.darkAqua)
         ] {
             sheet.appearance = NSAppearance(named: appearance)
