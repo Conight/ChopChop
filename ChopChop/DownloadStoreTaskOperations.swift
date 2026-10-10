@@ -57,6 +57,7 @@ extension DownloadStore {
             return
         }
         await performTaskMutation(alertTitle: String(localized: "Resume Failed")) { client in
+            try await validateTorrentFilesBeforeResume(task)
             try await DownloadTaskRPCOperations.resume(task, using: client)
         }
     }
@@ -95,7 +96,20 @@ extension DownloadStore {
         guard task.isTorrentLike, task.isAvailableInEngine, task.primaryControlAction != nil,
               engineCapabilities?.supportsTorrentManagement == true, !isUpdatingEngine else { return }
         cancelSchedule(task.id)
-        await performTaskMutation(alertTitle: String(localized: "Recheck Files Failed")) { client in try await client.recheckTorrent(task.id) }
+        await performTaskMutation(alertTitle: String(localized: "Recheck Files Failed")) { client in
+            let current = tasks.first { $0.id == task.id } ?? task
+            if current.torrentFileIssue != nil {
+                let issues = await TorrentFileSafety.issues(in: [current])
+                if let issue = issues[task.id] { throw issue }
+                // An explicit recheck releases the hold; it never resumes a held task.
+                try await client.forcePause(task.id)
+            }
+            try await client.recheckTorrent(task.id)
+            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                tasks[index].torrentFileIssue = nil
+                persistTaskHistory()
+            }
+        }
     }
 
     func reannounceTorrent(_ task: DownloadTask) async {
@@ -198,11 +212,10 @@ extension DownloadStore {
 
     func remove(_ task: DownloadTask, includingFiles: Bool = false) async {
         guard !isUpdatingEngine else { return }
-        if !engineController.isRunning || !task.isAvailableInEngine {
+        if !engineController.isRunning {
             do {
                 if includingFiles {
-                    guard task.removalAction == .removeDownloadResult else { throw EngineError.notRunning }
-                    try DownloadTaskFileTrash.moveTaskFilesToTrash(task)
+                    try trashFilesAfterRemoval(task, engineTaskRemoved: false)
                 }
                 try hideHistory([task.id])
             } catch { postError(error, title: String(localized: "Remove Failed")) }
@@ -210,7 +223,7 @@ extension DownloadStore {
         }
         await performTaskMutation(alertTitle: String(localized: "Remove Failed")) { client in
             try await DownloadTaskRPCOperations.remove(task, using: client)
-            if includingFiles { try DownloadTaskFileTrash.moveTaskFilesToTrash(task) }
+            if includingFiles { try trashFilesAfterRemoval(task, engineTaskRemoved: true) }
             try hideHistory([task.id])
         }
     }

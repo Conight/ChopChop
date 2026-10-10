@@ -451,6 +451,24 @@ def main():
                 wait_for(lambda: rpc("tellStatus", seeder)["status"] == "active")
                 assert (downloads / "seed.bin").read_bytes() == seed_data
                 print("PASS BitTorrent seeding recovery: paused before transfer, original GID and validated data retained")
+                # Finder can unlink a payload while libtorrent still has it open. Exercise
+                # the app's pause / restore / explicit recheck sequence on the real engine.
+                (downloads / "seed.bin").unlink()
+                rpc("forcePause", seeder)
+                wait_for(lambda: rpc("tellStatus", seeder)["status"] == "paused")
+                rpc("saveSession")
+                time.sleep(0.3)
+                assert not (downloads / "seed.bin").exists(), "Paused seeder recreated externally deleted data"
+                assert rpc("tellStatus", seeder)["uploadSpeed"] == "0"
+                (downloads / "seed.bin").write_bytes(seed_data)
+                rpc("forceBtRecheck", seeder)
+                time.sleep(0.3)
+                assert rpc("tellStatus", seeder)["status"] == "paused"
+                assert rpc("tellStatus", seeder)["uploadSpeed"] == "0"
+                rpc("unpause", seeder)
+                wait_for(lambda: rpc("tellStatus", seeder)["seeder"] == "true")
+                assert (downloads / "seed.bin").read_bytes() == seed_data
+                print("PASS external deletion during seeding: pause without recreation, restore and recheck stay paused, manual resume retains GID")
             stop()
             if not previous_engine:
                 verify_magnet_file_selection(engine, root)

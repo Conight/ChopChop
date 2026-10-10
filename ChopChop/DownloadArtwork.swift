@@ -236,7 +236,10 @@ private struct ArtworkWindowAnchor: NSViewRepresentable {
         }
     }
     func makeNSView(context: Context) -> Anchor {
-        let view = Anchor(); view.activity = activity; return view
+        let view = Anchor()
+        view.identifier = NSUserInterfaceItemIdentifier("download-artwork-anchor")
+        view.activity = activity
+        return view
     }
     func updateNSView(_ view: Anchor, context: Context) {}
     static func dismantleNSView(_ view: Anchor, coordinator: ()) {

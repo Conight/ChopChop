@@ -106,6 +106,7 @@
 		DA2A0963BF526E5A60FC7745 /* AppUpdateStorage.swift in Installer */ = {isa = PBXBuildFile; fileRef = 484EFB6FA794CF1BFA576826; };
 		A175720089E921B385121D07 /* DownloadDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B5AD100FBD6DD9CB6E1DE8; };
 		97DE5A780D3460FEFDC353CB /* DownloadFileRemoval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 950717603D7CBAFFF2D818CD; };
+		6446DFBE71C44ACA9FC1D769 /* DownloadFileSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46F5E55BE5241778DEE06B8; };
 		3774CB1BD49D848FF890BB5A /* DownloadPowerAssertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB0B9E0CA026AFBC68DA14A; };
 		C207F691B8313D54825C5010 /* DownloadTaskRPCOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAEA1F5B8D6162EC40294AF; };
 		2B6EEB6CA63DE847BF5496BF /* ED2KBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E9715BEB92E38EA0C56495; };
@@ -240,6 +241,7 @@
 		484EFB6FA794CF1BFA576826 /* AppUpdateStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateStorage.swift; sourceTree = "<group>"; };
 		40B5AD100FBD6DD9CB6E1DE8 /* DownloadDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadDraft.swift; sourceTree = "<group>"; };
 		950717603D7CBAFFF2D818CD /* DownloadFileRemoval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFileRemoval.swift; sourceTree = "<group>"; };
+		C46F5E55BE5241778DEE06B8 /* DownloadFileSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFileSafety.swift; sourceTree = "<group>"; };
 		BDB0B9E0CA026AFBC68DA14A /* DownloadPowerAssertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadPowerAssertion.swift; sourceTree = "<group>"; };
 		1DAEA1F5B8D6162EC40294AF /* DownloadTaskRPCOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTaskRPCOperations.swift; sourceTree = "<group>"; };
 		72E9715BEB92E38EA0C56495 /* ED2KBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ED2KBootstrap.swift; sourceTree = "<group>"; };
@@ -393,6 +395,7 @@
 				484EFB6FA794CF1BFA576826 /* AppUpdateStorage.swift */,
 				40B5AD100FBD6DD9CB6E1DE8 /* DownloadDraft.swift */,
 				950717603D7CBAFFF2D818CD /* DownloadFileRemoval.swift */,
+				C46F5E55BE5241778DEE06B8 /* DownloadFileSafety.swift */,
 				BDB0B9E0CA026AFBC68DA14A /* DownloadPowerAssertion.swift */,
 				1DAEA1F5B8D6162EC40294AF /* DownloadTaskRPCOperations.swift */,
 				72E9715BEB92E38EA0C56495 /* ED2KBootstrap.swift */,
@@ -662,6 +665,7 @@
 				40BFA27246FD3D214420A802 /* AppUpdateStorage.swift in Sources */,
 				A175720089E921B385121D07 /* DownloadDraft.swift in Sources */,
 				97DE5A780D3460FEFDC353CB /* DownloadFileRemoval.swift in Sources */,
+				6446DFBE71C44ACA9FC1D769 /* DownloadFileSafety.swift in Sources */,
 				3774CB1BD49D848FF890BB5A /* DownloadPowerAssertion.swift in Sources */,
 				C207F691B8313D54825C5010 /* DownloadTaskRPCOperations.swift in Sources */,
 				2B6EEB6CA63DE847BF5496BF /* ED2KBootstrap.swift in Sources */,
@@ -845,7 +849,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -883,7 +887,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

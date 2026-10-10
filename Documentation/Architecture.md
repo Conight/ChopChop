@@ -18,6 +18,8 @@ Use the module that owns a behavior when changing a shared value. Avoid copying 
 
 `EngineStorage` takes an explicit support directory so startup, install activation, rollback and torrent metadata access calculate the same paths. It does not relocate user data. Session names, SwiftData entities, raw enum values, preference keys and document identifiers are persistent contracts, even when their source files move.
 
+`BitTorrentClientIdentity` in `EngineSettings.swift` owns the BT identity. It derives `ChopChop/<version>` from the embedded release tag (or the marketing version with a `-dev` suffix), independently of localization and the ordinary HTTP User-Agent. Engine startup and global option updates send `bt-user-agent` and the `ChopChop-` peer-ID prefix; libtorrent generates the remaining 11 bytes of each 20-byte peer ID. Settings displays the same model. No identity is copied into persistent user settings.
+
 The updater has two separate locations: downloaded installers in the app cache, and verified replacement staging beside the installed App for atomic replacement. Directory checks require both the owned prefix and a complete UUID. Recovery, cleanup and the worker use the same check.
 
 Before acknowledging readiness, the detached installer registers `EVFILT_PROC` / `NOTE_EXIT` through `kqueue` for the authenticated parent PID. It waits for that process's actual exit using a monotonic deadline. `NSRunningApplication` verifies the initial app identity, but its termination state is not the installation gate: Launch Services can retain the quitting app while its XPC service or installer child is alive. Registration errors fail closed, except `ESRCH` when the parent has already exited; the worker never force-quits the app. Launch Services still verifies that the replacement finished launching. See Apple's [`kqueue` process filter documentation](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/kqueue.2.html).
@@ -35,7 +37,8 @@ Programmatic quit actions call `AppTermination.request()`. AppKit's `terminateLa
 | `ED2KSearch.swift` | Search options, results and temporary search state |
 | `SystemProxy.swift` | System proxy discovery and conversion |
 | `Formatting.swift` | Shared string and localized byte formatting |
-| `DownloadFileRemoval.swift` | Safe user-file and companion-file removal planning |
+| `DownloadFileRemoval.swift` | Safe, idempotent user-file and companion-file removal planning |
+| `DownloadFileSafety.swift` | Completed torrent payload checks, persistent safety holds and guarded resume |
 | `DownloadTaskRPCOperations.swift` | Task removal and result cleanup against the Engine |
 | `DownloadPowerAssertion.swift` | IOKit assertion ownership for preventing idle sleep |
 
@@ -43,9 +46,19 @@ Programmatic quit actions call `AppTermination.request()`. AppKit's `terminateLa
 
 ## Download list presentation
 
+The add-download sheet keeps a 180-point artwork column throughout source entry, advanced options, media inspection and torrent file selection. Scrollable content fills the proposed height while the title and actions stay at its edges. `.presentationSizing(.fitted)` supplies the compact initial ideal size; the content also fills the user's resized sheet when its stage changes. Native sheets retain ownership of resizing and placement.
+
+`TorrentFileKind` classifies metadata paths using Uniform Type Identifiers and extensions for formats without consistent system registration. Whole-torrent selection shortcuts clear the search and replace the draft selection, while individual files and mixed folder checkboxes remain adjustable. No payload files are read and no Engine file priorities change until the user confirms. Available file types and the folder tree are refreshed only when the file list changes.
+
 `DownloadCanvas` owns the native List's selection, contextual menu and primary action. A single click only selects; the selection-aware `contextMenu(forSelectionType:menu:primaryAction:)` API handles a double-click to pause or resume one task. Space opens the independent details panel. Task settings remain in that panel and are reachable through shared contextual commands.
 
-`DownloadTaskRow` supplies a flat content layout, native file icons and trailing controls for the state-appropriate action, details and removal. Row commands target that row's task through `DownloadActionContext.listTask`; contextual menus can explicitly supply the full selection. Narrow lists place transfer rates beneath progress to preserve filename and button space. List owns its background, selection highlight and separators. `DownloadListTaskDisplay` supplies compact progress text and distinguishes completed tasks and seeding from in-progress transfers. `DownloadListPresentation` keeps stable observable row identities so polling only publishes changed task snapshots. `TaskBandwidthView` owns the task speed-limit editor; it no longer lives inside an expanding list row.
+`DownloadTaskRow` supplies a flat content layout, native file icons and trailing controls for the state-appropriate action, details and removal. Row commands target that row's task through `DownloadActionContext.listTask`; contextual menus can explicitly supply the full selection. `DownloadTaskTransferSummary` gives download speed, torrent upload speed and ETA independent positions. Narrow lists place the summary across the row below the filename, rather than inside the fixed-width progress column; wider lists keep ETA beneath the two rates. Apple's [`ViewThatFits`](https://developer.apple.com/documentation/swiftui/viewthatfits) stacks metrics if their intrinsic widths exceed the available space. Zero torrent upload remains visible so polling does not swap ETA and upload into the same position. List owns its background, selection highlight and separators. `DownloadListTaskDisplay` supplies compact progress text and distinguishes completed tasks and seeding from in-progress transfers. `DownloadListPresentation` keeps stable observable row identities so polling only publishes changed task snapshots. `TaskBandwidthView` owns the task speed-limit editor; it no longer lives inside an expanding list row.
+
+`TaskDetailsPresentation` explicitly makes the native details panel key when opening or bringing it forward, including reuse of an existing panel. Closing returns focus to the owning window and its saved responder. The panel handles preview navigation without retaining keyboard focus in the list. AppKit supplies the active appearance; no custom color or activation override is needed. See Apple's [`makeKeyAndOrderFront(_:)`](https://developer.apple.com/documentation/appkit/nswindow/makekeyandorderfront(_:)) and [`orderFront(_:)`](https://developer.apple.com/documentation/appkit/nswindow/orderfront(_:)) documentation.
+
+The row's details button toggles the shared panel: it closes an already presented task or selects and shows the requested task. It rechecks live state at dispatch, including whether the task still exists. Row equality includes the task's details visibility so native help and accessibility labels switch between Show Details and Hide Details. Explicit Show Details, speed-limit and schedule commands keep their open/navigate behavior.
+
+Every task row retains its progress track, including completed tasks and seeds. The progress column is 180 points wide in both compact and regular layouts, independent of filename length. Names and secondary text truncate inside the remaining identity column. Native help covers the full row rectangle, including gaps and progress/transfer text, and shows the full name, phase, progress, size and applicable ETA, error or schedule. Only action buttons override this with their own command help. Completed downloads and seeds show full progress, while metadata, verification and unknown totals retain indeterminate progress.
 
 ## Verification and tooling
 

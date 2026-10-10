@@ -1,5 +1,45 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// Classify metadata paths without opening files that have not been downloaded.
+nonisolated enum TorrentFileKind: String, CaseIterable, Identifiable {
+    case videos, images, audio, subtitles, archives
+    var id: String { rawValue }
+
+    var selectionTitle: String {
+        switch self {
+        case .videos: String(localized: "Only Videos")
+        case .images: String(localized: "Only Images")
+        case .audio: String(localized: "Only Audio")
+        case .subtitles: String(localized: "Only Subtitles")
+        case .archives: String(localized: "Only Archives")
+        }
+    }
+
+    func matches(_ path: String) -> Bool {
+        let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
+        guard !ext.isEmpty else { return false }
+        let type = UTType(filenameExtension: ext)
+        switch self {
+        case .videos:
+            return type?.conforms(to: .movie) == true ||
+                ["mkv", "webm", "avi", "wmv", "flv", "ts", "mts", "m2ts", "vob", "rmvb"].contains(ext)
+        case .images:
+            return type?.conforms(to: .image) == true || ["avif", "webp"].contains(ext)
+        case .audio:
+            return type?.conforms(to: .audio) == true || ["flac", "ogg", "opus", "ape"].contains(ext)
+        case .subtitles:
+            return ["srt", "ass", "ssa", "vtt", "sub", "idx", "sup", "smi", "ttml"].contains(ext)
+        case .archives:
+            return type?.conforms(to: .archive) == true || ["rar", "7z", "zst"].contains(ext)
+        }
+    }
+
+    func indexes(in files: [DownloadFile]) -> Set<Int> {
+        Set(TorrentFileTree.contentFiles(files).filter { matches($0.path) }.map(\.index))
+    }
+}
 
 /// Presentation and readiness are independent of the engine's legacy followedBy chain.
 nonisolated enum TorrentFileTree {
@@ -102,13 +142,12 @@ struct BitTorrentFileSelectionView: View {
     var session: BitTorrentFileSelectionSession
     @State private var query = ""
     @State private var nodes: [TorrentFileNode] = []
+    @State private var availableKinds: Set<TorrentFileKind> = []
 
     private var visible: [TorrentFileNode] {
         let matches = TorrentFileTree.matching(nodes, query: query)
         return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? matches : TorrentFileTree.leaves(matches)
     }
-    private var visibleIndexes: Set<Int> { visible.reduce(into: []) { $0.formUnion($1.indexes) } }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(session.taskName).font(.headline).lineLimit(2).textSelection(.enabled)
@@ -125,17 +164,41 @@ struct BitTorrentFileSelectionView: View {
         .accessibilityIdentifier("bt-file-selection")
     }
 
-    private func rebuildTree() { nodes = TorrentFileTree.nodes(files: session.files, destination: session.destination) }
+    private func rebuildTree() {
+        nodes = TorrentFileTree.nodes(files: session.files, destination: session.destination)
+        availableKinds = Set(TorrentFileKind.allCases.filter { !$0.indexes(in: session.files).isEmpty })
+    }
 
     private var fileList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                TextField(String(localized: "Search files"), text: $query)
-                    .nativeTextFieldStyle().accessibilityIdentifier("bt-file-selection-search")
-                Menu(String(localized: "Select")) {
-                    Button(String(localized: "Select All")) { store.setBitTorrentFileIndexes(visibleIndexes, selected: true) }
-                    Button(String(localized: "Deselect All")) { store.setBitTorrentFileIndexes(visibleIndexes, selected: false) }
-                }.fixedSize()
+            TextField(String(localized: "Search files"), text: $query)
+                .nativeTextFieldStyle().accessibilityIdentifier("bt-file-selection-search")
+            HStack(spacing: AppLayout.controlSpacing) {
+                Button(String(localized: "Select All")) {
+                    store.setAllBitTorrentFilesSelected(true)
+                    query = ""
+                }
+                    .disabled(session.selectedFileIndexes.count == session.files.count)
+                    .accessibilityIdentifier("bt-file-selection-all")
+                Button(String(localized: "Deselect All")) {
+                    store.setAllBitTorrentFilesSelected(false)
+                    query = ""
+                }
+                    .disabled(!session.hasSelection)
+                    .accessibilityIdentifier("bt-file-selection-none")
+                Spacer(minLength: 0)
+                Menu(String(localized: "Select by Type")) {
+                    ForEach(TorrentFileKind.allCases) { kind in
+                        Button(kind.selectionTitle) {
+                            store.selectBitTorrentFiles(ofKind: kind)
+                            query = ""
+                        }
+                        .disabled(!availableKinds.contains(kind))
+                    }
+                }
+                .fixedSize()
+                .help(String(localized: "Replaces the selection across the entire torrent. You can then adjust individual files."))
+                .accessibilityIdentifier("bt-file-selection-type")
             }
             List(visible, children: \.children) { node in
                 HStack(spacing: 8) {

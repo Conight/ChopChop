@@ -25,6 +25,7 @@ extension DownloadStore {
                 guard let task = tasks.first(where: { $0.id == id }), task.primaryControlAction == action else { continue }
                 do {
                     if action == .resume {
+                        try await validateTorrentFilesBeforeResume(task)
                         if task.requiresFileSelection { needsSelection += 1; continue }
                         if task.media != nil {
                             let options = try await client.getOption(id)
@@ -72,10 +73,12 @@ extension DownloadStore {
             guard !Task.isCancelled, session == engineSessionID, !isShuttingDown else { break }
             guard let task = tasks.first(where: { $0.id == id }) else { continue }
             do {
-                if let client, task.isAvailableInEngine { try await DownloadTaskRPCOperations.remove(task, using: client) }
-                else if includingFiles && task.removalAction != .removeDownloadResult { throw EngineError.notRunning }
+                // Even an offline history snapshot may have a live GID after reconnect.
+                // Removal is idempotent; confirm it before touching its files.
+                let engineTaskRemoved = client != nil
+                if let client, engineTaskRemoved { try await DownloadTaskRPCOperations.remove(task, using: client) }
                 guard session == engineSessionID, !isShuttingDown else { break }
-                if includingFiles { try DownloadTaskFileTrash.moveTaskFilesToTrash(task) }
+                if includingFiles { try trashFilesAfterRemoval(task, engineTaskRemoved: engineTaskRemoved) }
                 cancelSchedule(id)
                 try hideHistory([id])
             } catch { failures += 1; lastError = DownloadPrivacy.redact(error.localizedDescription) }

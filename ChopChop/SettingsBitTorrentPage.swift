@@ -18,6 +18,16 @@ extension SettingsView {
             .settingsAnchor("bitTorrent.max-peers")
         }
 
+        SettingsSection(title: String(localized: "Client Identity")) {
+            LabeledContent("User-Agent", value: BitTorrentClientIdentity.current.userAgent)
+                .textSelection(.enabled)
+            LabeledContent(String(localized: "Peer ID prefix"), value: BitTorrentClientIdentity.current.peerIDPrefix)
+                .textSelection(.enabled)
+            Text(String(localized: "ChopChop identifies itself to trackers and peers. The version follows the installed app."))
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .settingsAnchor("bitTorrent.client-identity")
+
         SettingsSection(title: String(localized: "Peer Discovery")) {
             Toggle("DHT", isOn: $store.engineSettings.btDHTEnabled)
                 .accessibilityIdentifier("settings-bt-dht-toggle")
@@ -39,6 +49,17 @@ extension SettingsView {
             .pickerStyle(.menu)
             .accessibilityIdentifier("settings-bt-sharing-mode-picker")
             .settingsAnchor("bitTorrent.seeding")
+
+            Text(String(localized: "Seeding continues after the download finishes. Configure global upload bandwidth in Network and individual torrent limits in Details → Network."))
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if store.engineCapabilities?.version == "2.8.6" {
+                Text(String(localized: "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if store.engineSettings.keepSharing {
+                Text(String(localized: "Restart Aria2 Next when switching to continuous seeding. This default applies to new tasks; existing tasks keep their own sharing limits. Restored tasks remain paused until you resume them."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
 
             Stepper(value: $store.engineSettings.shareRatio, in: 1...100) {
                 SettingValueRow(title: String(localized: "Stop at ratio"), value: store.engineSettings.keepSharing ? String(localized: "Disabled") : "\(store.engineSettings.shareRatio)", subtitle: String(localized: "Uploaded bytes divided by downloaded bytes. Default: 2."))

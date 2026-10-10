@@ -1305,8 +1305,14 @@ final class DownloadStore: ObservableObject {
     }
 
     func setAllBitTorrentFilesSelected(_ isSelected: Bool) {
-        guard var session = bitTorrentSelectionSession else { return }
+        guard var session = bitTorrentSelectionSession, session.phase == .ready else { return }
         session.selectedFileIndexes = isSelected ? Set(session.files.map(\.index)) : []
+        bitTorrentSelectionSession = session
+    }
+
+    func selectBitTorrentFiles(ofKind kind: TorrentFileKind) {
+        guard var session = bitTorrentSelectionSession, session.phase == .ready else { return }
+        session.selectedFileIndexes = kind.indexes(in: session.files)
         bitTorrentSelectionSession = session
     }
 
@@ -1335,10 +1341,27 @@ final class DownloadStore: ObservableObject {
             return
         }
         do {
-            let options = engineSettings.hotReloadableEngineOptions(downloadDirectoryPath: engineSettings.downloadDirectoryPath)
-            try await engineController.client().changeGlobalOption(options)
+            let client = try engineController.client()
+            var options = engineSettings.hotReloadableEngineOptions(downloadDirectoryPath: engineSettings.downloadDirectoryPath)
+            // Omitting seed-time in changeGlobalOption does not remove the old value.
+            // In 2.8.6 an empty string also means zero (stop after completion), not unlimited.
+            let needsSharingRestart: Bool
+            if engineSettings.keepSharing {
+                needsSharingRestart = try await client.getGlobalOption()["seed-time"] != nil
+                if needsSharingRestart { options.removeValue(forKey: "seed-ratio") }
+            } else { needsSharingRestart = false }
+            if preferences.bandwidthSchedule.enabled, let issue = preferences.bandwidthSchedule.validationIssue {
+                throw DownloadOperationError(issue)
+            }
+            // Apply the effective cap immediately, without briefly lifting a scheduled limit.
+            options.merge(preferences.bandwidthSchedule.options(at: Date(), base: engineSettings)) { _, effective in effective }
+            try await client.changeGlobalOption(options)
             lastBandwidthOptions = nil
-            postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
+            if needsSharingRestart {
+                postActivity(String(localized: "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."))
+            } else {
+                postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
+            }
         } catch {
             postError(error, title: String(localized: "Apply Settings Failed"))
         }

@@ -2064,6 +2064,23 @@
         }
       }
     },
+    "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aria2 Next 2.8.6 的全局带宽限制不涵盖局域网对等端。请同时设置单任务上传上限，让这些连接也受到限速。"
+          }
+        }
+      }
+    },
     "Aria2 Next Required": {
       "extractionState": "manual",
       "localizations": {
@@ -3696,6 +3713,23 @@
         }
       }
     },
+    "ChopChop identifies itself to trackers and peers. The version follows the installed app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop identifies itself to trackers and peers. The version follows the installed app."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向 Tracker 和其他节点标识为 ChopChop，版本号随已安装的应用更新。"
+          }
+        }
+      }
+    },
     "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically.": {
       "extractionState": "manual",
       "localizations": {
@@ -3862,6 +3896,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已清除完成记录，下载文件已保留。"
+          }
+        }
+      }
+    },
+    "Client Identity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Client Identity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端标识"
           }
         }
       }
@@ -5644,6 +5695,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "已下载"
+          }
+        }
+      }
+    },
+    "Downloaded files changed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded files changed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载文件已更改"
+          }
+        }
+      }
+    },
+    "Downloaded files missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded files missing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载文件缺失"
+          }
+        }
+      }
+    },
+    "Downloaded files unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded files unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载文件无法访问"
           }
         }
       }
@@ -9885,23 +9987,6 @@
         }
       }
     },
-    "None of the reported downloaded files exist on disk:\n%@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "None of the reported downloaded files exist on disk:\n%@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "磁盘上不存在报告的下载文件：\n%@"
-          }
-        }
-      }
-    },
     "Normal": {
       "extractionState": "manual",
       "localizations": {
@@ -10004,6 +10089,57 @@
         }
       }
     },
+    "One or more downloaded files cannot be read. Check the disk and folder permissions.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One or more downloaded files cannot be read. Check the disk and folder permissions."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分下载文件无法读取，请检查磁盘连接和文件夹权限。"
+          }
+        }
+      }
+    },
+    "One or more downloaded files no longer match the expected size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One or more downloaded files no longer match the expected size."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分下载文件的大小与预期不符。"
+          }
+        }
+      }
+    },
+    "One or more downloaded files were moved or deleted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One or more downloaded files were moved or deleted."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分下载文件已被移动或删除。"
+          }
+        }
+      }
+    },
     "One server per line, for example server.example:4661": {
       "extractionState": "manual",
       "localizations": {
@@ -10017,6 +10153,91 @@
           "stringUnit": {
             "state": "translated",
             "value": "每行一个服务器，例如 server.example:4661"
+          }
+        }
+      }
+    },
+    "Only Archives": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Archives"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅选择压缩包"
+          }
+        }
+      }
+    },
+    "Only Audio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Audio"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅选择音频"
+          }
+        }
+      }
+    },
+    "Only Images": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Images"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅选择图片"
+          }
+        }
+      }
+    },
+    "Only Subtitles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Subtitles"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅选择字幕"
+          }
+        }
+      }
+    },
+    "Only Videos": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Videos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅选择视频"
           }
         }
       }
@@ -10304,6 +10525,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "原始文件"
+          }
+        }
+      }
+    },
+    "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他运行时设置已应用。请重启 Aria2 Next，让新任务使用持续做种。已有任务仍保留各自的分享限制。"
           }
         }
       }
@@ -10716,6 +10954,23 @@
         }
       }
     },
+    "Peer ID prefix": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peer ID prefix"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peer ID 前缀"
+          }
+        }
+      }
+    },
     "Peer discovery, listen ports, encryption, and sharing behavior.": {
       "extractionState": "manual",
       "localizations": {
@@ -10916,6 +11171,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "请重试。"
+          }
+        }
+      }
+    },
+    "Point to a piece to see its status and size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Point to a piece to see its status and size."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将指针移到分片上，查看状态和大小。"
           }
         }
       }
@@ -12195,6 +12467,23 @@
         }
       }
     },
+    "Replaces the selection across the entire torrent. You can then adjust individual files.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replaces the selection across the entire torrent. You can then adjust individual files."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新选择整个种子中对应类型的文件，之后仍可单独勾选或取消。"
+          }
+        }
+      }
+    },
     "Report a Problem": {
       "extractionState": "manual",
       "localizations": {
@@ -12297,6 +12586,23 @@
         }
       }
     },
+    "Restart Aria2 Next when switching to continuous seeding. This default applies to new tasks; existing tasks keep their own sharing limits. Restored tasks remain paused until you resume them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Aria2 Next when switching to continuous seeding. This default applies to new tasks; existing tasks keep their own sharing limits. Restored tasks remain paused until you resume them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换为持续做种后，请重启 Aria2 Next。此默认设置适用于新任务；已有任务保留各自的分享限制。重启恢复的任务会保持暂停，直到你手动继续。"
+          }
+        }
+      }
+    },
     "Restart Engine": {
       "extractionState": "manual",
       "localizations": {
@@ -12361,6 +12667,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在重新启动引擎…"
+          }
+        }
+      }
+    },
+    "Restore the files to their original location, then recheck downloaded pieces before resuming. To download again, remove this task and add it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore the files to their original location, then recheck downloaded pieces before resuming. To download again, remove this task and add it again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请将文件恢复到原来的位置，重新校验下载分片后再继续。如需重新下载，请移除任务后重新添加。"
           }
         }
       }
@@ -13436,6 +13759,23 @@
         }
       }
     },
+    "Seeding continues after the download finishes. Configure global upload bandwidth in Network and individual torrent limits in Details → Network.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seeding continues after the download finishes. Configure global upload bandwidth in Network and individual torrent limits in Details → Network."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载完成后继续做种。全局上传带宽在“网络”中设置；单个种子的上限在“详情 → 网络”中设置。"
+          }
+        }
+      }
+    },
     "Seeding time": {
       "extractionState": "manual",
       "localizations": {
@@ -13521,6 +13861,23 @@
         }
       }
     },
+    "Select All": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全选"
+          }
+        }
+      }
+    },
     "Select at least one file to download.": {
       "extractionState": "manual",
       "localizations": {
@@ -13585,6 +13942,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "请至少选择一个视频、音频或字幕轨道。"
+          }
+        }
+      }
+    },
+    "Select by Type": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select by Type"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按类型选择"
           }
         }
       }

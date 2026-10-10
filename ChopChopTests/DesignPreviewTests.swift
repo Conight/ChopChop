@@ -19,27 +19,46 @@ final class DesignPreviewTests: XCTestCase {
 
     @MainActor
     func testCompactAddDownloadSheetKeepsActionsVisible() async throws {
-        try await verifyAddDownloadSheet(width: 660, height: 420, appearance: .darkAqua)
+        try await verifyAddDownloadSheet(width: 660, height: AppLayout.sheetMinimumHeight, appearance: .darkAqua)
     }
 
     @MainActor
     func testMediaSelectionSheetKeepsControlsInsideCompactWindow() async throws {
-        try await verifyAddDownloadSheet(width: 660, height: 420, appearance: .darkAqua, mediaSelection: true)
+        try await verifyAddDownloadSheet(width: 660, height: AppLayout.sheetMinimumHeight, appearance: .darkAqua, mediaSelection: true)
     }
 
     @MainActor
-    func testBasicAddDownloadDoesNotReserveEmptyAdvancedSpace() async throws {
+    func testAddDownloadSheetUsesTallerDefaultAndEnforcesMinimumHeight() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         store.addDraft.rawInput = "https://example.com/download.zip"
         let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-compact-final",
-            size: NSSize(width: 740, height: 420), appearance: .aqua, output: output, fitContent: true)
-        let host = NSHostingController(rootView: AddDownloadPanel(onDismiss: {}).environmentObject(store))
-        let size = host.sizeThatFits(in: NSSize(width: 740, height: 620))
-        XCTAssertLessThanOrEqual(size.height, 430, "Basic link entry should not leave a tall, empty advanced-options area")
-        print("COMPACT_ADD_PREVIEW_OUTPUT=\(output.path)")
+        let host = NSHostingController(rootView: Color.clear.sheet(isPresented: .constant(true)) {
+            AddDownloadPanel(onDismiss: {}).environmentObject(store).background(InvisibleSheetWindow())
+        })
+        host.sizingOptions = []
+        let owner = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        owner.isReleasedWhenClosed = false; owner.alphaValue = 0; owner.contentViewController = host
+        owner.orderBack(nil)
+        defer {
+            for sheet in owner.sheets { owner.endSheet(sheet) }
+            owner.close()
+        }
+        try await Task.sleep(for: .milliseconds(600))
+        let sheet = try XCTUnwrap(owner.attachedSheet)
+        let content = try XCTUnwrap(sheet.contentView)
+        // The native presenter must enforce this limit during interactive resizing;
+        // merely rendering a fixed-size root would not catch the original 178-point minimum.
+        XCTAssertEqual(content.bounds.height, AppLayout.sheetHeight, accuracy: 1)
+        XCTAssertEqual(sheet.contentMinSize.height, AppLayout.sheetMinimumHeight, accuracy: 1)
+        content.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+        content.cacheDisplay(in: content.bounds, to: bitmap)
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            .write(to: output.appendingPathComponent("add-default-height.png"))
+        print("ADD_HEIGHT_PREVIEW_OUTPUT=\(output.path)")
     }
 
     @MainActor
@@ -104,6 +123,84 @@ final class DesignPreviewTests: XCTestCase {
         let bounds = list.convert(list.bounds, to: content)
         XCTAssertTrue(content.bounds.contains(bounds))
         XCTAssertGreaterThan(content.bounds.height - bounds.height, 120, "Reserve space for the header and persistent actions")
+    }
+
+    @MainActor
+    func testResizedTorrentSheetFillsWindowAcrossSourceChanges() async throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        store.addDraft.rawInput = "file:///tmp/Example.torrent"
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let controller = NSHostingController(rootView: Color.clear.sheet(isPresented: .constant(true)) {
+            AddDownloadPanel(onDismiss: {}).environmentObject(store).background(InvisibleSheetWindow())
+        })
+        controller.sizingOptions = []
+        let owner = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 900),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        owner.isReleasedWhenClosed = false; owner.alphaValue = 0; owner.contentViewController = controller
+        owner.orderBack(nil)
+        defer {
+            for sheet in owner.sheets { owner.endSheet(sheet) }
+            owner.close()
+        }
+        try await Task.sleep(for: .milliseconds(600))
+        let sheet = try XCTUnwrap(owner.attachedSheet)
+        let content = try XCTUnwrap(sheet.contentView)
+        func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+        let paths = ["\(String(repeating: "Long video name — 影片 ", count: 8)).mkv",
+                     "Pictures/cover.png", "Subtitles/movie.srt", "Readme.txt"]
+        let files = paths.enumerated().map { DownloadFile(index: $0.offset + 1,
+            path: "/tmp/Example/" + $0.element, length: Int64(($0.offset + 1) * 100), completedLength: 0, isSelected: true) }
+
+        // Reproduce an actual sheet being resized and reused; recreating a root view
+        // at each size would miss AppKit retaining the user's larger sheet frame.
+        for (label, size, appearance) in [
+            ("large", NSSize(width: 1040, height: 720), NSAppearance.Name.aqua),
+            ("compact", NSSize(width: 660, height: AppLayout.sheetMinimumHeight), NSAppearance.Name.darkAqua)
+        ] {
+            sheet.appearance = NSAppearance(named: appearance)
+            sheet.setContentSize(size)
+            try await Task.sleep(for: .milliseconds(250))
+            for stage in ["source", "loading", "ready", "failed", "returned"] {
+                if stage == "source" || stage == "returned" {
+                    await store.cancelBitTorrentFileSelection()
+                } else {
+                    store.bitTorrentSelectionSession = BitTorrentFileSelectionSession(
+                        source: store.addDraft.rawInput, taskName: String(repeating: "Example collection 示例合集 ", count: 6),
+                        files: stage == "ready" ? files : [], selectedFileIndexes: stage == "ready" ? [1, 2, 3, 4] : [],
+                        phase: stage == "ready" ? .ready : stage == "failed" ? .failed : .loading,
+                        destination: "/tmp/Example", issue: stage == "failed" ? "Temporary fixture error" : nil)
+                }
+                try await Task.sleep(for: .milliseconds(300))
+                content.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+                content.cacheDisplay(in: content.bounds, to: bitmap)
+                XCTAssertEqual(content.bounds.width, size.width, accuracy: 1, stage)
+                XCTAssertEqual(content.bounds.height, size.height, accuracy: 1, stage)
+                XCTAssertGreaterThanOrEqual(sheet.contentMinSize.height, AppLayout.sheetMinimumHeight, stage)
+                let artwork = try XCTUnwrap(descendants(content).first { $0.identifier?.rawValue == "download-artwork-anchor" })
+                let artworkFrame = artwork.convert(artwork.bounds, to: content)
+                XCTAssertEqual(artworkFrame.minX, 0, accuracy: 1, stage)
+                XCTAssertEqual(artworkFrame.minY, 0, accuracy: 1, stage)
+                XCTAssertEqual(artworkFrame.width, 180, accuracy: 1, stage)
+                XCTAssertEqual(artworkFrame.height, content.bounds.height, accuracy: 1,
+                               "Artwork must fill the resized sheet, including after Change Source: \(stage)")
+                let scrolls = descendants(content).compactMap { $0 as? NSScrollView }
+                let mainScroll = try XCTUnwrap(scrolls.max { $0.bounds.height < $1.bounds.height })
+                let scrollFrame = mainScroll.convert(mainScroll.bounds, to: content)
+                XCTAssertGreaterThanOrEqual(scrollFrame.minX, 200, stage)
+                XCTAssertTrue(content.bounds.contains(scrollFrame), stage)
+                // Preserve a scrollable list/body plus fixed header and footer even
+                // with long names and the compact frame.
+                XCTAssertGreaterThan(mainScroll.bounds.height, stage == "ready" ? 40 : 100, stage)
+                if stage == "ready" || stage == "returned" {
+                    let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                    try png.write(to: output.appendingPathComponent("torrent-sheet-\(label)-\(stage).png"))
+                }
+            }
+        }
+        print("TORRENT_SHEET_PREVIEW_OUTPUT=\(output.path)")
     }
 
     /// Exercise the real SwiftUI sheet presenter, including its native clipping containers.
@@ -219,6 +316,28 @@ final class DesignPreviewTests: XCTestCase {
             try await render(root, name: "transfer-connections-\(appearance.rawValue)", size: NSSize(width: 300, height: 650), appearance: appearance, output: output, scrollToBottom: true)
         }
         print("TRANSFER_PREVIEW_OUTPUT=\(output.path)")
+    }
+
+    @MainActor
+    func testPieceGridHoverEdgesAndIdleAppearance() async throws {
+        let map = try XCTUnwrap(PieceMap(count: 256, pieceLength: 2_097_152,
+            bitfield: String(repeating: "81ff00", count: 8), totalSpan: nil))
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua, .accessibilityHighContrastAqua] {
+            let root = VStack(alignment: .leading, spacing: 20) {
+                ForEach(["Idle", "First piece", "Last piece"], id: \.self) { name in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(name).font(.caption)
+                        PieceGrid(map: map, start: 0, layout: PieceGridLayout(width: 517, count: 256),
+                                  hoveredIndex: name == "Idle" ? nil : name == "First piece" ? 0 : 255)
+                    }
+                }
+            }.padding(20)
+            try await render(root, name: "piece-hover-\(appearance.rawValue)", size: NSSize(width: 557, height: 500),
+                             appearance: appearance, output: output)
+        }
+        print("PIECE_PREVIEW_OUTPUT=\(output.path)")
     }
 
     @MainActor
@@ -686,6 +805,18 @@ final class DesignPreviewTests: XCTestCase {
             let rows = (0..<table.numberOfRows).map { table.rect(ofRow: $0) }
             XCTAssertTrue(rows.allSatisfy { abs($0.height - rows[0].height) < 1 },
                           "Selection, long errors and unknown sizes must not change row height")
+            let bars = descendants(table).compactMap { $0 as? NSProgressIndicator }
+            XCTAssertEqual(bars.count, table.numberOfRows,
+                           "Every task, including completed downloads and seeds, keeps its progress bar")
+            let frames = bars.map { $0.convert($0.bounds, to: table) }
+            let reference = try XCTUnwrap(frames.first)
+            XCTAssertGreaterThan(reference.width, 100)
+            for frame in frames {
+                XCTAssertEqual(frame.minX, reference.minX, accuracy: 1,
+                               "Task names and phases must not move the progress column")
+                XCTAssertEqual(frame.width, reference.width, accuracy: 1,
+                               "All progress tracks must have the same width")
+            }
             XCTAssertNotNil(table.doubleAction)
         }
         if !usesWindowChrome {

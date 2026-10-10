@@ -50,14 +50,15 @@ nonisolated enum DownloadTaskFileTrash {
             throw DownloadFileTrashError.noReportedFiles(taskName: task.name)
         }
 
-        var movedPrimaryCount = 0
         var failures: [DownloadFileTrashError] = []
         for target in plan.primaryTargets {
-            guard fileManager.fileExists(atPath: target.path) else { continue }
             do {
+                // fileExists also returns false on access errors. Only a missing path is success.
+                guard try DownloadFilePresence.exists(at: target, fileManager: fileManager) else { continue }
                 try fileManager.trashItem(at: target, resultingItemURL: nil)
-                movedPrimaryCount += 1
             } catch {
+                // Finder may remove a file between our check and the Trash operation.
+                if DownloadFilePresence.isMissing(error) { continue }
                 failures.append(
                     .moveToTrashFailed(path: target.path, reason: error.localizedDescription)
                 )
@@ -67,15 +68,20 @@ nonisolated enum DownloadTaskFileTrash {
         if let failure = failures.first {
             throw failure
         }
-        guard movedPrimaryCount > 0 else {
-            throw DownloadFileTrashError.noExistingReportedFiles(
-                paths: plan.primaryTargets.map(\.path)
-            )
-        }
-
         for companion in plan.companionTargets where fileManager.fileExists(atPath: companion.path) {
             try? fileManager.trashItem(at: companion, resultingItemURL: nil)
         }
+    }
+
+    /// When the engine cannot be contacted, do not touch any potentially open files.
+    /// An already absent payload can still have its history record removed.
+    static func allReportedFilesAreMissing(_ task: DownloadTask, fileManager: FileManager = .default) throws -> Bool {
+        let targets = plan(for: task, fileManager: fileManager).primaryTargets
+        guard !targets.isEmpty else { return false }
+        for target in targets {
+            if try DownloadFilePresence.exists(at: target, fileManager: fileManager) { return false }
+        }
+        return true
     }
 
     private static func primaryTargets(
@@ -146,15 +152,12 @@ nonisolated enum DownloadTaskFileTrash {
 
 nonisolated enum DownloadFileTrashError: LocalizedError, Equatable, Sendable {
     case noReportedFiles(taskName: String)
-    case noExistingReportedFiles(paths: [String])
     case moveToTrashFailed(path: String, reason: String)
 
     var errorDescription: String? {
         switch self {
         case .noReportedFiles(let taskName):
             String(localized: "Aria2 Next did not report any file paths for \(taskName), so ChopChop cannot move files to Trash safely.")
-        case .noExistingReportedFiles(let paths):
-            String(localized: "None of the reported downloaded files exist on disk:\n\(paths.joined(separator: "\n"))")
         case .moveToTrashFailed(let path, let reason):
             String(localized: "Could not move \(path) to Trash.\n\(reason)")
         }

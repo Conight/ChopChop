@@ -186,16 +186,25 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     static func listTask(store: DownloadStore, taskID: String, selection: Set<String>? = nil,
                          detailsPresentation: TaskDetailsPresentation,
                          showDetails: @escaping () -> Void) -> Self {
-        Self(store: store, taskID: taskID, window: DownloadWindowActions(
-            hasSelection: true, showDetails: { section in
-                store.selectedTaskID = taskID
-                detailsPresentation.selectionChanged(to: taskID)
-                if let section {
-                    detailsPresentation.selectedTab = .overview
-                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+        let showTaskDetails: @MainActor (TaskDetailSection?) -> Void = { section in
+            store.selectedTaskID = taskID
+            detailsPresentation.selectionChanged(to: taskID)
+            if let section {
+                detailsPresentation.selectedTab = .overview
+                detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+            }
+            showDetails()
+        }
+        return Self(store: store, taskID: taskID, window: DownloadWindowActions(
+            toggleDetails: {
+                guard store.tasks.contains(where: { $0.id == taskID }) else { return }
+                if detailsPresentation.isPresented, store.selectedTaskID == taskID {
+                    detailsPresentation.dismiss()
+                } else {
+                    showTaskDetails(nil)
                 }
-                showDetails()
-            }), taskIDs: selection)
+            }, detailsPresented: detailsPresentation.isPresented && store.selectedTaskID == taskID,
+            hasSelection: true, showDetails: showTaskDetails), taskIDs: selection)
     }
 }
 

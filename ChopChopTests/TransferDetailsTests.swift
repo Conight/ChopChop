@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import XCTest
 @testable import ChopChop
 
@@ -60,6 +61,76 @@ final class TransferDetailsTests: XCTestCase {
             XCTAssertNil(layout.index(at: CGPoint(x: -1, y: 1)))
             XCTAssertNil(layout.index(at: CGPoint(x: width, y: 0)))
             XCTAssertNil(layout.index(at: CGPoint(x: 0, y: layout.height)))
+        }
+    }
+
+    func testPieceHoverHasNoDefaultOrFallbackInGapsAndOutside() {
+        let layout = PieceGridLayout(width: 280, count: 256)
+        var inspection = PieceMapInspection()
+        XCTAssertNil(inspection.hoveredIndex)
+        XCTAssertNil(inspection.detailIndex)
+
+        // Keyboard inspection is available, but does not pin a visual selection.
+        inspection.navigate(to: 7, count: 600)
+        XCTAssertEqual(inspection.detailIndex, 7)
+        XCTAssertNil(inspection.hoveredIndex)
+        for index in [0, 19, 255] {
+            let rect = layout.rect(index)
+            inspection.point(at: CGPoint(x: rect.midX, y: rect.midY), in: layout, start: 0)
+            XCTAssertEqual(inspection.hoveredIndex, index)
+            XCTAssertEqual(inspection.detailIndex, index)
+            for gap in [CGPoint(x: rect.maxX + 1, y: rect.midY), CGPoint(x: rect.midX, y: rect.maxY + 1)] {
+                inspection.point(at: gap, in: layout, start: 0)
+                XCTAssertNil(inspection.hoveredIndex)
+                XCTAssertNil(inspection.detailIndex, "Moving off a piece must not restore the previous inspection")
+            }
+        }
+        inspection.point(at: CGPoint(x: 1, y: 1), in: layout, start: 0)
+        inspection.point(at: nil, in: layout, start: 0)
+        XCTAssertNil(inspection.hoveredIndex)
+        XCTAssertNil(inspection.detailIndex)
+    }
+
+    func testPieceNavigationAndResizeClearStaleHover() {
+        let layout = PieceGridLayout(width: 280, count: 88)
+        var inspection = PieceMapInspection()
+        inspection.point(at: CGPoint(x: 1, y: 1), in: layout, start: 256)
+        XCTAssertEqual(inspection.hoveredIndex, 256)
+        inspection.navigate(to: 512, count: 600, inspect: false)
+        XCTAssertNil(inspection.hoveredIndex)
+        XCTAssertNil(inspection.detailIndex)
+        inspection.point(at: CGPoint(x: 1, y: 1), in: layout, start: 512)
+        XCTAssertEqual(inspection.hoveredIndex, 512)
+        inspection.point(at: nil, in: PieceGridLayout(width: 400, count: 88), start: 512)
+        XCTAssertNil(inspection.hoveredIndex)
+        XCTAssertNil(inspection.detailIndex)
+
+        let last = layout.rect(87)
+        inspection.point(at: CGPoint(x: last.maxX + 5, y: last.midY), in: layout, start: 512)
+        XCTAssertNil(inspection.hoveredIndex, "Unused space on the final row is not a piece")
+        inspection.navigate(to: 800, count: 600)
+        XCTAssertEqual(inspection.detailIndex, 599)
+        XCTAssertNil(inspection.hoveredIndex)
+        inspection.navigate(to: -1, count: 600)
+        XCTAssertEqual(inspection.detailIndex, 0)
+        XCTAssertNil(inspection.hoveredIndex)
+    }
+
+    func testEveryPieceBorderStaysInsideItsCellAtDifferentWidths() {
+        for width in [240.0, 280, 320, 517, 640, 1024] {
+            let layout = PieceGridLayout(width: width, count: 256)
+            let canvas = CGRect(x: 0, y: 0, width: width, height: layout.height)
+            for index in 0..<layout.count {
+                for lineWidth in [1.0, 2.0] {
+                    let border = layout.outline(index, lineWidth: lineWidth)
+                        .strokedPath(StrokeStyle(lineWidth: lineWidth)).boundingRect
+                    // SwiftUI stroke geometry rounds coordinates to single precision.
+                    XCTAssertTrue(layout.rect(index).insetBy(dx: -0.001, dy: -0.001).contains(border),
+                                  "The normal and hovered borders must remain within each piece")
+                    XCTAssertTrue(canvas.insetBy(dx: -0.001, dy: -0.001).contains(border),
+                                  "First and last pieces must render without overflowing or clipping")
+                }
+            }
         }
     }
 

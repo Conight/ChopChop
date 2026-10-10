@@ -32,16 +32,18 @@ final class NativeInteractionTests: XCTestCase {
         task.totalLength = 0
         XCTAssertEqual(task.progressState, .indeterminate)
         XCTAssertEqual(task.progressLabel, "—")
-        XCTAssertTrue(DownloadListTaskDisplay(task: task).showsProgress)
         XCTAssertTrue(DownloadListTaskDisplay(task: task).sizeLabel.contains(ByteFormat.size(task.completedLength)))
         task.totalLength = 1000
         task.completedLength = 1000
         task.status = .completed
-        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsProgress)
+        XCTAssertEqual(task.progressState, .determinate(1))
         XCTAssertEqual(DownloadListTaskDisplay(task: task).sizeLabel, ByteFormat.size(1000))
         task.status = .active
         task.isSharing = true
-        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsProgress)
+        // Selected torrent files can be complete even if the reported total
+        // includes skipped files. Seeding represents a finished download.
+        task.completedLength = 700
+        XCTAssertEqual(task.progressState, .determinate(1))
         XCTAssertEqual(DownloadListTaskDisplay(task: task).statusSymbol, "arrow.up.circle")
         XCTAssertTrue(DownloadListTaskDisplay(task: task).showsTransferRates)
         task.isSharing = false
@@ -130,6 +132,69 @@ final class NativeInteractionTests: XCTestCase {
         XCTAssertNil(openedTask)
         XCTAssertFalse(DownloadAction.remove.perform(in: context))
         XCTAssertNil(store.removalRequest)
+    }
+
+    @MainActor
+    func testRowDetailsToggleClosesSameTaskAndSwitchesOtherTasks() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        let first = try fixture("toggle-first"), second = try fixture("toggle-second")
+        store.tasks = [first, second]
+        let presentation = TaskDetailsPresentation()
+        let owner = NSWindow(contentRect: NSRect(x: 50, y: 50, width: 900, height: 600),
+                             styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        owner.isReleasedWhenClosed = false; owner.alphaValue = 0; owner.orderBack(nil)
+        presentation.attach(to: owner)
+        defer { presentation.dismiss(returnFocus: false); owner.close() }
+        let ownerFrame = owner.frame
+        func context(_ id: String) -> DownloadActionContext {
+            .listTask(store: store, taskID: id, detailsPresentation: presentation,
+                      showDetails: { presentation.present(store: store, moveSelection: { _ in }) })
+        }
+        let firstContext = context(first.id), secondContext = context(second.id)
+        XCTAssertFalse(DownloadAction.engineReady(in: store), "Details toggling also works offline")
+        firstContext.window?.toggleDetails()
+        XCTAssertTrue(presentation.isPresented)
+        XCTAssertEqual(store.selectedTaskID, first.id)
+        XCTAssertEqual(context(first.id).window?.detailsPresented, true)
+        XCTAssertEqual(context(second.id).window?.detailsPresented, false)
+        let panel = try XCTUnwrap(presentation.panel)
+
+        // Reusing an earlier context must consult live presentation state.
+        firstContext.window?.toggleDetails()
+        XCTAssertFalse(presentation.isPresented)
+        XCTAssertNil(panel.contentViewController)
+        XCTAssertNil(panel.parent)
+        XCTAssertEqual(context(first.id).window?.detailsPresented, false)
+
+        firstContext.window?.toggleDetails()
+        secondContext.window?.toggleDetails()
+        XCTAssertTrue(presentation.isPresented, "Another task switches the existing details panel")
+        XCTAssertTrue(presentation.panel === panel)
+        XCTAssertEqual(store.selectedTaskID, second.id)
+        XCTAssertEqual(context(first.id).window?.detailsPresented, false)
+        XCTAssertEqual(context(second.id).window?.detailsPresented, true)
+
+        // Explicit Show Details and configuration commands must keep the panel open.
+        XCTAssertTrue(DownloadAction.details.perform(in: secondContext))
+        XCTAssertTrue(presentation.isPresented)
+        store.runtime.phase = .running(pid: 1)
+        XCTAssertTrue(DownloadAction.speedLimits.perform(in: secondContext))
+        XCTAssertTrue(presentation.isPresented)
+        XCTAssertEqual(presentation.sectionRequest?.section, .speedLimits)
+
+        // A stale button for a removed task must not dismiss another task's panel.
+        store.tasks = [second]
+        firstContext.window?.toggleDetails()
+        XCTAssertTrue(presentation.isPresented)
+        secondContext.window?.toggleDetails()
+        XCTAssertFalse(presentation.isPresented)
+
+        // Opening through the shared presenter (as Space does) is also toggled off.
+        presentation.present(store: store, moveSelection: { _ in })
+        secondContext.window?.toggleDetails()
+        XCTAssertFalse(presentation.isPresented)
+        XCTAssertEqual(owner.frame, ownerFrame)
     }
 
     @MainActor

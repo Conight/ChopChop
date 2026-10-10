@@ -45,6 +45,7 @@ enum SettingsSearchIndex {
         .init(id: "network.async-dns", pane: .network, title: "Async DNS"),
         .init(id: "bitTorrent.force-bittorrent-encryption", pane: .bitTorrent, title: "Force BitTorrent encryption"),
         .init(id: "bitTorrent.max-peers", pane: .bitTorrent, title: "Max peers"),
+        .init(id: "bitTorrent.client-identity", pane: .bitTorrent, title: "Client Identity"),
         .init(id: "bitTorrent.dht", pane: .bitTorrent, title: "DHT"),
         .init(id: "bitTorrent.peer-exchange", pane: .bitTorrent, title: "Peer exchange"),
         .init(id: "bitTorrent.local-peer-discovery", pane: .bitTorrent, title: "Local peer discovery"),

@@ -9,6 +9,12 @@ nonisolated struct PieceGridLayout {
         CGRect(x: Double(index % columns) * width / Double(columns), y: Double(index / columns) * 14,
                width: max(1, width / Double(columns) - 3), height: 11)
     }
+    // Canvas strokes are centered on their paths. Inset by half the width so
+    // edge pieces have the same border as interior pieces, without clipping.
+    func outline(_ index: Int, lineWidth: Double) -> Path {
+        Path(roundedRect: rect(index).insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
+             cornerRadius: max(0, 2 - lineWidth / 2))
+    }
     func index(at point: CGPoint) -> Int? {
         guard width > 0, point.x >= 0, point.y >= 0, point.x < width else { return nil }
         let index = Int(point.y / 14) * columns + Int(point.x / (width / Double(columns)))
@@ -17,16 +23,65 @@ nonisolated struct PieceGridLayout {
     }
 }
 
+/// Page navigation and keyboard inspection never pin the pointer's highlight.
+nonisolated struct PieceMapInspection {
+    private(set) var navigationIndex = 0
+    private(set) var hoveredIndex: Int?
+    private(set) var detailIndex: Int?
+
+    mutating func point(at location: CGPoint?, in layout: PieceGridLayout, start: Int) {
+        hoveredIndex = location.flatMap { layout.index(at: $0) }.map { start + $0 }
+        detailIndex = hoveredIndex
+    }
+
+    mutating func navigate(to index: Int, count: Int, inspect: Bool = true) {
+        navigationIndex = max(0, min(count - 1, index))
+        hoveredIndex = nil
+        detailIndex = inspect && count > 0 ? navigationIndex : nil
+    }
+}
+
+struct PieceGrid: View {
+    let map: PieceMap
+    let start: Int
+    let layout: PieceGridLayout
+    let hoveredIndex: Int?
+
+    var body: some View {
+        Canvas { context, _ in
+            for index in 0..<layout.count {
+                switch map.state(at: start + index) {
+                case .complete:
+                    context.fill(Path(roundedRect: layout.rect(index), cornerRadius: 2), with: .color(.accentColor))
+                case .missing:
+                    context.stroke(layout.outline(index, lineWidth: 1), with: .color(.secondary.opacity(0.5)), lineWidth: 1)
+                case .unknown:
+                    context.stroke(layout.outline(index, lineWidth: 1), with: .color(.secondary),
+                                   style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                }
+                if start + index == hoveredIndex {
+                    context.stroke(layout.outline(index, lineWidth: 2), with: .color(.primary), lineWidth: 2)
+                }
+            }
+        }
+        .frame(height: layout.height)
+    }
+}
+
 struct PieceMapView: View {
     let map: PieceMap
-    @State private var selected = 0
-    @State private var hover: Int?
+    @State private var inspection = PieceMapInspection()
     @State private var width = 280.0
     private let pageSize = 256
-    private var page: Int { min(selected, map.count - 1) / pageSize }
+    private var page: Int { min(inspection.navigationIndex, map.count - 1) / pageSize }
     private var start: Int { page * pageSize }
     private var visibleCount: Int { min(pageSize, map.count - start) }
     private var layout: PieceGridLayout { PieceGridLayout(width: width, count: visibleCount) }
+
+    private var inspectionDescription: String {
+        inspection.detailIndex.map { map.description(at: $0) }
+            ?? String(localized: "Point to a piece to see its status and size.")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -47,7 +102,7 @@ struct PieceMapView: View {
                     context.stroke(Path(rect.insetBy(dx: 1, dy: 1)), with: .color(.primary), lineWidth: 2)
                 }
                 .onTapGesture { location in
-                    select(Int(max(0, min(1, location.x / max(1, geometry.size.width))) * Double(map.count)))
+                    navigate(Int(max(0, min(1, location.x / max(1, geometry.size.width))) * Double(map.count)), inspect: false)
                 }
             }.frame(height: 18)
                 .accessibilityLabel(String(localized: "Whole-torrent overview"))
@@ -55,40 +110,34 @@ struct PieceMapView: View {
                 .help(String(localized: "Overview of all pieces. Click to inspect that part of the torrent."))
             Text(String(localized: "Each square below is one piece. The strip above summarizes the whole torrent."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Canvas { context, _ in
-                for index in 0..<visibleCount {
-                    let rect = layout.rect(index)
-                    let path = Path(roundedRect: rect, cornerRadius: 2)
-                    switch map.state(at: start + index) {
-                    case .complete: context.fill(path, with: .color(.accentColor))
-                    case .missing: context.stroke(path, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
-                    case .unknown:
-                        context.stroke(path, with: .color(.secondary), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
-                    }
-                    if start + index == (hover ?? selected) {
-                        context.stroke(Path(roundedRect: rect.insetBy(dx: -1, dy: -1), cornerRadius: 2), with: .color(.primary), lineWidth: 2)
-                    }
+            PieceGrid(map: map, start: start, layout: layout, hoveredIndex: inspection.hoveredIndex)
+            .contentShape(Rectangle())
+            .onGeometryChange(for: Double.self) { $0.size.width } action: {
+                width = $0
+                inspection.point(at: nil, in: layout, start: start)
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location): inspection.point(at: location, in: layout, start: start)
+                case .ended: inspection.point(at: nil, in: layout, start: start)
                 }
             }
-            .frame(height: layout.height)
-            .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
-            .onContinuousHover { phase in
-                switch phase { case .active(let location): hover = layout.index(at: location).map { start + $0 }; case .ended: hover = nil }
-            }
-            .onTapGesture { location in if let index = layout.index(at: location) { select(start + index) } }
-            .help(map.description(at: hover ?? selected))
+            .help(inspectionDescription)
             .focusable()
             .onMoveCommand { direction in
+                let index = inspection.detailIndex ?? inspection.navigationIndex
                 switch direction {
-                case .left: select(selected - 1); case .right: select(selected + 1)
-                case .up: select(selected - layout.columns); case .down: select(selected + layout.columns)
+                case .left: navigate(index - 1); case .right: navigate(index + 1)
+                case .up: navigate(index - layout.columns); case .down: navigate(index + layout.columns)
                 default: break
                 }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "Piece map"))
-            .accessibilityValue(map.description(at: selected))
-            .accessibilityAdjustableAction { direction in select(selected + (direction == .increment ? 1 : -1)) }
+            .accessibilityValue(inspection.detailIndex.map { map.description(at: $0) } ?? map.completionSummary)
+            .accessibilityAdjustableAction { direction in
+                navigate(inspection.navigationIndex + (direction == .increment ? 1 : -1))
+            }
             HStack(spacing: 12) {
                 Label(String(localized: "Complete piece"), systemImage: "square.fill").foregroundStyle(Color.accentColor)
                 Label(String(localized: "Not complete"), systemImage: "square").foregroundStyle(.secondary)
@@ -96,27 +145,30 @@ struct PieceMapView: View {
             if map.reportedCount < map.count {
                 Label(String(localized: "Not reported"), systemImage: "square.dashed").font(.caption).foregroundStyle(.secondary)
             }
-            Text(map.description(at: hover ?? selected)).font(.caption).monospacedDigit()
+            Text(inspectionDescription).font(.caption).monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 30, alignment: .topLeading)
             HStack {
-                Button { select(start - pageSize) } label: { Image(systemName: "chevron.left") }
+                Button { navigate(start - pageSize, inspect: false) } label: { Image(systemName: "chevron.left") }
                     .disabled(page == 0).help(String(localized: "Previous pieces")).accessibilityLabel(String(localized: "Previous pieces"))
                 Text(String(localized: "\(page + 1) / \((map.count + pageSize - 1) / pageSize)"))
                     .font(.caption).monospacedDigit()
-                Button { select(start + pageSize) } label: { Image(systemName: "chevron.right") }
+                Button { navigate(start + pageSize, inspect: false) } label: { Image(systemName: "chevron.right") }
                     .disabled(start + visibleCount >= map.count).help(String(localized: "Next pieces")).accessibilityLabel(String(localized: "Next pieces"))
                 Spacer()
-                Stepper(String(localized: "Piece \(selected + 1)"), value: $selected, in: 0...(map.count - 1))
+                Stepper(String(localized: "Piece \(inspection.navigationIndex + 1)"),
+                        value: Binding(get: { inspection.navigationIndex }, set: { navigate($0) }),
+                        in: 0...(map.count - 1))
                     .font(.caption)
             }.controlSize(.small)
             Text(String(localized: "Includes pieces belonging to skipped files. Incomplete pieces may be missing or partially received; the engine does not report their individual percentages."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .contentPanel()
-        .onChange(of: map.count) { select(selected) }
-        .onChange(of: selected) { hover = nil }
+        .onChange(of: map.count) { navigate(inspection.navigationIndex, inspect: false) }
     }
-    private func select(_ index: Int) { selected = max(0, min(map.count - 1, index)); hover = nil }
+    private func navigate(_ index: Int, inspect: Bool = true) {
+        inspection.navigate(to: index, count: map.count, inspect: inspect)
+    }
 }
 
 struct TransferDetailsView: View {
@@ -258,6 +310,10 @@ struct TransferOptionsView: View {
                 if saved { Label(String(localized: "Upload limit saved"), systemImage: "checkmark.circle").font(.caption) }
                 Text(String(localized: "0 removes this task's cap. The global cap still applies; it is not a way to turn off seeding."))
                     .font(.caption).foregroundStyle(.secondary)
+                if store.engineCapabilities?.version == "2.8.6" {
+                    Text(String(localized: "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if let globalUpload {
                     Text(globalUpload == 0 ? String(localized: "Global upload: Unlimited") : String(localized: "Global upload: \(ByteFormat.speed(globalUpload))"))
                         .font(.caption).foregroundStyle(.secondary)

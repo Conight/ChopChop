@@ -154,7 +154,7 @@ final class DownloadNotificationCoordinator: ObservableObject {
 
 nonisolated extension DownloadTask {
     var hasCompletedPayload: Bool {
-        guard !isFetchingMetadata, !requiresFileSelection else { return false }
+        guard !isFetchingMetadata, !requiresFileSelection, torrentFileIssue == nil else { return false }
         if status == .completed || isSharing { return true }
         guard isTorrentLike, status == .active || status == .paused, !isChecking, !isFetchingMetadata else { return false }
         let selected = files.filter(\.isSelected)

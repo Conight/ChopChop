@@ -39,13 +39,12 @@ final class DownloadListPresentation {
 nonisolated struct DownloadListTaskDisplay {
     var task: DownloadTask
 
-    var showsProgress: Bool { task.status != .completed && !task.isSharing }
-
     var showsTransferRates: Bool {
         task.status == .active && task.isAvailableInEngine && !task.isChecking && task.media?.state != "finalizing"
     }
 
     var statusSymbol: String {
+        if task.torrentFileIssue != nil { return "exclamationmark.triangle" }
         if task.isSharing { return "arrow.up.circle" }
         if task.isChecking { return "checkmark.shield" }
         if task.isFetchingMetadata { return "ellipsis.circle" }

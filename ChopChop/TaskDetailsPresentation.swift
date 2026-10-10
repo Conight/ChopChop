@@ -52,7 +52,7 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
     func present(store: DownloadStore, moveSelection: @escaping (Int) -> Void) {
         guard store.selectedTask != nil, let owner, owner.attachedSheet == nil else { return }
         self.moveSelection = moveSelection
-        if isPresented { panel?.orderFront(nil); return }
+        if isPresented { panel?.makeKeyAndOrderFront(nil); return }
         returnResponder = owner.firstResponder
         if panel == nil {
             let panel = TaskDetailsPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 680),
@@ -88,8 +88,9 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
         owner.addChildWindow(panel, ordered: .above)
         isPresented = true
         updateActivity()
-        // Keep list focus for arrow-key browsing until a person clicks a panel control.
-        panel.orderFront(nil)
+        // Explicitly opening details transfers keyboard focus and lets AppKit
+        // render the panel as active; dismiss() restores the list responder.
+        panel.makeKeyAndOrderFront(nil)
     }
 
     func dismiss(returnFocus: Bool = true) {

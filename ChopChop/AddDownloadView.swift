@@ -17,13 +17,9 @@ struct AddDownloadPanel: View {
         self.onDismiss = onDismiss
     }
 
-    private var artworkWidth: CGFloat {
-        store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented || isShowingAdvanced
-            ? AppLayout.compactArtworkWidth : AppLayout.artworkWidth
-    }
-
     private var bodyHeight: CGFloat {
-        artworkWidth == AppLayout.artworkWidth ? 220 : AppLayout.sheetBodyHeight
+        store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented || isShowingAdvanced
+            ? AppLayout.sheetBodyHeight : 220
     }
 
     var body: some View {
@@ -42,7 +38,7 @@ struct AddDownloadPanel: View {
             if let session = store.bitTorrentSelectionSession {
                 BitTorrentFileSelectionView(session: session)
                     .padding(.horizontal, AppLayout.focusClearance)
-                    .frame(minHeight: 100, idealHeight: AppLayout.sheetBodyHeight, maxHeight: AppLayout.sheetBodyHeight)
+                    .frame(minHeight: 100, idealHeight: AppLayout.sheetBodyHeight, maxHeight: .infinity)
             } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
@@ -95,7 +91,7 @@ struct AddDownloadPanel: View {
                 .padding(AppLayout.focusClearance) // Align content with the header/footer and retain focus-ring clearance.
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(minHeight: 0, idealHeight: bodyHeight, maxHeight: bodyHeight)
+            .frame(minHeight: 0, idealHeight: bodyHeight, maxHeight: .infinity)
 
             }
 
@@ -105,12 +101,13 @@ struct AddDownloadPanel: View {
                 .padding(.horizontal, AppLayout.focusClearance)
         }
         .padding(AppLayout.pageInset)
-        .frame(maxWidth: .infinity)
-        .padding(.leading, artworkWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.leading, AppLayout.artworkWidth)
         .background(alignment: .leading) {
-            DownloadArtwork(showsBrand: artworkWidth == AppLayout.artworkWidth).frame(width: artworkWidth)
+            DownloadArtwork().frame(width: AppLayout.artworkWidth)
         }
-        .frame(minWidth: AppLayout.sheetMinimumWidth, idealWidth: AppLayout.sheetWidth, maxWidth: 840)
+        .frame(minWidth: AppLayout.sheetMinimumWidth, idealWidth: AppLayout.sheetWidth, maxWidth: .infinity,
+               minHeight: AppLayout.sheetMinimumHeight, idealHeight: AppLayout.sheetHeight, maxHeight: .infinity)
         .desktopControls()
         .presentationSizing(.fitted)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -219,6 +216,7 @@ struct AddDownloadPanel: View {
                         Task { await store.cancelBitTorrentFileSelection() }
                     }
                     .disabled(isSubmitting && !store.isResolvingBitTorrentFiles)
+                    .accessibilityIdentifier("add-download-change-source-button")
                 } else if isSubmitting { ProgressView().controlSize(.small) }
                 Spacer()
                 Button(String(localized: "Cancel"), role: .cancel, action: dismiss)

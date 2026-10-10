@@ -97,6 +97,7 @@ final class DownloadHistoryStore {
             if let old = result[task.id] {
                 task.scheduledStart = old.scheduledStart
                 task.torrentDirectory = old.torrentDirectory
+                task.torrentFileIssue = old.torrentFileIssue
                 task.addedAt = old.addedAt
                 task.addedAtIsFirstSeen = old.addedAtIsFirstSeen
                 if task.sourceURL == nil { task.sourceURL = old.sourceURL }

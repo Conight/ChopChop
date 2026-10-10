@@ -41,11 +41,41 @@ extension DownloadStore {
                 return task
             }
             let previousTasks = tasks
-            tasks = DownloadHistoryStore.merge(visibleSnapshot, existing: tasks, hidden: hiddenTaskIDs)
-            let historySaved = persistTaskHistory()
+            var merged = DownloadHistoryStore.merge(visibleSnapshot, existing: tasks, hidden: hiddenTaskIDs)
+            let fileIssues = await TorrentFileSafety.issues(in: merged.filter {
+                $0.isTorrentLike && $0.isAvailableInEngine && $0.removalAction == .removeActiveDownload
+            }, previous: previousTasks)
+            guard !Task.isCancelled, engineSessionID == sessionID, engineController.isRunning,
+                  revision == taskRevision, sequence == refreshSequence else { return nil }
+            for index in merged.indices {
+                if let issue = fileIssues[merged[index].id] { merged[index].torrentFileIssue = issue }
+                if merged[index].torrentFileIssue != nil {
+                    merged[index].scheduledStart = nil
+                    armedScheduledTaskIDs.remove(merged[index].id)
+                    scheduleRequests.removeValue(forKey: merged[index].id)
+                }
+            }
+            tasks = merged
+            // Save the safety hold before RPC: reconnect/restart must not lose it if pausing fails.
+            var historySaved = persistTaskHistory()
             connectionIssue = nil
             updateRuntime(lastError: nil)
             var sessionChanged = false
+            for task in merged where task.torrentFileIssue != nil && task.isAvailableInEngine
+                && (task.status == .active || task.status == .waiting || task.isSharing) {
+                try await client.forcePause(task.id)
+                guard !Task.isCancelled, engineSessionID == sessionID, engineController.isRunning,
+                      revision == taskRevision, sequence == refreshSequence else { return nil }
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                    tasks[index].status = .paused
+                    tasks[index].isSharing = false
+                    tasks[index].downloadSpeed = 0
+                    tasks[index].uploadSpeed = 0
+                    tasks[index].connections = 0
+                }
+                sessionChanged = true
+            }
+            if sessionChanged { historySaved = persistTaskHistory() }
             // Upgrade existing torrent tasks as well as newly added ones. force-save is needed
             // for seeding, which the engine session serializer otherwise treats as finished.
             for task in polledTasks where task.isTorrentLike && task.removalAction == .removeActiveDownload

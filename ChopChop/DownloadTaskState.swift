@@ -66,12 +66,14 @@ nonisolated extension DownloadTask {
     var progressState: DownloadProgressState {
         if status == .completed { return .determinate(1) }
         if isChecking || isFetchingMetadata { return .indeterminate }
+        if isSharing { return .determinate(1) }
         if let media { return media.fraction.map(DownloadProgressState.determinate) ?? .indeterminate }
         guard totalLength > 0 else { return .indeterminate }
         return .determinate(min(1, max(0, Double(completedLength) / Double(totalLength))))
     }
 
     var phaseLabel: String {
+        if let torrentFileIssue { return torrentFileIssue.title }
         if !isAvailableInEngine && removalAction == .removeActiveDownload { return String(localized: "Saved · not connected") }
         if status == .paused && media?.state == "awaiting-selection" { return String(localized: "Choose media tracks") }
         if status == .paused && requiresFileSelection { return String(localized: "Choose torrent files") }
@@ -121,6 +123,7 @@ nonisolated extension DownloadTask {
 
 struct TaskProgressIndicator: View {
     var task: DownloadTask
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // A paused/failed unknown-size task must not animate as if it were working.
@@ -129,11 +132,19 @@ struct TaskProgressIndicator: View {
                 .accessibilityLabel(task.phaseLabel)
                 .accessibilityValue(task.progressState.fraction == nil ? task.transferSizeLabel : task.progressLabel)
         } else {
-            ProgressView(value: task.progressState.fraction)
-                .progressViewStyle(.linear)
-                .tint(task.status == .active ? Color.accentColor : Color.secondary)
-                .accessibilityLabel(task.phaseLabel)
-                .accessibilityValue(task.progressState.fraction == nil ? task.transferSizeLabel : task.progressLabel)
+            Group {
+                if let fraction = task.progressState.fraction {
+                    AnimatedDownloadProgressView(value: fraction,
+                        isActive: task.status == .active && task.isAvailableInEngine && !task.isSharing,
+                        reduceMotion: reduceMotion)
+                        .id(task.id)
+                } else {
+                    ProgressView(value: nil as Double?).progressViewStyle(.linear)
+                }
+            }
+            .tint(task.status == .active ? Color.accentColor : Color.secondary)
+            .accessibilityLabel(task.phaseLabel)
+            .accessibilityValue(task.progressState.fraction == nil ? task.transferSizeLabel : task.progressLabel)
         }
     }
 }
@@ -211,6 +222,7 @@ nonisolated extension DownloadTask {
         isFetchingMetadata = try values.decodeIfPresent(Bool.self, forKey: .isFetchingMetadata) ?? false
         requiresFileSelection = try values.decodeIfPresent(Bool.self, forKey: .requiresFileSelection) ?? false
         torrentDirectory = try values.decodeIfPresent(String.self, forKey: .torrentDirectory)
+        torrentFileIssue = try values.decodeIfPresent(TorrentFileIssue.self, forKey: .torrentFileIssue)
         isAvailableInEngine = try values.decodeIfPresent(Bool.self, forKey: .isAvailableInEngine) ?? true
         addedAtIsFirstSeen = try values.decodeIfPresent(Bool.self, forKey: .addedAtIsFirstSeen) ?? true
         queuePosition = try values.decodeIfPresent(Int.self, forKey: .queuePosition)

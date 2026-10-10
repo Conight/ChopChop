@@ -148,7 +148,7 @@ struct TaskInspectorView: View {
                             .font(.caption.weight(.medium))
                             .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(.quaternary, in: Capsule())
-                        Label(task.phaseLabel, systemImage: task.status.symbolName)
+                        Label(task.phaseLabel, systemImage: DownloadListTaskDisplay(task: task).statusSymbol)
                             .font(.callout).foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -188,6 +188,19 @@ struct TaskInspectorView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: AppLayout.detailSectionSpacing) {
+            if let issue = task.torrentFileIssue {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(issue.explanation, systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if task.isAvailableInEngine, store.engineCapabilities?.supportsTorrentManagement == true {
+                        Button(String(localized: "Recheck Downloaded Pieces")) {
+                            Task { await store.recheckTorrent(task) }
+                        }
+                        .disabled(store.isUpdatingEngine)
+                    }
+                }.contentPanel()
+            }
             if let error = task.errorMessage, task.status == .failed {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.red).textSelection(.enabled)

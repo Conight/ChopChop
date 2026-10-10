@@ -2831,6 +2831,260 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(store.runtime.phase, .stopped)
     }
 
+
+    func testFileSafetyOnlyRequiresCompletedSelectedPayloads() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let payload = root.appendingPathComponent("payload.bin")
+        try Data(repeating: 1, count: 100).write(to: payload)
+        var task = makeTask(protocolKind: .bitTorrent, files: [
+            DownloadFile(index: 1, path: payload.path, length: 100, completedLength: 100, isSelected: true),
+            DownloadFile(index: 2, path: root.appendingPathComponent("skipped").path, length: 10, completedLength: 10, isSelected: false),
+            DownloadFile(index: 3, path: root.appendingPathComponent("empty").path, length: 0, completedLength: 0, isSelected: true),
+            DownloadFile(index: 4, path: root.appendingPathComponent("unfinished").path, length: 10, completedLength: 0, isSelected: true)
+        ])
+        XCTAssertNil(TorrentFileSafety.issue(for: task))
+        try Data(repeating: 1, count: 50).write(to: payload)
+        XCTAssertEqual(TorrentFileSafety.issue(for: task), .changed)
+        try FileManager.default.removeItem(at: payload)
+        XCTAssertEqual(TorrentFileSafety.issue(for: task), .missing)
+        task.isFetchingMetadata = true
+        XCTAssertNil(TorrentFileSafety.issue(for: task))
+        task.isFetchingMetadata = false
+        task.requiresFileSelection = true
+        XCTAssertNil(TorrentFileSafety.issue(for: task))
+        task.requiresFileSelection = false
+        task.isChecking = true
+        XCTAssertNil(TorrentFileSafety.issue(for: task))
+    }
+
+    func testFileTrashIsIdempotentAndKeepsRealErrors() throws {
+        let fm = FileSafetyTestManager()
+        let task = makeTask(status: .completed, files: [
+            DownloadFile(path: "/fixture/one", length: 1, completedLength: 1, isSelected: true),
+            DownloadFile(path: "/fixture/two", length: 1, completedLength: 1, isSelected: true)
+        ])
+        fm.existing = ["/fixture/one", "/fixture/one.aria2"]
+        try DownloadTaskFileTrash.moveTaskFilesToTrash(task, fileManager: fm)
+        XCTAssertEqual(fm.trashed, ["/fixture/one", "/fixture/one.aria2"])
+        XCTAssertNoThrow(try DownloadTaskFileTrash.moveTaskFilesToTrash(task, fileManager: fm))
+        fm.existing = ["/fixture/one"]
+        fm.trashError = CocoaError(.fileNoSuchFile)
+        XCTAssertNoThrow(try DownloadTaskFileTrash.moveTaskFilesToTrash(task, fileManager: fm), "Finder deletion between stat and trash")
+        fm.trashError = CocoaError(.fileWriteNoPermission)
+        XCTAssertThrowsError(try DownloadTaskFileTrash.moveTaskFilesToTrash(task, fileManager: fm))
+        fm.attributesError = CocoaError(.fileReadNoPermission)
+        XCTAssertThrowsError(try DownloadTaskFileTrash.allReportedFilesAreMissing(task, fileManager: fm))
+        XCTAssertFalse(DownloadFilePresence.isMissing(POSIXError(.EACCES)))
+        XCTAssertFalse(DownloadFilePresence.isMissing(POSIXError(.EIO)))
+        XCTAssertTrue(DownloadFilePresence.isMissing(POSIXError(.ENOENT)))
+        XCTAssertTrue(DownloadFilePresence.isMissing(CocoaError(.fileReadNoSuchFile)))
+    }
+
+    func testTorrentFileSafetyUsesPreviousCompletionAfterEngineCountersReset() async throws {
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        var before = makeTask(protocolKind: .bitTorrent, files: [
+            DownloadFile(index: 1, path: missing.path, length: 100, completedLength: 100, isSelected: true)
+        ])
+        before.isSharing = true
+        var after = before
+        after.isSharing = false
+        after.isChecking = true
+        after.files[0].completedLength = 0
+        let missingIssues = await TorrentFileSafety.issues(in: [after], previous: [before])
+        XCTAssertEqual(missingIssues[after.id], .missing)
+        after.files[0].isSelected = false
+        let skippedIssues = await TorrentFileSafety.issues(in: [after], previous: [before])
+        XCTAssertTrue(skippedIssues.isEmpty, "The latest file selection takes precedence")
+    }
+
+    @MainActor
+    func testFailedSafetyPauseRetainsHoldAndRetriesWithoutModalAlerts() async throws {
+        let calls = LockedBox<[String]>([])
+        let reject = LockedBox(true)
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            calls.withValue { $0.append(method) }
+            if method == "aria2.tellActive" {
+                let data = try JSONSerialization.data(withJSONObject: ["result": [[
+                    "gid": "seed", "status": "active", "seeder": "true", "totalLength": "100", "completedLength": "100",
+                    "bittorrent": ["info": ["name": "Seed"]],
+                    "files": [["index": "1", "path": missing.path, "length": "100", "completedLength": "100", "selected": "true"]]
+                ]]])
+                return try Self.rpcHTTPResponse(for: request, body: String(decoding: data, as: UTF8.self))
+            }
+            if method == "aria2.forcePause" && reject.value() { throw URLError(.networkConnectionLost) }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let settings = try PersistentSettingsStore(inMemory: true)
+        let store = DownloadStore(settingsStore: settings, engineController: MockEngineController(client: client))
+        var alerts: [UserFacingAlert] = []
+        let observer = store.userAlerts.sink { alerts.append($0) }
+        _ = await store.refreshTasks()
+        XCTAssertNotNil(store.connectionIssue)
+        XCTAssertEqual(try settings.makeHistoryStore().load().first?.torrentFileIssue, .missing)
+        reject.set(false)
+        _ = await store.refreshTasks()
+        XCTAssertNil(store.connectionIssue)
+        XCTAssertEqual(store.tasks.first?.status, .paused)
+        XCTAssertEqual(store.tasks.first?.torrentFileIssue, .missing)
+        XCTAssertEqual(calls.value().filter { $0 == "aria2.forcePause" }.count, 2)
+        XCTAssertTrue(alerts.isEmpty)
+        _ = observer
+    }
+
+    @MainActor
+    func testUnavailableEngineDoesNotTrashExistingPotentiallyOpenFiles() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1]).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let client = try makeRPCClient { _ in throw URLError(.cannotConnectToHost) }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client, isRunning: false, hasLaunchedProcess: true))
+        let task = makeTask(status: .paused, files: [DownloadFile(path: file.path, length: 1, completedLength: 1, isSelected: true)])
+        store.tasks = [task]
+        await store.removeSelected([task.id], includingFiles: true)
+        XCTAssertNotNil(store.batchOperationIssue)
+        XCTAssertEqual(store.tasks.count, 1)
+        XCTAssertEqual(try Data(contentsOf: file), Data([1]))
+        await store.removeSelected([task.id], includingFiles: false)
+        XCTAssertTrue(store.tasks.isEmpty, "Removing only the record remains possible")
+        XCTAssertEqual(try Data(contentsOf: file), Data([1]))
+    }
+
+    @MainActor
+    func testRemovingMissingFilesWorksOnlineOfflineAndInBatches() async throws {
+        for online in [false, true] {
+            for batch in [false, true] {
+                let calls = LockedBox<[String]>([])
+                let client = try makeRPCClient { request in
+                    let method = try Self.captureRPCMethod(from: request)
+                    calls.withValue { $0.append(method) }
+                    return try Self.responseForStoreMutationPoll(method: method, request: request)
+                }
+                // Covers an unreachable engine as well as a record missing from a live engine.
+                let controller = MockEngineController(client: client, isRunning: online, hasLaunchedProcess: true)
+                let settings = try PersistentSettingsStore(inMemory: true)
+                let store = DownloadStore(settingsStore: settings, engineController: controller)
+                let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                var task = makeTask(protocolKind: .bitTorrent, status: .paused, destination: missing.path,
+                    files: [DownloadFile(path: missing.appendingPathComponent("payload").path, length: 100, completedLength: 100, isSelected: true)])
+                task.torrentDirectory = missing.path
+                task.isAvailableInEngine = false // The ghost row left by the original failed removal.
+                store.tasks = [task]
+                var alerts: [UserFacingAlert] = []
+                let observer = store.userAlerts.sink { alerts.append($0) }
+                if batch { await store.removeSelected([task.id], includingFiles: true) }
+                else { await store.remove(task, includingFiles: true) }
+                XCTAssertTrue(store.tasks.isEmpty)
+                XCTAssertTrue(alerts.isEmpty)
+                XCTAssertNil(store.batchOperationIssue)
+                let history = try settings.makeHistoryStore()
+                XCTAssertTrue(try history.load().isEmpty)
+                XCTAssertTrue(history.deletedIDs.contains(task.id))
+                XCTAssertTrue(DownloadHistoryStore.merge([task], existing: [], hidden: history.deletedIDs).isEmpty)
+                if online { XCTAssertTrue(calls.value().contains("aria2.forceRemove")) }
+                else { XCTAssertTrue(calls.value().isEmpty) }
+                _ = observer
+            }
+        }
+    }
+
+    @MainActor
+    func testMissingSeedPayloadPausesPersistsAndNeedsExplicitRecheck() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("seed.bin")
+        try Data(repeating: 7, count: 100).write(to: file)
+        let calls = LockedBox<[String]>([])
+        let active = LockedBox(true)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            calls.withValue { $0.append(method) }
+            if method == "aria2.forcePause" { active.set(false) }
+            if method == "aria2.unpause" { active.set(true) }
+            if (method == "aria2.tellActive" && active.value()) || (method == "aria2.tellWaiting" && !active.value()) {
+                let data = try JSONSerialization.data(withJSONObject: ["result": [[
+                    "gid": "seed", "status": active.value() ? "active" : "paused", "seeder": active.value() ? "true" : "false",
+                    "dir": root.path, "totalLength": "100", "completedLength": "100", "uploadSpeed": active.value() ? "100" : "0",
+                    "bittorrent": ["info": ["name": "Seed"]],
+                    "files": [["index": "1", "path": file.path, "length": "100", "completedLength": "100", "selected": "true"]]
+                ]]])
+                return try Self.rpcHTTPResponse(for: request, body: String(decoding: data, as: UTF8.self))
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let settings = try PersistentSettingsStore(inMemory: true)
+        let store = DownloadStore(settingsStore: settings, engineController: MockEngineController(client: client))
+        store.engineCapabilities = EngineCapabilities(product: "aria2-next", rpcVersion: "1.1.0", version: "2.8.6", enabledFeatures: ["BitTorrent"])
+        var alerts: [UserFacingAlert] = []
+        let observer = store.userAlerts.sink { alerts.append($0) }
+        _ = await store.refreshTasks()
+        let original = try XCTUnwrap(store.tasks.first)
+        XCTAssertTrue(original.isSharing)
+        XCTAssertFalse(calls.value().contains("aria2.forcePause"))
+        try FileManager.default.removeItem(at: file)
+        calls.set([])
+        _ = await store.refreshTasks()
+        let held = try XCTUnwrap(store.tasks.first)
+        XCTAssertEqual(held.torrentFileIssue, .missing)
+        XCTAssertEqual(held.status, .paused)
+        XCTAssertFalse(held.isSharing)
+        XCTAssertEqual(held.uploadSpeed, 0)
+        XCTAssertEqual(held.addedAt, original.addedAt)
+        XCTAssertEqual(held.id, original.id)
+        XCTAssertFalse(held.hasCompletedPayload)
+        XCTAssertEqual(calls.value().filter { $0 == "aria2.forcePause" }.count, 1)
+        XCTAssertTrue(calls.value().contains("aria2.saveSession"))
+        XCTAssertTrue(alerts.isEmpty, "Polling errors belong inline, not in modal alerts")
+        XCTAssertEqual(try settings.makeHistoryStore().load().first?.torrentFileIssue, .missing)
+        let restoredStore = DownloadStore(settingsStore: settings, engineController: MockEngineController(client: client, isRunning: false))
+        XCTAssertEqual(restoredStore.tasks.first?.torrentFileIssue, .missing)
+
+        calls.set([])
+        try Data(repeating: 7, count: 100).write(to: file)
+        _ = await store.refreshTasks()
+        XCTAssertEqual(store.tasks.first?.torrentFileIssue, .missing, "Restoring a file does not silently release the hold")
+        await store.controlSelected([held.id], action: .resume)
+        XCTAssertNotNil(store.batchOperationIssue)
+        let paused = try XCTUnwrap(store.tasks.first)
+        await store.resume(paused)
+        store.tasks[0].scheduledStart = Date(timeIntervalSinceNow: -1)
+        store.armedScheduledTaskIDs.insert(held.id)
+        await store.runDownloadPlans()
+        XCTAssertFalse(calls.value().contains("aria2.unpause"), "Single, batch and scheduled resumes all respect the hold")
+        XCTAssertFalse(calls.value().contains("aria2.forceBtRecheck"))
+        await store.recheckTorrent(try XCTUnwrap(store.tasks.first))
+        XCTAssertTrue(calls.value().contains("aria2.forceBtRecheck"))
+        XCTAssertNil(store.tasks.first?.torrentFileIssue)
+        XCTAssertEqual(store.tasks.first?.status, .paused)
+        XCTAssertFalse(calls.value().contains("aria2.unpause"), "Rechecking does not start transmission")
+        await store.resume(try XCTUnwrap(store.tasks.first))
+        XCTAssertTrue(calls.value().contains("aria2.unpause"))
+        _ = observer
+    }
+
+    @MainActor
+    func testResumeChecksForFilesDeletedWhilePaused() async throws {
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            calls.withValue { $0.append(method) }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let task = makeTask(protocolKind: .bitTorrent, status: .paused, files: [
+            DownloadFile(path: missing.path, length: 100, completedLength: 100, isSelected: true)
+        ])
+        store.tasks = [task]
+        await store.resume(task)
+        XCTAssertFalse(calls.value().contains("aria2.unpause"))
+        XCTAssertEqual(store.tasks.first?.torrentFileIssue, .missing)
+    }
+
     private func makeTask(
         id: String = "task",
         name: String = "File",
@@ -3980,6 +4234,46 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testContinuousSeedingRuntimeDefaultsReportRestartAndPreserveEffectiveUploadCap() async throws {
+        for oldTime in [nil, "2880", "0", ""] as [String?] {
+            let changes = LockedBox<[String: String]>([:])
+            let calls = LockedBox<[String]>([])
+            let client = try makeRPCClient { request in
+                let method = try Self.captureRPCMethod(from: request, into: calls)
+                if method == "aria2.getGlobalOption" {
+                    let values = oldTime.map { ["seed-ratio": "2", "seed-time": $0] } ?? ["seed-ratio": "2"]
+                    let body = String(decoding: try JSONSerialization.data(withJSONObject: ["result": values]), as: UTF8.self)
+                    return try Self.rpcHTTPResponse(for: request, body: body)
+                }
+                XCTAssertEqual(method, "aria2.changeGlobalOption")
+                let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+                let params = try XCTUnwrap(object["params"] as? [Any])
+                changes.set(try XCTUnwrap(params.last as? [String: String]))
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+            }
+            let controller = MockEngineController(client: client)
+            let store = try makeInjectedStore(engineController: controller)
+            defer { store.shutdown() }
+            store.engineSettings.keepSharing = true
+            store.engineSettings.maxOverallUploadLimitKB = 512
+            store.preferences.bandwidthSchedule.enabled = true
+            store.preferences.bandwidthSchedule.startMinute = 0
+            store.preferences.bandwidthSchedule.endMinute = 0
+            store.preferences.bandwidthSchedule.uploadKB = 64
+            await store.applyRuntimeEngineOptions()
+            XCTAssertEqual(calls.value(), ["aria2.getGlobalOption", "aria2.changeGlobalOption"])
+            XCTAssertEqual(changes.value()["max-overall-upload-limit"], "64K")
+            XCTAssertNil(changes.value()["seed-time"], "Empty or zero would stop sharing, not clear the deadline")
+            XCTAssertEqual(changes.value()["seed-ratio"], oldTime == nil ? "0" : nil)
+            XCTAssertNil(changes.value()["max-upload-limit"], "Do not overwrite individual torrent caps")
+            if oldTime != nil {
+                XCTAssertEqual(store.activityMessage, String(localized: "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."))
+            }
+            XCTAssertEqual(controller.stopCallCount, 0, "Applying settings must not interrupt transfers")
+        }
+    }
+
+    @MainActor
     func testTorrentUploadLimitChangesLiveWithoutPausingOrResuming() async throws {
         let calls = LockedBox<[String]>([])
         let client = try makeRPCClient { request in
@@ -4408,5 +4702,25 @@ private actor StartupEngineManager: EngineInstallationManaging {
         try await Task.sleep(for: installDelay)
         if failInstall { throw URLError(.notConnectedToInternet) }
         return EngineInstallation(executableURL: URL(fileURLWithPath: "/unused"), version: release.version)
+    }
+}
+
+
+/// Deterministic filesystem errors without touching the user's Trash or requiring root permissions.
+private final class FileSafetyTestManager: FileManager, @unchecked Sendable {
+    var existing: Set<String> = []
+    var trashed: [String] = []
+    var attributesError: Error?
+    var trashError: Error?
+    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+        if let attributesError { throw attributesError }
+        guard existing.contains(path) else { throw CocoaError(.fileReadNoSuchFile) }
+        return [.type: FileAttributeType.typeRegular, .size: NSNumber(value: 1)]
+    }
+    override func fileExists(atPath path: String) -> Bool { existing.contains(path) }
+    override func trashItem(at url: URL, resultingItemURL outResultingURL: AutoreleasingUnsafeMutablePointer<NSURL?>?) throws {
+        if let trashError { throw trashError }
+        trashed.append(url.path)
+        existing.remove(url.path)
     }
 }

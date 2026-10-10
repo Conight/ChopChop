@@ -18,9 +18,10 @@ nonisolated enum AppLayout {
     static let detailLabelWidth: CGFloat = 112
     static let sheetWidth: CGFloat = 740
     static let sheetMinimumWidth: CGFloat = 660
+    static let sheetHeight: CGFloat = 520
+    static let sheetMinimumHeight: CGFloat = 400
     static let sheetBodyHeight: CGFloat = 360
     static let artworkWidth: CGFloat = 180
-    static let compactArtworkWidth: CGFloat = 72
 }
 
 enum AppTypography {
@@ -51,5 +52,65 @@ nonisolated enum L10n {
     /// Only use for fixed display keys (e.g. persisted enum raw values), never user content.
     static func key(_ key: String, bundle: Bundle = .main) -> String {
         bundle.localizedString(forKey: key, value: key, table: nil)
+    }
+}
+
+/// Interpolate only newly reported forward progress. The engine remains the source
+/// of truth; no timer estimates additional bytes between updates.
+nonisolated struct DownloadProgressAnimation: Equatable {
+    static let duration = 0.25
+    var value: Double
+    var isActive: Bool
+
+    func shouldAnimate(from previous: Self, reduceMotion: Bool) -> Bool {
+        !reduceMotion && isActive && previous.isActive &&
+            previous.value.isFinite && value.isFinite &&
+            previous.value >= 0 && value > previous.value && value < 1
+    }
+}
+
+struct AnimatedDownloadProgressView: View {
+    let value: Double
+    let isActive: Bool
+    let reduceMotion: Bool
+    @State private var displayedValue: Double
+
+    init(value: Double, isActive: Bool, reduceMotion: Bool) {
+        self.value = value
+        self.isActive = isActive
+        self.reduceMotion = reduceMotion
+        _displayedValue = State(initialValue: value)
+    }
+
+    private var sample: DownloadProgressAnimation {
+        DownloadProgressAnimation(value: value, isActive: isActive)
+    }
+
+    var body: some View {
+        InterpolatedNativeProgress(value: displayedValue, reportedValue: value,
+                                   interpolates: isActive && !reduceMotion)
+            .accessibilityValue(value.formatted(.percent.precision(.fractionLength(0))))
+            .onChange(of: sample) { previous, current in
+                let animation: Animation? = current.shouldAnimate(from: previous, reduceMotion: reduceMotion)
+                    ? .easeOut(duration: DownloadProgressAnimation.duration) : nil
+                withAnimation(animation) { displayedValue = current.value }
+            }
+    }
+}
+
+/// Keep the platform's real ProgressView (NSProgressIndicator on macOS). Explicit
+/// animatable data also interpolates native controls, not just SwiftUI geometry.
+private struct InterpolatedNativeProgress: View, Animatable {
+    var value: Double
+    var reportedValue: Double
+    var interpolates: Bool
+    var animatableData: Double {
+        get { value }
+        set { value = newValue }
+    }
+
+    var body: some View {
+        ProgressView(value: interpolates ? min(value, reportedValue) : reportedValue)
+            .progressViewStyle(.linear)
     }
 }

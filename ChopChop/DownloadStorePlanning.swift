@@ -70,6 +70,7 @@ extension DownloadStore {
             armedScheduledTaskIDs.remove(task.id)
             guard task.status == .paused else { continue }
             do {
+                try await validateTorrentFilesBeforeResume(task)
                 try await client.resume(task.id)
                 guard engineSessionID == session, !isShuttingDown else { return }
                 cancelSchedule(task.id)
