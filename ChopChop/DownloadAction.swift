@@ -181,6 +181,22 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     var ids: Set<String> { taskIDs ?? taskID.map { [$0] } ?? [] }
     var tasks: [DownloadTask] { store.tasks.filter { ids.contains($0.id) } }
     var task: DownloadTask? { tasks.count == 1 ? tasks.first : nil }
+
+    /// Row controls target one task; only the contextual menu supplies a selection.
+    static func listTask(store: DownloadStore, taskID: String, selection: Set<String>? = nil,
+                         detailsPresentation: TaskDetailsPresentation,
+                         showDetails: @escaping () -> Void) -> Self {
+        Self(store: store, taskID: taskID, window: DownloadWindowActions(
+            hasSelection: true, showDetails: { section in
+                store.selectedTaskID = taskID
+                detailsPresentation.selectionChanged(to: taskID)
+                if let section {
+                    detailsPresentation.selectedTab = .overview
+                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+                }
+                showDetails()
+            }), taskIDs: selection)
+    }
 }
 
 struct DownloadActionButton: View {

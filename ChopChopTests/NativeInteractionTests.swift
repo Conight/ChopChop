@@ -90,6 +90,49 @@ final class NativeInteractionTests: XCTestCase {
     }
 
     @MainActor
+    func testRowActionsTargetClickedTaskAndRetainRemovalConfirmation() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        let first = try fixture("first"), second = try fixture("second")
+        store.tasks = [first, second]
+        store.selectedTaskIDs = [first.id, second.id]
+        store.preferences.suppressRemoveConfirmation = false
+        let presentation = TaskDetailsPresentation()
+        presentation.selectionChanged(to: first.id)
+        presentation.sectionRequest = TaskDetailRequest(section: .schedule)
+        var openedTask: String?
+        let context = DownloadActionContext.listTask(store: store, taskID: second.id,
+            detailsPresentation: presentation, showDetails: { openedTask = store.selectedTaskID })
+
+        // A row's trash button never inherits an existing multiple selection.
+        XCTAssertTrue(DownloadAction.remove.perform(in: context))
+        XCTAssertEqual(store.removalRequest?.tasks.map(\.id), [second.id])
+        XCTAssertEqual(store.tasks.map(\.id), [first.id, second.id], "Wait for the existing confirmation flow")
+        XCTAssertEqual(store.selectedTaskIDs, [first.id, second.id])
+        store.removalRequest = nil
+
+        // Details remain available offline and select the task before opening the panel.
+        XCTAssertFalse(DownloadAction.engineReady(in: store))
+        XCTAssertTrue(DownloadAction.details.perform(in: context))
+        XCTAssertEqual(openedTask, second.id)
+        XCTAssertEqual(store.selectedTaskIDs, [second.id])
+        XCTAssertNil(presentation.sectionRequest)
+        store.isPerformingBatchOperation = true
+        XCTAssertFalse(DownloadAction.remove.perform(in: context))
+        XCTAssertNil(store.removalRequest)
+        XCTAssertTrue(DownloadAction.details.isEnabled(in: context))
+        store.isPerformingBatchOperation = false
+
+        // Polling may remove the row between rendering and dispatch.
+        store.tasks = [first]
+        openedTask = nil
+        XCTAssertFalse(DownloadAction.details.perform(in: context))
+        XCTAssertNil(openedTask)
+        XCTAssertFalse(DownloadAction.remove.perform(in: context))
+        XCTAssertNil(store.removalRequest)
+    }
+
+    @MainActor
     func testNativeCommandPanelFitsAndClosesWithOwner() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }

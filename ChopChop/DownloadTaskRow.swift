@@ -1,30 +1,47 @@
 import SwiftUI
 
-/// A flat, two-line desktop row. List owns selection, separators and pointer
+/// A flat desktop row. List owns selection, separators and pointer
 /// behavior; only the content has app-defined spacing.
 struct DownloadTaskRow: View, Equatable {
-    let store: DownloadStore
+    let context: DownloadActionContext
     @ObservedObject var row: DownloadRowState
     let isSelected: Bool
     let actionsEnabled: Bool
+    let removalEnabled: Bool
     let scheduleArmed: Bool
+    let compact: Bool
+    private var store: DownloadStore { context.store }
     private var task: DownloadTask { row.task }
     private var display: DownloadListTaskDisplay { DownloadListTaskDisplay(task: task) }
-    private var context: DownloadActionContext { DownloadActionContext(store: store, taskID: task.id) }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.row === rhs.row && lhs.isSelected == rhs.isSelected &&
-        lhs.actionsEnabled == rhs.actionsEnabled && lhs.scheduleArmed == rhs.scheduleArmed
+        lhs.actionsEnabled == rhs.actionsEnabled && lhs.removalEnabled == rhs.removalEnabled &&
+        lhs.scheduleArmed == rhs.scheduleArmed && lhs.compact == rhs.compact
     }
 
     var body: some View {
         HStack(spacing: 16) {
             identity.frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-            progress.frame(width: 172)
-            transfer.frame(width: 100, alignment: .trailing)
-            ZStack { primaryAction }.frame(width: 24, height: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                progress
+                if compact {
+                    HStack(spacing: 8) {
+                        transferLabels
+                        Spacer(minLength: 0)
+                    }
+                    .font(.caption).monospacedDigit().lineLimit(1)
+                    .frame(minHeight: 13)
+                }
+            }.frame(width: compact ? 180 : 172)
+            if !compact { transfer.frame(width: 100, alignment: .trailing) }
+            HStack(spacing: 4) {
+                ZStack { primaryAction }.frame(width: 24, height: 28)
+                rowAction(.details)
+                rowAction(.remove).disabled(!removalEnabled)
+            }
         }
-        .frame(minHeight: 38)
+        .frame(minHeight: 44)
         .padding(.vertical, 7)
         .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + 44 }
         .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
@@ -62,7 +79,7 @@ struct DownloadTaskRow: View, Equatable {
     }
 
     private var progress: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: compact ? 2 : 6) {
             HStack(spacing: 6) {
                 Text(display.sizeLabel).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
@@ -85,23 +102,41 @@ struct DownloadTaskRow: View, Equatable {
 
     private var transfer: some View {
         VStack(alignment: .trailing, spacing: 5) {
-            if display.showsTransferRates {
-                Label(ByteFormat.speed(task.isSharing ? task.uploadSpeed : task.downloadSpeed),
-                      systemImage: task.isSharing ? "arrow.up" : "arrow.down")
-                    .accessibilityLabel(task.isSharing ? String(localized: "Upload speed") : String(localized: "Download speed"))
-                    .accessibilityValue(ByteFormat.speed(task.isSharing ? task.uploadSpeed : task.downloadSpeed))
-                if task.isTorrentLike, !task.isSharing, task.uploadSpeed > 0 {
-                    Label(ByteFormat.speed(task.uploadSpeed), systemImage: "arrow.up")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel(String(localized: "Upload speed"))
-                        .accessibilityValue(ByteFormat.speed(task.uploadSpeed))
-                } else if let remaining = TaskInspectorDisplay(task: task).remainingTime {
-                    Text(String(localized: "ETA \(remaining)")).foregroundStyle(.secondary)
-                }
-            }
+            transferLabels
         }
         .font(.caption).monospacedDigit().lineLimit(1)
         .accessibilityIdentifier("task-\(task.id)-transfer")
+    }
+
+    @ViewBuilder private var transferLabels: some View {
+        if display.showsTransferRates {
+            Label(ByteFormat.speed(task.isSharing ? task.uploadSpeed : task.downloadSpeed),
+                  systemImage: task.isSharing ? "arrow.up" : "arrow.down")
+                .fixedSize()
+                .accessibilityLabel(task.isSharing ? String(localized: "Upload speed") : String(localized: "Download speed"))
+                .accessibilityValue(ByteFormat.speed(task.isSharing ? task.uploadSpeed : task.downloadSpeed))
+            if task.isTorrentLike, !task.isSharing, task.uploadSpeed > 0 {
+                Label(ByteFormat.speed(task.uploadSpeed), systemImage: "arrow.up")
+                    .fixedSize()
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(String(localized: "Upload speed"))
+                    .accessibilityValue(ByteFormat.speed(task.uploadSpeed))
+            } else if let remaining = TaskInspectorDisplay(task: task).remainingTime {
+                Text(compact ? remaining : String(localized: "ETA \(remaining)"))
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "ETA \(remaining)"))
+                    .accessibilityLabel(String(localized: "ETA \(remaining)"))
+            }
+        }
+    }
+
+    private func rowAction(_ action: DownloadAction) -> some View {
+        DownloadActionButton(action: action, context: context)
+            .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
+            .frame(width: 24, height: 28)
+            .help(action.title)
+            .accessibilityLabel("\(action.title) \(task.name)")
+            .accessibilityIdentifier("task-\(task.id)-\(action.id)-button")
     }
 
     @ViewBuilder private var primaryAction: some View {

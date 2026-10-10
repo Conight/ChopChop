@@ -602,43 +602,47 @@ struct DownloadCanvas: View {
                             DownloadActionButton(action: .remove, context: context).labelStyle(.iconOnly)
                         }.padding(.horizontal, AppLayout.pageInset).padding(.vertical, 8)
                     }
-                    List(selection: $store.selectedTaskIDs) {
-                        ForEach(visibleTasks) { task in
-                            DownloadTaskRow(store: store, row: store.listPresentation.row(for: task),
-                                isSelected: store.selectedTaskIDs.contains(task.id),
-                                actionsEnabled: DownloadAction.engineReady(in: store),
-                                scheduleArmed: store.armedScheduledTaskIDs.contains(task.id))
-                                .equatable()
-                                .tag(task.id)
-                                .modifier(QueueReordering(store: store, task: task))
+                    GeometryReader { geometry in
+                        List(selection: $store.selectedTaskIDs) {
+                            ForEach(visibleTasks) { task in
+                                DownloadTaskRow(context: context(for: task), row: store.listPresentation.row(for: task),
+                                    isSelected: store.selectedTaskIDs.contains(task.id),
+                                    actionsEnabled: DownloadAction.engineReady(in: store) && !store.isPerformingBatchOperation,
+                                    removalEnabled: !store.isUpdatingEngine && !store.isPerformingBatchOperation,
+                                    scheduleArmed: store.armedScheduledTaskIDs.contains(task.id),
+                                    compact: geometry.size.width < 720)
+                                    .equatable()
+                                    .tag(task.id)
+                                    .modifier(QueueReordering(store: store, task: task))
+                            }
                         }
-                    }
-                    .listStyle(.inset)
-                    .contextMenu(forSelectionType: String.self) { ids in
-                        if let task = store.tasks.first(where: { ids.contains($0.id) }) {
-                            DownloadTaskContextMenu(task: task, context: context(for: task, ids: ids))
+                        .listStyle(.inset)
+                        .contextMenu(forSelectionType: String.self) { ids in
+                            if let task = store.tasks.first(where: { ids.contains($0.id) }) {
+                                DownloadTaskContextMenu(task: task, context: context(for: task, ids: ids))
+                            }
+                        } primaryAction: { ids in
+                            if let action = DownloadListPresentation.primaryAction(for: ids, tasks: store.tasks),
+                               let id = ids.first {
+                                action.perform(in: DownloadActionContext(store: store, taskID: id))
+                            }
                         }
-                    } primaryAction: { ids in
-                        if let action = DownloadListPresentation.primaryAction(for: ids, tasks: store.tasks),
-                           let id = ids.first {
-                            action.perform(in: DownloadActionContext(store: store, taskID: id))
+                        .onKeyPress(.space, phases: .down) { key in
+                            guard key.modifiers.intersection([.command, .control, .option, .shift]).isEmpty, store.selectedTask != nil,
+                                  TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
+                            toggleDetails()
+                            return .handled
                         }
-                    }
-                    .onKeyPress(.space, phases: .down) { key in
-                        guard key.modifiers.intersection([.command, .control, .option, .shift]).isEmpty, store.selectedTask != nil,
-                              TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
-                        toggleDetails()
-                        return .handled
-                    }
-                    .onKeyPress(.escape, phases: .down) { _ in
-                        guard detailsPresentation.isPresented,
-                              TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
-                        detailsPresentation.dismiss()
-                        return .handled
-                    }
-                    .accessibilityIdentifier("download-task-list")
-                    .overlay {
-                        if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()) }
+                        .onKeyPress(.escape, phases: .down) { _ in
+                            guard detailsPresentation.isPresented,
+                                  TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
+                            detailsPresentation.dismiss()
+                            return .handled
+                        }
+                        .accessibilityIdentifier("download-task-list")
+                        .overlay {
+                            if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()) }
+                        }
                     }
                 }
             }
@@ -648,17 +652,9 @@ struct DownloadCanvas: View {
         .background(DownloadWorkspaceBackdrop())
     }
 
-    private func context(for task: DownloadTask, ids: Set<String>) -> DownloadActionContext {
-        DownloadActionContext(store: store, taskID: task.id, window: DownloadWindowActions(
-            hasSelection: true, showDetails: { section in
-                store.selectedTaskID = task.id
-                detailsPresentation.selectionChanged(to: task.id)
-                if let section {
-                    detailsPresentation.selectedTab = .overview
-                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
-                }
-                showDetails()
-            }), taskIDs: ids)
+    private func context(for task: DownloadTask, ids: Set<String>? = nil) -> DownloadActionContext {
+        .listTask(store: store, taskID: task.id, selection: ids,
+                  detailsPresentation: detailsPresentation, showDetails: showDetails)
     }
 
     @ViewBuilder
