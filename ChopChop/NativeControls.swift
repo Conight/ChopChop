@@ -21,9 +21,6 @@ nonisolated enum AppLayout {
     static let sheetBodyHeight: CGFloat = 360
     static let artworkWidth: CGFloat = 180
     static let compactArtworkWidth: CGFloat = 72
-    static let rowCornerRadius: CGFloat = 10
-    static let taskIconSize: CGFloat = 20
-    static let taskTextInset: CGFloat = taskIconSize + controlSpacing
 }
 
 enum AppTypography {

@@ -14,6 +14,11 @@ final class DownloadRowState: ObservableObject, Identifiable {
 
 @MainActor
 final class DownloadListPresentation {
+    static func primaryAction(for ids: Set<String>, tasks: [DownloadTask]) -> DownloadAction? {
+        guard ids.count == 1, let id = ids.first,
+              let task = tasks.first(where: { $0.id == id }), let action = task.primaryControlAction else { return nil }
+        return action == .pause ? .pause : .resume
+    }
     private var rows: [String: DownloadRowState] = [:]
     func update(_ tasks: [DownloadTask]) {
         let ids = Set(tasks.map(\.id))
@@ -28,5 +33,33 @@ final class DownloadListPresentation {
         let row = DownloadRowState(task)
         rows[task.id] = row
         return row
+    }
+}
+
+nonisolated struct DownloadListTaskDisplay {
+    var task: DownloadTask
+
+    var showsProgress: Bool { task.status != .completed && !task.isSharing }
+
+    var showsTransferRates: Bool {
+        task.status == .active && task.isAvailableInEngine && !task.isChecking && task.media?.state != "finalizing"
+    }
+
+    var statusSymbol: String {
+        if task.isSharing { return "arrow.up.circle" }
+        if task.isChecking { return "checkmark.shield" }
+        if task.isFetchingMetadata { return "ellipsis.circle" }
+        return task.status.symbolName
+    }
+
+    var sizeLabel: String {
+        if task.status == .completed || task.isSharing { return ByteFormat.size(task.totalLength) }
+        if let media = task.media {
+            return String(localized: "\(ByteFormat.size(Int64(media.downloadedLength ?? "") ?? 0)) downloaded")
+        }
+        if task.totalLength <= 0 {
+            return String(localized: "\(ByteFormat.size(task.completedLength)) downloaded")
+        }
+        return task.transferSizeLabel
     }
 }

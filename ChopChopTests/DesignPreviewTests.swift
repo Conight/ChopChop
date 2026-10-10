@@ -222,7 +222,7 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
-    func testCompactStatusBarAndInlineSummaryLayout() async throws {
+    func testCompactStatusBarAndFlatListLayout() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         store.selectedDestination = .all
@@ -236,6 +236,7 @@ final class DesignPreviewTests: XCTestCase {
             task("chrome-failed", "这是用于检查窄窗口的很长的文件名称 — Research archive.tar.gz", .failed, .http, 0.1)
         ]
         store.tasks[4].isFetchingMetadata = true
+        store.tasks[4].totalLength = 0
         store.tasks[5].totalLength = 0
         store.tasks[6].errorMessage = "The connection was interrupted. 可以检查网络后继续此任务。"
         let bar = NSHostingController(rootView: DownloadStatusBar().environmentObject(store))
@@ -254,12 +255,55 @@ final class DesignPreviewTests: XCTestCase {
                              appearance: appearance, output: output)
             store.selectedTaskID = store.tasks[0].id
             try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store),
-                             name: "chrome-summary-\(appearance.rawValue)", size: NSSize(width: 900, height: 600),
+                             name: "chrome-selected-\(appearance.rawValue)", size: NSSize(width: 900, height: 600),
                              appearance: appearance, output: output)
             try await render(TaskInspectorView(task: store.tasks[0]).environmentObject(store),
                              name: "chrome-details-\(appearance.rawValue)", size: NSSize(width: 520, height: 480),
                              appearance: appearance, output: output)
         }
+        store.runtime.phase = .running(pid: 1)
+        let presentation = TaskDetailsPresentation()
+        for (name, appearance, width) in [
+            ("light", NSAppearance.Name.aqua, CGFloat(840)),
+            ("dark", .darkAqua, CGFloat(840)),
+            ("compact", .aqua, CGFloat(579)),
+            ("contrast", .accessibilityHighContrastAqua, CGFloat(579))
+        ] {
+            store.selectedTaskID = store.tasks[0].id
+            try await render(VStack(spacing: 0) {
+                DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
+                DownloadStatusBar()
+            }.environmentObject(store).environmentObject(presentation),
+                name: "downloads-list-\(name)", size: NSSize(width: width, height: 520),
+                appearance: appearance, output: output)
+        }
+        store.tasks = [
+            task("seeding", "Linux distribution", .active, .bitTorrent, 1),
+            task("torrent", "Sample footage collection", .active, .bitTorrent, 0.55),
+            task("checking", "Archive integrity check.zip", .active, .http, 0.55),
+            task("media", "Example lecture recording.mp4", .active, .http, 0),
+            task("finalizing", "Another video recording.mp4", .active, .http, 0),
+            task("offline", "Saved download.zip", .paused, .http, 0.35),
+            task("scheduled", "Scheduled archive.zip", .paused, .http, 0)
+        ]
+        store.tasks[0].isSharing = true
+        store.tasks[0].downloadSpeed = 0
+        store.tasks[0].uploadSpeed = 1_600_000
+        store.tasks[1].uploadSpeed = 560_000
+        store.tasks[2].isChecking = true
+        store.tasks[2].downloadSpeed = 0
+        store.tasks[3].media = MediaTaskProgress(state: "downloading", duration: "120000", completedDuration: "30000", downloadedLength: "100000000")
+        store.tasks[4].media = MediaTaskProgress(state: "finalizing", completedDuration: "120000", downloadedLength: "400000000")
+        store.tasks[4].downloadSpeed = 0
+        store.tasks[5].isAvailableInEngine = false
+        store.tasks[6].scheduledStart = Date().addingTimeInterval(3600)
+        store.selectedTaskID = nil
+        try await render(VStack(spacing: 0) {
+            DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
+            DownloadStatusBar()
+        }.environmentObject(store).environmentObject(presentation),
+            name: "downloads-list-states", size: NSSize(width: 579, height: 520),
+            appearance: .aqua, output: output)
         print("CHROME_PREVIEW_OUTPUT=\(output.path)")
     }
 
@@ -304,7 +348,7 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
-    func testSidebarAndWindowStayStableWithSummaryAndDetailsPanelAtScreenEdges() async throws {
+    func testSidebarAndWindowStayStableWithSelectionAndDetailsPanelAtScreenEdges() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         store.selectedDestination = .all
@@ -342,8 +386,7 @@ final class DesignPreviewTests: XCTestCase {
                     let sidebarBeforeDetails = sidebar.convert(sidebar.bounds, to: host.view)
                     store.selectedTaskID = store.tasks[0].id
                     try await Task.sleep(for: .milliseconds(220))
-                    XCTAssertEqual(presentation.expandedTaskID, store.tasks[0].id)
-                    XCTAssertFalse(presentation.isPresented, "Selecting a row must only reveal its inline summary")
+                    XCTAssertFalse(presentation.isPresented, "Selecting a row must keep details closed")
                     presentation.present(store: store, moveSelection: { _ in })
                     XCTAssertEqual(presentation.panel?.alphaValue, 0, "Test panels remain invisible")
                     XCTAssertNil(window.attachedSheet, "Task details must not block the main window")
@@ -579,12 +622,12 @@ final class DesignPreviewTests: XCTestCase {
             let layoutBitmap = try XCTUnwrap(controller.view.bitmapImageRepForCachingDisplay(in: controller.view.bounds))
             controller.view.cacheDisplay(in: controller.view.bounds, to: layoutBitmap)
         }
-        if name.hasPrefix("chrome-window-") || name.hasPrefix("chrome-summary-") {
+        if name.hasPrefix("chrome-window-") || name.hasPrefix("chrome-selected-") {
             XCTAssertEqual(controller.view.bounds.width, size.width, accuracy: 1)
             XCTAssertEqual(controller.view.safeAreaRect.height, size.height, accuracy: 1)
             func verifySplitColumns(_ view: NSView) {
                 if view is NSSplitView {
-                    // Inspect actual native column geometry with either a collapsed or expanded task.
+                    // Inspect actual native column geometry with and without a selected task.
                     // Ignore narrow divider/hit targets that may extend for pointer interaction.
                     for column in view.subviews where column.frame.width > 40 {
                         XCTAssertGreaterThanOrEqual(column.frame.minX, view.bounds.minX - 1)
@@ -618,20 +661,32 @@ final class DesignPreviewTests: XCTestCase {
             XCTAssertEqual(frame.minX, sidebar.bounds.width + 1, accuracy: 1)
             XCTAssertEqual(frame.maxX, controller.view.bounds.maxX, accuracy: 1)
             XCTAssertEqual(size.height - frame.height, 29, accuracy: 1,
-                           "The footer stays below the full list when a row expands")
-            if name.hasPrefix("chrome-window-") {
+                           "The footer stays below the full list when selection changes")
+            if name.hasPrefix("chrome-window-") || name.hasPrefix("chrome-selected-") {
                 let table = try XCTUnwrap(list.documentView as? NSTableView)
                 XCTAssertEqual(table.numberOfRows, 7)
                 var heights: [CGFloat] = []
                 for index in 0..<table.numberOfRows {
                     let row = table.rect(ofRow: index)
                     heights.append(row.height)
-                    XCTAssertLessThanOrEqual(row.height, index == 6 ? 116 : 88,
+                    XCTAssertGreaterThanOrEqual(row.height, 56, "Rows need breathing room around their two text lines")
+                    XCTAssertLessThanOrEqual(row.height, 70,
                                              "A normal task should remain a compact desktop row")
                     if index < 6 { XCTAssertLessThanOrEqual(row.maxY, list.contentView.bounds.height) }
                 }
                 print("TASK_ROW_HEIGHTS=\(heights)")
             }
+        }
+        if name.hasPrefix("downloads-list-") {
+            func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+            let table = try XCTUnwrap(descendants(controller.view).compactMap { $0 as? NSTableView }.first)
+            let scroll = try XCTUnwrap(table.enclosingScrollView)
+            XCTAssertLessThanOrEqual(table.bounds.width, scroll.contentView.bounds.width + 1,
+                                     "The list must fit the minimum content width without horizontal scrolling")
+            let rows = (0..<table.numberOfRows).map { table.rect(ofRow: $0) }
+            XCTAssertTrue(rows.allSatisfy { abs($0.height - rows[0].height) < 1 },
+                          "Selection, long errors and unknown sizes must not change row height")
+            XCTAssertNotNil(table.doubleAction)
         }
         if !usesWindowChrome {
             func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }

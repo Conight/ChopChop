@@ -114,7 +114,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     private let menuBarController = MenuBarStatusController()
     private let dockProgressController = DockDownloadProgressController()
     private weak var store: DownloadStore?
-    private var isFinishingTermination = false
+    private let termination = AppTermination.shared
     private var pendingOpenURLs: [URL] = []
     private var notificationNavigation: AnyCancellable?
     private var addPanelNavigation: AnyCancellable?
@@ -130,16 +130,11 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !AppLaunchConfiguration.isTestAutomation else { return .terminateNow }
-        guard !isFinishingTermination else { return .terminateLater }
         guard let store else { return .terminateNow }
-        isFinishingTermination = true
-
-        Task { @MainActor [weak self] in
+        return termination.shouldTerminate(sender) { [weak self] in
             await store.prepareForAppTermination()
             self?.removeMenuBarStatusItem()
-            NSApp.reply(toApplicationShouldTerminate: true)
         }
-        return .terminateLater
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

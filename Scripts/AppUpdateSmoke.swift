@@ -117,8 +117,18 @@ import Foundation
             try require(worker.isRunning, "Worker exited before acknowledging readiness")
             try require(getpgid(worker.processIdentifier) == worker.processIdentifier, "Worker shares the XPC service process group")
             try require(try AppUpdateInstallation.inode(target) == job.originalInode, "Worker replaced app before it quit")
-            try require(NSRunningApplication(processIdentifier: pid)?.terminate() == true, "Could not terminate fixture")
+            if args[1] == "worker-self-quit" {
+                // Match Install and Restart: the parent app requests termination
+                // from its own MainActor task after the worker is ready.
+                try Data().write(to: root.appendingPathComponent("request-quit-1"))
+            } else {
+                try require(NSRunningApplication(processIdentifier: pid)?.terminate() == true, "Could not terminate fixture")
+            }
             try wait { !worker.isRunning }
+            for event in ["saved", "terminated"] {
+                try require(FileManager.default.fileExists(atPath: root.appendingPathComponent("1-" + event).path),
+                            "Updater replaced app before asynchronous cleanup completed: " + event)
+            }
             if args[1] == "worker-failure" {
                 try require(worker.terminationStatus != 0, "Failing launch did not report failure")
                 try require(try AppUpdateInstallation.inode(target) == job.originalInode, "Failed launch did not restore original app")
@@ -127,6 +137,10 @@ import Foundation
                 try require(try AppUpdateInstallation.inode(target) != job.originalInode, "Worker did not install update")
             }
             try require(!FileManager.default.fileExists(atPath: stage.path), "Worker left stage after successful launch")
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            try require(NSWorkspace.shared.runningApplications.contains {
+                !$0.isTerminated && $0.isFinishedLaunching && $0.bundleURL?.resolvingSymlinksInPath() == target
+            }, "Updated or rolled-back app did not remain running after launch")
         }
         try require(try String(contentsOf: root.appendingPathComponent("user-data"), encoding: .utf8) == "untouched", "Installation modified user data")
         print("Passed update \(args[1])")

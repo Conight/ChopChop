@@ -11,7 +11,6 @@ struct TaskDetailRequest: Equatable {
 /// Window-local presentation state. Download selection and engine state stay in the store.
 @MainActor
 final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegate {
-    @Published var expandedTaskID: String?
     @Published var sectionRequest: TaskDetailRequest?
     @Published var selectedTab: InspectorTab = .overview
     private var rememberedFrame: NSRect?
@@ -47,7 +46,6 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
     func selectionChanged(to id: String?) {
         if observedTaskID != id { sectionRequest = nil }
         observedTaskID = id
-        expandedTaskID = id
         if id == nil { dismiss(returnFocus: false) }
     }
 

@@ -48,6 +48,27 @@ def workspace():
     with tempfile.TemporaryDirectory(prefix='app-update-smoke-', dir=os.environ.get('CHOPCHOP_VALIDATION_ROOT')) as temp:
         yield Path(temp).resolve()
 
+def verify_task_termination(root):
+    for mode in ('task-quit', 'repeated-task-quit'):
+        case = root/mode; case.mkdir()
+        (case/'request-quit-1').touch()
+        if mode == 'repeated-task-quit': (case/'repeat-quit').touch()
+        process = subprocess.Popen([str(root/'fixture'), str(case)], env=ENV,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            if process.wait(timeout=10) != 0:
+                raise AssertionError('App did not exit normally after asynchronous cleanup')
+            for event in ('requested', 'preparing', 'saved', 'terminated'):
+                if not (case/('1-' + event)).exists():
+                    raise AssertionError(f'{mode} skipped {event}')
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try: process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill(); process.wait()
+        print(f'Passed {mode}: MainActor cleanup finished before real AppKit termination')
+
 def main():
     with workspace() as root:
         # Use exactly the shared production implementation; no network or installer substitutes.
@@ -61,14 +82,14 @@ def main():
         if requested := os.environ.get('CHOPCHOP_VERIFY_RELEASE_DOWNLOAD'):
             release = json.loads(requested)
             run(root/'smoke', 'download-release', release['version'], release['size'], release['sha256'], root/'published-release', load()['CHOPCHOP_RELEASE_REPOSITORY'])
-        fixture_source = root/'fixture.swift'
-        fixture_source.write_text('import AppKit\nlet app = NSApplication.shared\napp.setActivationPolicy(.prohibited)\napp.run()\n')
-        run('xcrun', 'swiftc', '-module-cache-path', root/'cache', fixture_source, '-o', root/'fixture')
+        run('xcrun', 'swiftc', '-parse-as-library', '-swift-version', '6', '-module-cache-path', root/'cache',
+            REPO/'ChopChop/AppTermination.swift', REPO/'Scripts/AppTerminationFixture.swift', '-o', root/'fixture')
+        verify_task_termination(root)
         failing_source = root/'failing.swift'; failing_source.write_text('import Darwin\nexit(1)\n')
         run('xcrun', 'swiftc', '-module-cache-path', root/'cache', failing_source, '-o', root/'failing')
         helper = Path(os.environ['CHOPCHOP_DERIVED_DATA'])/'Build/Products/Release/ChopChop.app/Contents/XPCServices/EngineInstaller.xpc'
         if not helper.exists(): raise RuntimeError('Build Release before running updater smoke tests')
-        for mode in ('success', 'rollback', 'tamper', 'resume', 'waiting', 'worker', 'worker-failure'):
+        for mode in ('success', 'rollback', 'tamper', 'resume', 'waiting', 'worker', 'worker-self-quit', 'worker-failure'):
             case = root/mode; case.mkdir()
             public_key = run(root/'smoke', 'key', case/'key', capture_output=True, text=True).stdout.strip()
             for version, app in [('1.0.0-beta.1', case/'ChopChop.app'), ('1.0.0-beta.2', case/'.ChopChop-update-00000000-0000-4000-8000-000000000001/ChopChop.app')]:

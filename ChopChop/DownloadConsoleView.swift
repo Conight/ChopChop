@@ -18,7 +18,6 @@ struct DownloadConsoleView: View {
     @State private var isDropTargeted = false
     @State private var suppressRemovalConfirmationAfterChoice = false
     @StateObject private var detailsPresentation = TaskDetailsPresentation()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation(), updates: AppUpdateCoordinator? = nil, supportNavigation: AppSupportNavigation? = nil) {
         self.supportNavigation = supportNavigation
@@ -45,7 +44,7 @@ struct DownloadConsoleView: View {
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 320)
         } detail: {
-            // Row disclosure changes list height, not the owning window's size.
+            // Selection and the separate details panel never resize the task list.
             GeometryReader { available in
                 VStack(spacing: 0) {
                     DownloadCanvas(destination: currentDestination, onPaste: pasteClipboardIntoDraft,
@@ -138,9 +137,7 @@ struct DownloadConsoleView: View {
         .frame(minWidth: 900, minHeight: 600)
         .focusedSceneValue(\.downloadWindowActions, windowActions)
         .onChange(of: store.selectedTask?.id, initial: true) { _, id in
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                detailsPresentation.selectionChanged(to: id)
-            }
+            detailsPresentation.selectionChanged(to: id)
         }
         .onAppear {
             if sidebarSelection == nil {
@@ -565,7 +562,7 @@ private struct SidebarActivityFooter: View {
 
 }
 
-private struct DownloadCanvas: View {
+struct DownloadCanvas: View {
     @EnvironmentObject private var store: DownloadStore
     @EnvironmentObject private var detailsPresentation: TaskDetailsPresentation
     var destination: SidebarDestination
@@ -607,19 +604,26 @@ private struct DownloadCanvas: View {
                     }
                     List(selection: $store.selectedTaskIDs) {
                         ForEach(visibleTasks) { task in
-                            DownloadTaskRow(store: store, detailsPresentation: detailsPresentation,
-                                row: store.listPresentation.row(for: task),
+                            DownloadTaskRow(store: store, row: store.listPresentation.row(for: task),
                                 isSelected: store.selectedTaskIDs.contains(task.id),
-                                isExpanded: detailsPresentation.expandedTaskID == task.id,
                                 actionsEnabled: DownloadAction.engineReady(in: store),
-                                isUpdatingEngine: store.isUpdatingEngine,
-                                scheduleArmed: store.armedScheduledTaskIDs.contains(task.id),
-                                destination: destination, showDetails: showDetails)
+                                scheduleArmed: store.armedScheduledTaskIDs.contains(task.id))
+                                .equatable()
                                 .tag(task.id)
+                                .modifier(QueueReordering(store: store, task: task))
                         }
                     }
                     .listStyle(.inset)
-                    .scrollContentBackground(.hidden)
+                    .contextMenu(forSelectionType: String.self) { ids in
+                        if let task = store.tasks.first(where: { ids.contains($0.id) }) {
+                            DownloadTaskContextMenu(task: task, context: context(for: task, ids: ids))
+                        }
+                    } primaryAction: { ids in
+                        if let action = DownloadListPresentation.primaryAction(for: ids, tasks: store.tasks),
+                           let id = ids.first {
+                            action.perform(in: DownloadActionContext(store: store, taskID: id))
+                        }
+                    }
                     .onKeyPress(.space, phases: .down) { key in
                         guard key.modifiers.intersection([.command, .control, .option, .shift]).isEmpty, store.selectedTask != nil,
                               TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
@@ -634,7 +638,7 @@ private struct DownloadCanvas: View {
                     }
                     .accessibilityIdentifier("download-task-list")
                     .overlay {
-                        if visibleTasks.isEmpty { emptyState }
+                        if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()) }
                     }
                 }
             }
@@ -642,6 +646,19 @@ private struct DownloadCanvas: View {
         .onChange(of: destination) { _, _ in clearHiddenSelection() }
         .onChange(of: store.searchQuery) { _, _ in clearHiddenSelection() }
         .background(DownloadWorkspaceBackdrop())
+    }
+
+    private func context(for task: DownloadTask, ids: Set<String>) -> DownloadActionContext {
+        DownloadActionContext(store: store, taskID: task.id, window: DownloadWindowActions(
+            hasSelection: true, showDetails: { section in
+                store.selectedTaskID = task.id
+                detailsPresentation.selectionChanged(to: task.id)
+                if let section {
+                    detailsPresentation.selectedTab = .overview
+                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
+                }
+                showDetails()
+            }), taskIDs: ids)
     }
 
     @ViewBuilder
@@ -752,209 +769,6 @@ struct DownloadStatusBar: View {
             .accessibilityLabel(title).accessibilityValue(value)
             .help(title + ": " + value)
     }
-}
-
-private struct DownloadTaskRow: View {
-    let store: DownloadStore
-    let detailsPresentation: TaskDetailsPresentation
-    @ObservedObject var row: DownloadRowState
-    @Environment(\.colorSchemeContrast) private var contrast
-    var isSelected: Bool
-    var isExpanded: Bool
-    var actionsEnabled: Bool
-    var isUpdatingEngine: Bool
-    var scheduleArmed: Bool
-    var destination: SidebarDestination
-    var showDetails: () -> Void
-    private var task: DownloadTask { row.task }
-
-    private var commandContext: DownloadActionContext {
-        DownloadActionContext(store: store, taskID: task.id, window: DownloadWindowActions(
-            hasSelection: true, showDetails: { section in
-                selectAndExpand()
-                if let section {
-                    detailsPresentation.selectedTab = .overview
-                    detailsPresentation.sectionRequest = TaskDetailRequest(section: section)
-                }
-                showDetails()
-            }), taskIDs: DownloadSelection.contextIDs(clicked: task.id, selected: store.selectedTaskIDs))
-    }
-
-    private var expansion: Binding<Bool> {
-        Binding(get: { detailsPresentation.expandedTaskID == task.id }, set: { expanded in
-            if expanded {
-                store.selectedTaskID = task.id
-                detailsPresentation.expandedTaskID = task.id
-            } else if detailsPresentation.expandedTaskID == task.id {
-                detailsPresentation.expandedTaskID = nil
-            }
-        })
-    }
-
-    private func selectAndExpand() {
-        store.selectedTaskID = task.id
-        detailsPresentation.selectionChanged(to: task.id)
-    }
-
-    var body: some View {
-        DisclosureGroup(isExpanded: expansion) {
-            TaskSummaryView(task: task, showDetails: showDetails)
-        } label: {
-            rowLabel
-        }
-        .listRowInsets(EdgeInsets(top: 11, leading: 8, bottom: 11, trailing: 12))
-        .listRowSeparator(.hidden)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: AppLayout.rowCornerRadius)
-                .fill(isSelected ? Color.clear : Color(nsColor: .controlBackgroundColor))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppLayout.rowCornerRadius).strokeBorder(
-                        Color(nsColor: .separatorColor).opacity(isSelected ? 0 : (contrast == .increased ? 1 : 0.24)), lineWidth: 0.5)
-                }
-                .padding(.vertical, 3)
-                .padding(.horizontal, 12)
-        )
-        .contentShape(Rectangle())
-        .contextMenu {
-            DownloadActionButton(action: .details, context: commandContext)
-            Divider()
-            if DownloadAction.reveal.isEnabled(in: commandContext) {
-                DownloadActionButton(action: .reveal, context: commandContext)
-                Divider()
-            }
-            if commandContext.tasks.count > 1 {
-                DownloadActionButton(action: .pause, context: commandContext)
-                DownloadActionButton(action: .resume, context: commandContext)
-            } else if let action = task.primaryControlAction {
-                DownloadActionButton(action: action == .pause ? .pause : .resume, context: commandContext)
-            }
-            if task.isAvailableInEngine, task.primaryControlAction != nil, !task.requiresFileSelection {
-                DownloadActionButton(action: .speedLimits, context: commandContext)
-                DownloadActionButton(action: .schedule, context: commandContext)
-            }
-            if task.canFinishRecording { DownloadActionButton(action: .finishRecording, context: commandContext) }
-            if task.canRetryMedia { DownloadActionButton(action: .retryMedia, context: commandContext) }
-            if task.canEditAndAddAgain { DownloadActionButton(action: .editAgain, context: commandContext) }
-            if task.queuePosition != nil { DownloadActionButton(action: .moveToTop, context: commandContext) }
-            DownloadActionButton(action: .remove, context: commandContext)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("task-row-\(task.id)")
-        .modifier(QueueReordering(store: store, task: task))
-    }
-
-    private var rowLabel: some View {
-        DownloadTaskRowLabel(store: store, row: row, isSelected: isSelected,
-            actionsEnabled: actionsEnabled, scheduleArmed: scheduleArmed)
-            .equatable()
-    }
-}
-
-private struct DownloadTaskRowLabel: View, Equatable {
-    let store: DownloadStore
-    @ObservedObject var row: DownloadRowState
-    let isSelected: Bool
-    let actionsEnabled: Bool
-    let scheduleArmed: Bool
-    private var task: DownloadTask { row.task }
-    private var commandContext: DownloadActionContext { DownloadActionContext(store: store, taskID: task.id) }
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.row === rhs.row && lhs.isSelected == rhs.isSelected &&
-        lhs.actionsEnabled == rhs.actionsEnabled && lhs.scheduleArmed == rhs.scheduleArmed
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
-            HStack(alignment: .center, spacing: AppLayout.controlSpacing) {
-                HStack(alignment: .center, spacing: AppLayout.controlSpacing) {
-                    DownloadTaskIcon(task: task, size: AppLayout.taskIconSize)
-                    Text(task.name)
-                        .font(.body.weight(.medium)).lineLimit(1).truncationMode(.middle)
-                        .help(task.name)
-                        .accessibilityIdentifier("task-\(task.id)-name")
-                    Spacer(minLength: 0)
-                    Text(task.progressLabel).font(.caption).monospacedDigit().foregroundStyle(.secondary)
-                        .fixedSize()
-                }
-                .contentShape(Rectangle())
-
-                primaryAction.frame(width: 20)
-            }
-            VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
-                TaskProgressIndicator(task: task).controlSize(.small)
-                    .accessibilityHidden(true) // The adjacent text exposes phase, progress and bytes once.
-                ViewThatFits(in: .horizontal) {
-                    transferLine(includingETA: true)
-                    transferLine(includingETA: false)
-                }
-                if let scheduled = task.scheduledStart {
-                    Label("\(scheduled.formatted(date: .abbreviated, time: .shortened)) · \(scheduleArmed ? String(localized: "Scheduled") : String(localized: "Schedule disabled"))", systemImage: "calendar")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                if let error = task.errorMessage, task.status == .failed {
-                    Text(error).font(.caption).foregroundStyle(.secondary).lineLimit(2).help(error)
-                }
-            }
-            .padding(.leading, AppLayout.taskTextInset)
-            .contentShape(Rectangle())
-
-        }
-        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + AppLayout.taskTextInset }
-        .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
-    }
-
-    private func transferLine(includingETA: Bool) -> some View {
-        HStack(spacing: 6) {
-            Label(task.phaseLabel, systemImage: task.status.symbolName)
-                .foregroundStyle(task.status == .failed && !isSelected ? Color.red : .secondary)
-                .accessibilityIdentifier("task-\(task.id)-status")
-            Text("·").accessibilityHidden(true)
-            Text(task.transferSizeLabel).lineLimit(1).truncationMode(.middle)
-            Spacer(minLength: 8)
-            if task.status == .active {
-                if task.isSharing {
-                    Label(ByteFormat.speed(task.uploadSpeed), systemImage: "arrow.up")
-                } else {
-                    Text(ByteFormat.speed(task.downloadSpeed))
-                }
-                if includingETA, let etaLabel { Text("·"); Text(etaLabel) }
-            }
-        }
-        .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
-    }
-
-    @ViewBuilder
-    private var primaryAction: some View {
-        if let action = task.primaryControlAction {
-            Button {
-                (action == .pause ? DownloadAction.pause : .resume).perform(in: commandContext)
-            } label: {
-                Label("\(action.helpTitle) \(task.name)", systemImage: action.symbolName).labelStyle(.iconOnly)
-            }
-            .buttonStyle(.borderless).controlSize(.small)
-            .disabled(!actionsEnabled)
-            .help(action.helpTitle)
-            .accessibilityLabel("\(action.helpTitle) \(task.name)")
-            .accessibilityIdentifier("task-\(task.id)-\(action.accessibilityName)-button")
-        } else if task.status == .completed {
-            Button(String(localized: "Show in Finder"), systemImage: "magnifyingglass") { store.showInFinder(task) }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
-                .help(String(localized: "Show in Finder"))
-                .disabled(DownloadFileLocation.revealURL(for: task) == nil)
-        }
-    }
-
-    private var etaLabel: String? {
-        guard task.status == .active, task.media == nil, !task.isSharing,
-              task.progressState.fraction != nil, task.downloadSpeed > 0 else { return nil }
-        let remainingBytes = max(0, task.totalLength - task.completedLength)
-        guard remainingBytes > 0 else { return nil }
-        let seconds = Int(ceil(Double(remainingBytes) / Double(task.downloadSpeed)))
-        return String(localized: "ETA \(ByteFormat.duration(seconds))")
-    }
-
-
 }
 
 private struct BrowserCaptureView: View {

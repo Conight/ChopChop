@@ -83,7 +83,7 @@ struct MenuBarPanel: View {
                 .buttonStyle(.bordered)
                 Spacer()
                 Button(String(localized: "Quit")) {
-                    NSApp.terminate(nil)
+                    AppTermination.request()
                 }
                 .buttonStyle(.bordered)
             }

@@ -26,7 +26,7 @@ struct EngineSetupView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                Button(String(localized: "Quit ChopChop")) { NSApp.terminate(nil) }
+                Button(String(localized: "Quit ChopChop")) { AppTermination.request() }
                 Spacer()
                 Button(installButtonTitle) { store.installRequiredEngine() }
                     .buttonStyle(.borderedProminent)

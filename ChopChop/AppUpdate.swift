@@ -136,7 +136,7 @@ final class AppUpdateCoordinator: ObservableObject {
          monitorInterval: Duration = .seconds(2),
          openArchive: @escaping @MainActor (URL) -> Bool = { NSWorkspace.shared.open($0) },
          makeInstaller: @escaping @MainActor () -> any AppUpdateInstalling = { AppUpdateInstallerRequest() },
-         terminateApplication: @escaping @MainActor () -> Void = { NSApp.terminate(nil) }) {
+         terminateApplication: @escaping @MainActor () -> Void = { AppTermination.request() }) {
         self.build = build; self.client = client; self.defaults = defaults; self.now = now
         self.signingConfigured = signingConfigured
         self.archiveDownloader = archiveDownloader; self.openArchive = openArchive

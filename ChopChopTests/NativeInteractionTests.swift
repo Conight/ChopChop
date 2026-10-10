@@ -6,6 +6,53 @@ import XCTest
 
 final class NativeInteractionTests: XCTestCase {
     @MainActor
+    func testNativeListPrimaryActionOnlyTogglesOneResumableTask() throws {
+        var task = try fixture("double-click")
+        for (status, expected) in [(DownloadStatus.paused, DownloadAction.resume), (.active, .pause), (.waiting, .pause)] {
+            task.status = status
+            XCTAssertEqual(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]), expected)
+        }
+        for status in [DownloadStatus.completed, .failed, .removed] {
+            task.status = status
+            XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
+        }
+        task.status = .paused
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: [], tasks: [task]))
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: ["missing"], tasks: [task]))
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id, "second"], tasks: [task, try fixture("second")]))
+        task.isAvailableInEngine = false
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
+        task.isAvailableInEngine = true
+        task.media = MediaTaskProgress(state: "finalizing")
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
+    }
+
+    func testListProgressDistinguishesUnknownSizeAndFinishedTransfers() throws {
+        var task = try fixture("progress")
+        task.totalLength = 0
+        XCTAssertEqual(task.progressState, .indeterminate)
+        XCTAssertEqual(task.progressLabel, "—")
+        XCTAssertTrue(DownloadListTaskDisplay(task: task).showsProgress)
+        XCTAssertTrue(DownloadListTaskDisplay(task: task).sizeLabel.contains(ByteFormat.size(task.completedLength)))
+        task.totalLength = 1000
+        task.completedLength = 1000
+        task.status = .completed
+        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsProgress)
+        XCTAssertEqual(DownloadListTaskDisplay(task: task).sizeLabel, ByteFormat.size(1000))
+        task.status = .active
+        task.isSharing = true
+        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsProgress)
+        XCTAssertEqual(DownloadListTaskDisplay(task: task).statusSymbol, "arrow.up.circle")
+        XCTAssertTrue(DownloadListTaskDisplay(task: task).showsTransferRates)
+        task.isSharing = false
+        task.isChecking = true
+        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsTransferRates)
+        task.isChecking = false
+        task.media = MediaTaskProgress(state: "finalizing")
+        XCTAssertFalse(DownloadListTaskDisplay(task: task).showsTransferRates)
+    }
+
+    @MainActor
     func testCommandSearchUsesLocalizedTitlesAndStableIdentifiers() {
         XCTAssertEqual(CommandSearchIndex.matches("resume download"), [.resume])
         XCTAssertEqual(CommandSearchIndex.matches(" finder "), [.reveal])
@@ -117,9 +164,10 @@ final class NativeInteractionTests: XCTestCase {
         store.selectedTaskID = "list-500"
         let details = TaskDetailsPresentation()
         let host = NSHostingController(rootView: DownloadConsoleView(inputCoordinator: store.inputCoordinator, presentation: details).environmentObject(store))
-        host.sizingOptions = []
-        let window = NSWindow(contentRect: NSRect(x: 50, y: 50, width: 900, height: 600),
-            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        host.sizingOptions = [.minSize]
+        host.view.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
+        let window = NSWindow(contentRect: host.view.frame,
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false; window.alphaValue = 0
         window.contentViewController = host; window.orderBack(nil)
         defer { details.dismiss(returnFocus: false); window.close() }
@@ -142,7 +190,8 @@ final class NativeInteractionTests: XCTestCase {
         XCTAssertEqual(store.addDraft.rawInput, "https://example.com/unfinished-draft")
         XCTAssertEqual(scroll.contentView.bounds.minY, offset.y, accuracy: 1)
         XCTAssertEqual(window.frame, frame)
-        XCTAssertEqual(details.expandedTaskID, "list-500")
+        XCTAssertFalse(details.isPresented)
+        XCTAssertNotNil(table.doubleAction, "The native list must handle its primary double-click action")
     }
 
     @MainActor

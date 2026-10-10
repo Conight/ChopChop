@@ -13,10 +13,13 @@ Use the module that owns a behavior when changing a shared value. Avoid copying 
 | [`EngineSettings`](../ChopChop/EngineSettings.swift) | Engine defaults and option conversion; add-download drafts and disk settings derive their defaults from this type |
 | [`PreferencesStore`](../ChopChop/PreferencesStore.swift) | App preferences, bookmark helpers and legacy preference keys; disk persistence remains in `PersistentSettingsStore` |
 | [`AppWindowID`](../ChopChop/AppSupport.swift) | SwiftUI scene identifiers and the native downloads window identifier used for reopening |
+| [`AppTermination`](../ChopChop/AppTermination.swift) | Programmatic quit scheduling, duplicate-request suppression and asynchronous cleanup before replying to AppKit |
 
 `EngineStorage` takes an explicit support directory so startup, install activation, rollback and torrent metadata access calculate the same paths. It does not relocate user data. Session names, SwiftData entities, raw enum values, preference keys and document identifiers are persistent contracts, even when their source files move.
 
 The updater has two separate locations: downloaded installers in the app cache, and verified replacement staging beside the installed App for atomic replacement. Directory checks require both the owned prefix and a complete UUID. Recovery, cleanup and the worker use the same check.
+
+Programmatic quit actions call `AppTermination.request()`. AppKit's `terminateLater` runs a modal event loop; invoking `NSApp.terminate` directly inside a MainActor task keeps the main dispatch queue occupied and can prevent the asynchronous cleanup task from running. Scheduling the selector on the common run-loop modes releases the originating task first. The delegate retains the normal `terminateLater`/reply contract for native Quit and system termination requests. See Apple's [`terminate(_:)`](https://developer.apple.com/documentation/appkit/nsapplication/terminate(_:)) and [`perform(_:with:afterDelay:inModes:)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/perform(_:with:afterdelay:inmodes:)) documentation.
 
 ## Domain models and operations
 
@@ -34,6 +37,12 @@ The updater has two separate locations: downloaded installers in the app cache, 
 | `DownloadPowerAssertion.swift` | IOKit assertion ownership for preventing idle sleep |
 
 `DownloadStore` coordinates observable UI state and these services. Network clients, filesystem rules and platform resource ownership belong in their own modules. Source organization does not change the SwiftData schema or the Engine RPC identifiers.
+
+## Download list presentation
+
+`DownloadCanvas` owns the native List's selection, contextual menu and primary action. A single click only selects; the selection-aware `contextMenu(forSelectionType:menu:primaryAction:)` API handles a double-click to pause or resume one task. Space opens the independent details panel. Task settings remain in that panel and are reachable through shared contextual commands.
+
+`DownloadTaskRow` supplies a flat two-line content layout, native file icons and a single state-appropriate action. List owns its background, selection highlight and separators. `DownloadListTaskDisplay` supplies compact progress text and distinguishes completed tasks and seeding from in-progress transfers. `DownloadListPresentation` keeps stable observable row identities so polling only publishes changed task snapshots. `TaskBandwidthView` owns the task speed-limit editor; it no longer lives inside an expanding list row.
 
 ## Verification and tooling
 

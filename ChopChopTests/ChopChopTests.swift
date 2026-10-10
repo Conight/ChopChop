@@ -3904,7 +3904,7 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testLoadedSummarySpeedFieldsFitWithoutHorizontalClipping() async throws {
+    func testLoadedTaskSpeedFieldsFitWithoutHorizontalClipping() async throws {
         let calls = LockedBox<[String]>([])
         let client = try makeRPCClient { request in
             let method = try Self.captureRPCMethod(from: request, into: calls)
@@ -3922,7 +3922,7 @@ final class ChopChopTests: XCTestCase {
         let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for width: CGFloat in [400, 600] {
-            let host = NSHostingController(rootView: TaskSummaryView(task: task, showDetails: {})
+            let host = NSHostingController(rootView: TaskBandwidthView(task: task)
                 .padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(Color(nsColor: .windowBackgroundColor)).environmentObject(store))
             host.sizingOptions = []
@@ -3952,7 +3952,7 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testInlineBandwidthChangesSaveTheSameTaskWithoutResumingIt() async throws {
+    func testTaskBandwidthChangesSaveTheSameTaskWithoutResumingIt() async throws {
         let calls = LockedBox<[String]>([])
         let client = try makeRPCClient { request in
             let method = try Self.captureRPCMethod(from: request, into: calls)

@@ -5,21 +5,18 @@ import XCTest
 
 final class TaskDetailsPresentationTests: XCTestCase {
     @MainActor
-    func testSelectionOnlyExpandsOneSummaryAndNeverOpensAPanel() {
+    func testSelectionKeepsDetailsClosedAndClearsOnlyStaleSectionRequests() {
         let presentation = TaskDetailsPresentation()
         presentation.selectionChanged(to: "first")
-        XCTAssertEqual(presentation.expandedTaskID, "first")
         XCTAssertFalse(presentation.isPresented)
         presentation.sectionRequest = TaskDetailRequest(section: .schedule)
-        presentation.expandedTaskID = "second" // An outline can expand before its selection notification.
         presentation.selectionChanged(to: "second")
         XCTAssertNil(presentation.sectionRequest, "A command targeting the previous task must not leak to the new task")
         presentation.sectionRequest = TaskDetailRequest(section: .speedLimits)
         presentation.selectionChanged(to: "second")
         XCTAssertEqual(presentation.sectionRequest?.section, .speedLimits, "Repeated notifications must preserve a fresh request")
-        XCTAssertEqual(presentation.expandedTaskID, "second")
         presentation.selectionChanged(to: nil)
-        XCTAssertNil(presentation.expandedTaskID)
+        XCTAssertNil(presentation.sectionRequest)
         XCTAssertNil(presentation.panel)
     }
 

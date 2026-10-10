@@ -76,7 +76,7 @@ ChopChop does not bundle an engine. On first launch it requires installation of 
 
 The main app and engine use App Sandbox and Hardened Runtime. A private XPC installer service downloads, verifies, and signs official engine releases. The signed app bundle is not modified by an engine update.
 
-Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Engine source is available from the upstream repository. Release downloads contain only the ChopChop DMG and its checksum; engine binaries and source archives are obtained from upstream.
+Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Engine source is available from the upstream repository. Release downloads contain the ChopChop DMG, its checksum, and a signed update manifest; engine binaries and source archives are obtained from upstream.
 
 ## Build and test
 
