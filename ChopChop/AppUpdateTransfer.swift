@@ -99,19 +99,18 @@ nonisolated struct AppUpdateArchiveDownloader: AppUpdateArchiveDownloading {
             hash = try AppUpdateArchive.checksum(from: data, filename: archive.filename)
         }
         try Task.checkCancellation()
-        let root = try directory ?? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("ChopChop/App Updates", isDirectory: true)
+        let root = directory ?? AppUpdateStorage.archiveDirectory
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         // Retain completed installers briefly so Finder can open them; never remove a recent or foreign directory.
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .creationDateKey]
         for url in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: Array(keys))) ?? [] {
-            if url.lastPathComponent.hasPrefix("installer-"), UUID(uuidString: String(url.lastPathComponent.dropFirst(10))) != nil,
+            if AppUpdateStorage.isArchiveDirectory(url),
                let values = try? url.resourceValues(forKeys: keys), values.isDirectory == true, values.isSymbolicLink != true,
                let created = values.creationDate, created < Date().addingTimeInterval(-7 * 86_400) {
                 try? FileManager.default.removeItem(at: url)
             }
         }
-        let job = root.appendingPathComponent("installer-" + UUID().uuidString, isDirectory: true)
+        let job = root.appendingPathComponent(AppUpdateStorage.archivePrefix + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: job, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         var finished = false
         defer { if !finished { try? FileManager.default.removeItem(at: job) } }

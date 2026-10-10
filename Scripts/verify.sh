@@ -36,6 +36,8 @@ for tool, expected in versions.items():
         raise SystemExit(f'{tool} {expected} required; found {actual}. See Documentation/Development.md.')
 PY
 "$PYTHON" Scripts/check-localizations.py
+"$PYTHON" Scripts/test_release_config.py
+"$PYTHON" Scripts/test_engine_fixture.py
 node --test Scripts/test-browser-extension.mjs
 Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
 Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"

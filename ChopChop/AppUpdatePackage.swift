@@ -12,13 +12,13 @@ nonisolated struct SignedAppUpdate: Codable, Sendable {
     let payload: Data
     let signature: Data
 
-    func verified(publicKey: String, version: AppVersion) throws -> AppUpdateManifest {
+    func verified(publicKey: String, version: AppVersion, bundleIdentifier: String = ReleaseConfiguration.current.bundleIdentifier) throws -> AppUpdateManifest {
         guard let keyData = Data(base64Encoded: publicKey),
               let key = try? Curve25519.Signing.PublicKey(rawRepresentation: keyData) else { throw AppUpdateError.signingNotConfigured }
-        guard payload.count < 32_768, key.isValidSignature(signature, for: payload),
+        guard payload.count < AppUpdateManifest.maximumPayloadSize, key.isValidSignature(signature, for: payload),
               let manifest = try? JSONDecoder().decode(AppUpdateManifest.self, from: payload),
               manifest.schema == 1, manifest.version == version.description,
-              manifest.bundleIdentifier == "com.conight.ChopChop", manifest.architecture == "arm64",
+              manifest.bundleIdentifier == bundleIdentifier, manifest.architecture == "arm64",
               manifest.filename == AppUpdateManifest.filename(for: version),
               manifest.size > 0, manifest.size <= AppUpdateManifest.maximumSize,
               [40, 64].contains(manifest.codeDirectoryHash.count),
@@ -41,11 +41,13 @@ nonisolated struct AppUpdateManifest: Codable, Equatable, Sendable {
     let sha256: String
     let codeDirectoryHash: String
     static let maximumSize: Int64 = 512 * 1_024 * 1_024
+    static let maximumPayloadSize = 32_768
+    static let maximumEnvelopeSize = 65_536
 
     static func filename(for version: AppVersion) -> String { "ChopChop-v\(version)-macos-arm64.dmg" }
     static func manifestName(for version: AppVersion) -> String { "ChopChop-v\(version)-update.json" }
     static func assetURL(version: AppVersion, name: String) -> URL {
-        URL(string: "https://github.com/Conight/ChopChop/releases/download/v\(version)/\(name)")!
+        ReleaseConfiguration.current.assetURL(version: version, name: name)
     }
 
     static func codeHash(at url: URL) throws -> String {

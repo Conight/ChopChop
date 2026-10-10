@@ -45,7 +45,7 @@ nonisolated enum DownloadQueueOrder {
 }
 
 extension UTType {
-    nonisolated static let queuedDownload = UTType(exportedAs: "com.conight.ChopChop.queue-task", conformingTo: .data)
+    nonisolated static let queuedDownload = UTType(exportedAs: ReleaseConfiguration.current.bundleIdentifier + ".queue-task", conformingTo: .data)
 }
 
 nonisolated struct QueuedDownloadReference: Codable, Transferable {

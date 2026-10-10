@@ -61,18 +61,19 @@ nonisolated enum BrowserCaptureHTTP {
 
 @MainActor
 final class BrowserCaptureServer: ObservableObject {
+    nonisolated static let defaultPort: UInt16 = 29101
     @Published private(set) var status = String(localized: "Browser integration is off.")
     @Published private(set) var isListening = false
-    @Published private(set) var port: UInt16 = 29101
+    @Published private(set) var port: UInt16 = BrowserCaptureServer.defaultPort
     var onImport: (([String]) -> Void)?
     private var token = ""
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
     private var generation = UUID()
     private var lastImport = Date.distantPast
-    private let queue = DispatchQueue(label: "com.conight.ChopChop.browser-capture")
+    private let queue = DispatchQueue(label: ReleaseConfiguration.current.bundleIdentifier + ".browser-capture")
 
-    func start(token: String, port: UInt16 = 29101) {
+    func start(token: String, port: UInt16 = BrowserCaptureServer.defaultPort) {
         stop()
         guard token.count == 64, let endpointPort = NWEndpoint.Port(rawValue: port) else { return }
         self.token = token

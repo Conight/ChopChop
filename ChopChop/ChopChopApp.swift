@@ -180,7 +180,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     private func revealDownloadWindow() {
         guard !AppLaunchConfiguration.isTestAutomation else { return }
         // Identifies a download window even when Settings is the current main window.
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "ChopChop.Downloads" }) {
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == AppWindowID.downloadsWindow }) {
             if window.isMiniaturized { window.deminiaturize(nil) }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -196,7 +196,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
             let hasVisibleWindow = NSApp.windows.contains { window in
                 window.isVisible &&
                     !window.isMiniaturized &&
-                    window.identifier?.rawValue == "ChopChop.Downloads"
+                    window.identifier?.rawValue == AppWindowID.downloadsWindow
             }
             guard !hasVisibleWindow else { return }
             self.openDownloadWindow?()

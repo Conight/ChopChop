@@ -18,7 +18,7 @@
 	     exception to verified engines installed in this application's own container. -->
 	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
 	<array>
-		<string>/Library/Containers/com.conight.ChopChop/Data/Library/Application Support/ChopChop/Engines/</string>
+		<string>/Library/Containers/$(CHOPCHOP_APP_IDENTIFIER)/Data/Library/Application Support/ChopChop/Engines/</string>
 	</array>
 </dict>
 </plist>

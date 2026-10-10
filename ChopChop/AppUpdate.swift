@@ -19,13 +19,14 @@ nonisolated struct AppBuild: Sendable {
 }
 
 nonisolated struct AppRelease: Codable, Equatable, Sendable {
+    static let maximumNotesLength = 30_000
     let version: AppVersion
     let notes: String
     var supportsInstallation = false
     var archiveSize: Int64 = 0
     var archiveSHA256: String?
     var archive: AppUpdateArchive { .init(version: version, size: archiveSize, sha256: archiveSHA256) }
-    var pageURL: URL { URL(string: "https://github.com/Conight/ChopChop/releases/tag/v\(version)")! }
+    var pageURL: URL { ReleaseConfiguration.current.releaseURL(version: version) }
 }
 
 nonisolated protocol AppReleaseFetching: Sendable {
@@ -34,10 +35,11 @@ nonisolated protocol AppReleaseFetching: Sendable {
 
 nonisolated struct GitHubAppReleaseClient: AppReleaseFetching {
     var session: URLSession = .shared
-    static let endpoint = URL(string: "https://api.github.com/repos/Conight/ChopChop/releases?per_page=100")!
+    var configuration: ReleaseConfiguration = .current
+    static var endpoint: URL { ReleaseConfiguration.current.releasesAPI }
 
     func latest(for current: AppVersion?, channel: AppUpdateChannel) async throws -> AppRelease? {
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: configuration.releasesAPI)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("ChopChop", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 20
@@ -71,8 +73,8 @@ nonisolated struct GitHubAppReleaseClient: AppReleaseFetching {
         }.sorted { $0.0 > $1.0 }
         for (version, item) in candidates {
             guard let archive = item.assets.first(where: { $0.name == "ChopChop-v\(version)-macos-arm64.dmg" && $0.state == "uploaded" && $0.size > 0 && $0.size <= AppUpdateManifest.maximumSize }) else { continue }
-            return AppRelease(version: version, notes: String((item.body ?? "").prefix(30_000)),
-                              supportsInstallation: item.assets.contains { $0.name == AppUpdateManifest.manifestName(for: version) && $0.state == "uploaded" && $0.size > 0 && $0.size < 65_536 },
+            return AppRelease(version: version, notes: String((item.body ?? "").prefix(AppRelease.maximumNotesLength)),
+                              supportsInstallation: item.assets.contains { $0.name == AppUpdateManifest.manifestName(for: version) && $0.state == "uploaded" && $0.size > 0 && $0.size < AppUpdateManifest.maximumEnvelopeSize },
                               archiveSize: archive.size, archiveSHA256: archive.digest.flatMap { $0.hasPrefix("sha256:") ? String($0.dropFirst(7)) : nil })
         }
         if !candidates.isEmpty { throw AppUpdateError.noCompatibleRelease }

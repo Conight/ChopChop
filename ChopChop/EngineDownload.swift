@@ -14,22 +14,20 @@ nonisolated enum EngineDownload {
         let payload = try JSONDecoder().decode(GitHubRelease.self, from: data)
         guard !payload.draft, !payload.prerelease, let version = EngineVersion(payload.tag_name),
               payload.tag_name == "v\(version)" else { throw EngineInstallationError.invalidRelease }
-        let prefix = "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(version)/"
-        let binaryName = "aria2-next-\(version)-macos-arm64"
-        let checksumName = "aria2-next-\(version)-checksums.sha256"
-        guard let binary = payload.assets.first(where: { $0.name == binaryName }),
-              let checksums = payload.assets.first(where: { $0.name == checksumName }),
-              binary.browser_download_url.absoluteString == prefix + binaryName,
-              checksums.browser_download_url.absoluteString == prefix + checksumName else {
+        let expected = EngineDistribution.release(version: version)
+        guard let binary = payload.assets.first(where: { $0.name == expected.downloadURL.lastPathComponent }),
+              let checksums = payload.assets.first(where: { $0.name == expected.checksumURL.lastPathComponent }),
+              binary.browser_download_url.absoluteString == expected.downloadURL.absoluteString,
+              checksums.browser_download_url.absoluteString == expected.checksumURL.absoluteString else {
             throw EngineInstallationError.invalidRelease
         }
-        return EngineRelease(version: version, downloadURL: binary.browser_download_url, checksumURL: checksums.browser_download_url)
+        return expected
     }
 
     @concurrent static func latestRelease() async throws -> EngineRelease {
         let session = Self.session(timeout: 15)
         defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/AnInsomniacy/aria2-next/releases/latest")!)
+        var request = URLRequest(url: EngineDistribution.latestAPI)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Self.validate(response)
@@ -53,8 +51,7 @@ nonisolated enum EngineDownload {
 
     @concurrent static func downloadAndPrepare(version: EngineVersion, destination: URL,
                                               progress: @escaping @Sendable (EngineInstallationProgress) -> Void = { _ in }) async throws {
-        let base = "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(version)/aria2-next-\(version)"
-        let release = EngineRelease(version: version, downloadURL: URL(string: base + "-macos-arm64")!, checksumURL: URL(string: base + "-checksums.sha256")!)
+        let release = EngineDistribution.release(version: version)
         progress(.init(stage: .connecting))
         let (data, response) = try await EngineBinaryDownload(progress: progress).download(from: release.downloadURL)
         try validate(response)
@@ -82,7 +79,7 @@ nonisolated enum EngineDownload {
         let data = try PropertyListSerialization.data(fromPropertyList: ["com.apple.security.app-sandbox": true, "com.apple.security.inherit": true], format: .xml, options: 0)
         try data.write(to: entitlements)
         _ = try await runTool("/usr/bin/codesign", arguments: ["--force", "--sign", "-", "--timestamp=none", "--options", "runtime",
-                                                           "--identifier", "com.conight.ChopChop.aria2-next", "--entitlements", entitlements.path, executable.path])
+                                                           "--identifier", ReleaseConfiguration.current.bundleIdentifier + ".aria2-next", "--entitlements", entitlements.path, executable.path])
         _ = try await runTool("/usr/bin/codesign", arguments: ["--verify", "--strict", executable.path])
     }
 

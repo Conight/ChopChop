@@ -5,11 +5,56 @@ import XCTest
 @testable import ChopChop
 
 final class AppUpdaterTests: XCTestCase {
+    func testUpdateDirectoryOwnershipRequiresAnExactPrefixAndUUID() {
+        let id = UUID().uuidString
+        let root = URL(fileURLWithPath: "/tmp/update-layout-test", isDirectory: true)
+        XCTAssertTrue(AppUpdateStorage.isArchiveDirectory(root.appendingPathComponent("installer-" + id)))
+        XCTAssertTrue(AppUpdateStorage.isStagingDirectory(root.appendingPathComponent(".ChopChop-update-" + id)))
+        for name in ["installer-", "installer-backup", "installer-" + id + ".old", ".ChopChop-update-", ".ChopChop-update-" + id + "-other", "foreign-" + id] {
+            XCTAssertFalse(AppUpdateStorage.isArchiveDirectory(root.appendingPathComponent(name)))
+            XCTAssertFalse(AppUpdateStorage.isStagingDirectory(root.appendingPathComponent(name)))
+        }
+        XCTAssertFalse(AppUpdateStorage.isArchiveDirectory(root.appendingPathComponent(".ChopChop-update-" + id)))
+        XCTAssertFalse(AppUpdateStorage.isStagingDirectory(root.appendingPathComponent("installer-" + id)))
+    }
     private func manifest(_ bytes: Data = Data("archive".utf8)) -> AppUpdateManifest {
-        AppUpdateManifest(schema: 1, version: "1.0.0-beta.2", buildNumber: "2", bundleIdentifier: "com.conight.ChopChop",
+        AppUpdateManifest(schema: 1, version: "1.0.0-beta.2", buildNumber: "2", bundleIdentifier: ReleaseConfiguration.current.bundleIdentifier,
                           architecture: "arm64", minimumSystemVersion: "26.5", filename: "ChopChop-v1.0.0-beta.2-macos-arm64.dmg",
                           size: Int64(bytes.count), sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined(),
                           codeDirectoryHash: String(repeating: "a", count: 40))
+    }
+    func testForkReleaseConfigurationRoutesURLsAndRejectsOtherAppIdentity() throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let publicKey = key.publicKey.rawRepresentation.base64EncodedString()
+        let fork = try ReleaseConfiguration(repository: "example/ChopChopFork", bundleIdentifier: "org.example.ChopChopFork", publicKey: publicKey)
+        let version = try XCTUnwrap(AppVersion("1.0.0-beta.2"))
+        XCTAssertEqual(fork.releasesAPI.absoluteString, "https://api.github.com/repos/example/ChopChopFork/releases?per_page=100")
+        XCTAssertEqual(fork.releaseURL(version: version).absoluteString, "https://github.com/example/ChopChopFork/releases/tag/v1.0.0-beta.2")
+        XCTAssertEqual(fork.assetURL(version: version, name: AppUpdateManifest.manifestName(for: version)).absoluteString,
+                       "https://github.com/example/ChopChopFork/releases/download/v1.0.0-beta.2/ChopChop-v1.0.0-beta.2-update.json")
+        XCTAssertEqual(fork.issuesURL.absoluteString, "https://github.com/example/ChopChopFork/issues/new/choose")
+        XCTAssertEqual(fork.installerIdentifier, "org.example.ChopChopFork.EngineInstaller")
+        XCTAssertEqual(fork.signingKeychainService, "org.example.ChopChopFork.update-signing")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(manifest())) as? [String: Any])
+        object["bundleIdentifier"] = fork.bundleIdentifier
+        let payload = try JSONSerialization.data(withJSONObject: object)
+        let signed = SignedAppUpdate(payload: payload, signature: try key.signature(for: payload))
+        XCTAssertEqual(try signed.verified(publicKey: publicKey, version: version, bundleIdentifier: fork.bundleIdentifier).bundleIdentifier, fork.bundleIdentifier)
+        XCTAssertThrowsError(try signed.verified(publicKey: publicKey, version: version))
+    }
+
+    func testReleaseConfigurationIsEmbeddedInAppAndInstallerAndFailsClosed() throws {
+        let current = ReleaseConfiguration.current
+        XCTAssertEqual(current.bundleIdentifier, Bundle.main.bundleIdentifier)
+        let helper = try XCTUnwrap(Bundle(url: Bundle.main.bundleURL.appendingPathComponent("Contents/XPCServices/EngineInstaller.xpc")))
+        XCTAssertEqual(try ReleaseConfiguration(bundle: helper), current)
+        XCTAssertEqual(helper.bundleIdentifier, current.installerIdentifier)
+        XCTAssertThrowsError(try ReleaseConfiguration(info: [:]))
+        for repository in ["https://github.com/example/repo", "example/repo/extra", "example/repo?x=1", "example/..", "example/repo\n"] {
+            XCTAssertThrowsError(try ReleaseConfiguration(repository: repository, bundleIdentifier: current.bundleIdentifier, publicKey: current.publicKey))
+        }
+        XCTAssertThrowsError(try ReleaseConfiguration(repository: current.repository, bundleIdentifier: "invalid/id", publicKey: current.publicKey))
+        XCTAssertThrowsError(try ReleaseConfiguration(repository: current.repository, bundleIdentifier: current.bundleIdentifier, publicKey: "$(UNRESOLVED)"))
     }
     func testSignedManifestRejectsTamperingWrongKeyVersionAndInvalidMetadata() throws {
         let key = Curve25519.Signing.PrivateKey()

@@ -92,7 +92,7 @@ The shared CI/release gate checks localization, Swift/RPC and browser tests, Chi
 
 ChopChop publishes a DMG, SHA-256 checksum, and Ed25519-signed update manifest from an annotated version tag. The workflow runs the shared verification gate, builds an arm64 Release app, and verifies the final mounted DMG before signing and publication. The complete tag is embedded for application update comparisons, including prerelease ordering.
 
-The app pins the public key in `Configuration/UpdatePublicKey.txt`; the release workflow requires the same `CHOPCHOP_UPDATE_PUBLIC_KEY` repository variable and uses the `CHOPCHOP_UPDATE_PRIVATE_KEY` Actions secret only in its signing step. The private key is never bundled. Update signatures do not replace Apple Developer ID signing or notarization. Beta.1 and beta.2 users must install beta.3 manually once to obtain the signed in-app updater.
+The app, installer and release scripts share the repository, app identifier and public key in [`Configuration/Release.xcconfig`](Configuration/Release.xcconfig). No public Actions variable is required; the release workflow uses the `CHOPCHOP_UPDATE_PRIVATE_KEY` Actions secret only in its signing step. See [release configuration and fork setup](Documentation/ReleaseConfiguration.md). The private key is never bundled. Update signatures do not replace Apple Developer ID signing or notarization. Beta.1 and beta.2 users must install beta.3 manually once to obtain the signed in-app updater.
 
 ```sh
 # Python 3.10+ is required; python3.14 is preferred, or set PYTHON explicitly.

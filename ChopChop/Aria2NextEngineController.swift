@@ -66,7 +66,7 @@ nonisolated struct EngineRPCConfiguration: Equatable, Sendable {
 }
 
 nonisolated enum Aria2NextPaths {
-    static let supportDirectoryName = "ChopChop"
+    static let supportDirectoryName = EngineStorage.supportDirectoryName
     private static let automationBase = FileManager.default.temporaryDirectory
         .appendingPathComponent("ChopChopAutomation-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
 
@@ -96,16 +96,16 @@ nonisolated enum EngineSessionMigration {
     /// Partial download files and recovery databases are never modified here.
     static func prepare(supportDirectory: URL, version: String) throws -> URL? {
         let fileManager = FileManager.default
-        let marker = supportDirectory.appendingPathComponent("engine-version")
+        let marker = EngineStorage(supportDirectory: supportDirectory).versionMarker
         let previous = try? String(contentsOf: marker, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard previous != version else { return nil }
 
-        let session = supportDirectory.appendingPathComponent("aria2.session")
+        let session = EngineStorage(supportDirectory: supportDirectory).session
         var backup: URL?
         if fileManager.fileExists(atPath: session.path),
            try session.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0 > 0 {
-            let directory = supportDirectory.appendingPathComponent("Session Backups", isDirectory: true)
+            let directory = EngineStorage(supportDirectory: supportDirectory).sessionBackups
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             let destination = directory.appendingPathComponent("aria2-\(UUID().uuidString).session")
             try fileManager.copyItem(at: session, to: destination)
@@ -357,8 +357,8 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         let downloadDirectory = try downloadDirectoryURL(from: settings)
         try ensureLaunchPortsAvailable(settings: settings)
         let support = try Aria2NextPaths.supportDirectory()
-        let sessionURL = support.appendingPathComponent("aria2.session", isDirectory: false)
-        let logURL = support.appendingPathComponent("aria2.log", isDirectory: false)
+        let sessionURL = EngineStorage(supportDirectory: support).session
+        let logURL = EngineStorage(supportDirectory: support).log
         let pidFileURL = support.appendingPathComponent("aria2-\(UUID().uuidString).pid", isDirectory: false)
         let sessionExists = FileManager.default.fileExists(atPath: sessionURL.path)
         let sessionBackupURL = try EngineSessionMigration.prepare(
@@ -504,7 +504,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
             "--no-conf=true",
             // Matches aria2's macOS default in production, isolated alongside
             // the session file during automation. Keep this stable for resume.
-            "--state-dir=\(sessionURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("aria2-next", isDirectory: true).path)",
+            "--state-dir=\(EngineStorage(supportDirectory: sessionURL.deletingLastPathComponent()).state.path)",
             "--enable-rpc=true",
             "--pause=true", // Restored tasks must not transfer before explicit user resume.
             "--rpc-listen-all=false",

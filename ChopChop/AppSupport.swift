@@ -93,12 +93,12 @@ struct AppSupportView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Label(String(localized: "Browser capture and completion notifications are optional. Enable them in Settings when you need them."), systemImage: "gearshape")
                         .fixedSize(horizontal: false, vertical: true)
-                    Link(String(localized: "Read the User Guide"), destination: URL(string: "https://github.com/Conight/ChopChop#install")!)
+                    Link(String(localized: "Read the User Guide"), destination: ReleaseConfiguration.current.userGuideURL)
                 }
                 Section(String(localized: "Report a Problem")) {
                     Text(String(localized: "Describe what you expected and what happened. You can preview and export a small diagnostic report to attach yourself."))
                         .fixedSize(horizontal: false, vertical: true)
-                    Link(String(localized: "Open GitHub Issues…"), destination: URL(string: "https://github.com/Conight/ChopChop/issues/new/choose")!)
+                    Link(String(localized: "Open GitHub Issues…"), destination: ReleaseConfiguration.current.issuesURL)
                     Button(String(localized: "Preview Diagnostic Report")) {
                         previewDiagnostics()
                     }
@@ -165,6 +165,7 @@ struct AppSupportCommands: Commands {
 }
 
 enum AppWindowID {
+    static let downloadsWindow = "ChopChop.Downloads"
     static let downloads = "downloads"
     static let help = "help"
     static let updates = "updates"

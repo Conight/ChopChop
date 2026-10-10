@@ -1,4 +1,5 @@
 {
   "version": "2.8.6",
-  "sha256": "6767bc6e79e22dbc491fe7bbcd36daca9dc0fb3b28abca7b9a9cfb8e6e67ece5"
+  "sha256": "6767bc6e79e22dbc491fe7bbcd36daca9dc0fb3b28abca7b9a9cfb8e6e67ece5",
+  "url": "https://github.com/AnInsomniacy/aria2-next/releases/download/v2.8.6/aria2-next-2.8.6-macos-arm64"
 }

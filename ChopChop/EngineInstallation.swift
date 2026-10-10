@@ -39,8 +39,9 @@ nonisolated protocol EngineInstallationManaging: Sendable {
 /// Manages installations in the application's own data directory; never changes the app bundle.
 nonisolated struct EngineInstallationManager: EngineInstallationManaging {
     var supportDirectory: URL
-    private var manifestURL: URL { supportDirectory.appendingPathComponent("installed-engine.json") }
-    static let releasesURL = URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/latest")!
+    private var storage: EngineStorage { EngineStorage(supportDirectory: supportDirectory) }
+    private var manifestURL: URL { storage.manifest }
+    static var releasesURL: URL { EngineDistribution.latestPage }
 
     init(supportDirectory: URL? = nil) {
         self.supportDirectory = supportDirectory ?? (try? Aria2NextPaths.supportDirectory()) ?? FileManager.default.temporaryDirectory
@@ -56,7 +57,7 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
         do {
             let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: manifestURL))
             guard UUID(uuidString: manifest.directory) != nil else { return nil }
-            let url = supportDirectory.appendingPathComponent("Engines/\(manifest.directory)/aria2-next")
+            let url = storage.executable(installation: manifest.directory)
             guard FileManager.default.isExecutableFile(atPath: url.path),
                   try EngineDownload.sha256(Data(contentsOf: url)) == manifest.sha256 else { return nil }
             _ = try await EngineDownload.runTool("/usr/bin/codesign", arguments: ["--verify", "--strict", url.path])
@@ -67,7 +68,7 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
     func latestRelease() async throws -> EngineRelease { try await EngineDownload.latestRelease() }
 
     @concurrent func install(_ release: EngineRelease, progress: @escaping @Sendable (EngineInstallationProgress) async -> Void) async throws -> EngineInstallation {
-        let engines = supportDirectory.appendingPathComponent("Engines", isDirectory: true)
+        let engines = storage.installations
         try FileManager.default.createDirectory(at: engines, withIntermediateDirectories: true)
         let bookmark = try engines.bookmarkData(options: [.minimalBookmark], includingResourceValuesForKeys: nil, relativeTo: nil)
         await progress(.init(stage: .connecting))
@@ -78,7 +79,7 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
         var verified = false
         defer { if !verified { try? FileManager.default.removeItem(at: folder) } }
         try Task.checkCancellation()
-        let executable = folder.appendingPathComponent("aria2-next")
+        let executable = folder.appendingPathComponent(EngineStorage.executableName)
         await progress(.init(stage: .testing))
         guard FileManager.default.fileExists(atPath: executable.path) else {
             throw EngineInstallationError.installationFailed(String(localized: "The installer did not produce an engine executable. Retry the download."))
@@ -99,8 +100,8 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
         let executable = installation.executableURL
         let folder = executable.deletingLastPathComponent()
         guard UUID(uuidString: folder.lastPathComponent) != nil,
-              folder.deletingLastPathComponent().standardizedFileURL == supportDirectory.appendingPathComponent("Engines").standardizedFileURL,
-              executable.lastPathComponent == "aria2-next" else { throw EngineInstallationError.invalidExecutable }
+              folder.deletingLastPathComponent().standardizedFileURL == storage.installations.standardizedFileURL,
+              executable.lastPathComponent == EngineStorage.executableName else { throw EngineInstallationError.invalidExecutable }
         let manifest = Manifest(version: installation.version, directory: folder.lastPathComponent,
                                 sha256: EngineDownload.sha256(try Data(contentsOf: executable)))
         try Task.checkCancellation()
@@ -118,13 +119,13 @@ nonisolated struct EngineRuntimeBackup: Sendable {
     let directory: URL
     let supportDirectory: URL
     private var sources: [URL] {
-        [supportDirectory.appendingPathComponent("aria2.session"),
-         supportDirectory.appendingPathComponent("engine-version"),
-         supportDirectory.deletingLastPathComponent().appendingPathComponent("aria2-next")]
+        [EngineStorage(supportDirectory: supportDirectory).session,
+         EngineStorage(supportDirectory: supportDirectory).versionMarker,
+         EngineStorage(supportDirectory: supportDirectory).state]
     }
 
     @concurrent static func create(supportDirectory: URL) async throws -> Self {
-        let backup = Self(directory: supportDirectory.appendingPathComponent("Engine Update Backups/\(UUID().uuidString)"),
+        let backup = Self(directory: EngineStorage(supportDirectory: supportDirectory).updateBackups.appendingPathComponent(UUID().uuidString),
                           supportDirectory: supportDirectory)
         let fm = FileManager.default
         try fm.createDirectory(at: backup.directory, withIntermediateDirectories: true)

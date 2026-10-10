@@ -7,12 +7,13 @@ release_app="${1:?Usage: Scripts/verify-engine-installation.sh /path/to/Release/
 test -d "$release_app/Contents/XPCServices/EngineInstaller.xpc"
 probe_dir="$(/usr/bin/mktemp -d /tmp/chopchop-engine-probe.XXXXXX)"
 trap '/bin/rm -rf "$probe_dir"' EXIT
-export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+. "$repo_root/Scripts/xcode-environment.sh"
 /usr/bin/ditto "$release_app" "$probe_dir/ChopChop.app"
 /usr/bin/codesign -d --entitlements :- --xml "$release_app" > "$probe_dir/entitlements.plist" 2>/dev/null
 /usr/bin/xcrun swiftc -O -parse-as-library -o "$probe_dir/ChopChop" \
     "$repo_root/Scripts/EngineInstallationProbe.swift" \
-    "$repo_root/ChopChop/EngineRelease.swift" "$repo_root/ChopChop/EngineDownload.swift" \
+    "$repo_root/ChopChop/ReleaseConfiguration.swift" "$repo_root/ChopChop/AppVersion.swift" \
+    "$repo_root/ChopChop/EngineStorage.swift" "$repo_root/ChopChop/EngineRelease.swift" "$repo_root/ChopChop/EngineDownload.swift" \
     "$repo_root/ChopChop/EngineInstallerProtocol.swift" "$repo_root/ChopChop/EngineInstallerRequest.swift" \
     "$repo_root/ChopChop/EngineInstallation.swift"
 /usr/bin/ditto "$probe_dir/ChopChop" "$probe_dir/ChopChop.app/Contents/MacOS/ChopChop"

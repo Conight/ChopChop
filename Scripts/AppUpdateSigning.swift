@@ -5,10 +5,14 @@ import Security
 
 /// Private keys are read from Keychain locally or a scoped CI environment secret; never printed.
 @main struct AppUpdateSigning {
-    static let service = "com.conight.ChopChop.update-signing"
     static let account = "ed25519-v1"
     static func main() throws {
-        let args = Array(CommandLine.arguments.dropFirst())
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        guard let configurationFile = arguments.first else { throw SigningError.usage }
+        let info = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: configurationFile))) as? [String: Any] ?? [:]
+        let configuration = try ReleaseConfiguration(info: info)
+        let service = configuration.signingKeychainService
+        let args = Array(arguments.dropFirst())
         guard let command = args.first else { throw SigningError.usage }
         let key: Curve25519.Signing.PrivateKey
         if command == "create-key" {
@@ -18,8 +22,8 @@ import Security
                                     kSecAttrAccount: account, kSecValueData: generated.rawRepresentation,
                                     kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly] as CFDictionary, nil)
             guard status == errSecSuccess || status == errSecDuplicateItem else { throw SigningError.keychain }
-            key = try loadKey()
-        } else { key = try loadKey() }
+            key = try loadKey(service: service)
+        } else { key = try loadKey(service: service) }
         if command == "export-key" {
             guard args.count == 2 else { throw SigningError.usage }
             let descriptor = open(args[1], O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
@@ -35,7 +39,8 @@ import Security
         guard command == "sign", args.count == 4 else { throw SigningError.usage }
         let app = URL(fileURLWithPath: args[1]), archive = URL(fileURLWithPath: args[2]), output = URL(fileURLWithPath: args[3])
         guard let bundle = Bundle(url: app),
-              bundle.bundleIdentifier == "com.conight.ChopChop",
+              bundle.bundleIdentifier == configuration.bundleIdentifier,
+              try ReleaseConfiguration(bundle: bundle) == configuration,
               let tag = bundle.object(forInfoDictionaryKey: "ChopChopReleaseVersion") as? String,
               let version = AppVersion(tag), tag == "v\(version)",
               let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String, Int(build).map({ $0 > 0 }) == true,
@@ -48,17 +53,17 @@ import Security
         var digest = SHA256()
         while let data = try handle.read(upToCount: 1_024 * 1_024), !data.isEmpty { digest.update(data: data) }
         let manifest = AppUpdateManifest(schema: 1, version: version.description, buildNumber: build,
-            bundleIdentifier: "com.conight.ChopChop", architecture: "arm64", minimumSystemVersion: minimum,
+            bundleIdentifier: configuration.bundleIdentifier, architecture: "arm64", minimumSystemVersion: minimum,
             filename: archive.lastPathComponent, size: Int64(size), sha256: digest.finalize().map { String(format: "%02x", $0) }.joined(),
             codeDirectoryHash: try AppUpdateManifest.codeHash(at: app))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let payload = try encoder.encode(manifest)
         let signed = SignedAppUpdate(payload: payload, signature: try key.signature(for: payload))
-        _ = try signed.verified(publicKey: key.publicKey.rawRepresentation.base64EncodedString(), version: version)
+        _ = try signed.verified(publicKey: key.publicKey.rawRepresentation.base64EncodedString(), version: version, bundleIdentifier: configuration.bundleIdentifier)
         try encoder.encode(signed).write(to: output, options: .atomic)
         print("Signed update manifest: \(output.lastPathComponent)")
     }
-    static func loadKey() throws -> Curve25519.Signing.PrivateKey {
+    static func loadKey(service: String) throws -> Curve25519.Signing.PrivateKey {
         if let encoded = ProcessInfo.processInfo.environment["CHOPCHOP_UPDATE_PRIVATE_KEY"] {
             guard let data = Data(base64Encoded: encoded) else { throw SigningError.keychain }
             return try Curve25519.Signing.PrivateKey(rawRepresentation: data)

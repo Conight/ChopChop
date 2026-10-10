@@ -10,7 +10,7 @@ nonisolated protocol AppUpdateInstalling: Sendable {
 }
 
 nonisolated final class AppUpdateInstallerRequest: NSObject, EngineInstallerProgressReporting, AppUpdateInstalling, @unchecked Sendable {
-    private let connection = NSXPCConnection(serviceName: "com.conight.ChopChop.EngineInstaller")
+    private let connection = NSXPCConnection(serviceName: ReleaseConfiguration.current.installerIdentifier)
     private let lock = NSLock()
     private var continuation: CheckedContinuation<String, any Error>?
     private var progress: (@Sendable (AppUpdateProgress) -> Void)?

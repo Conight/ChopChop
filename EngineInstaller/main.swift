@@ -35,10 +35,10 @@ final class EngineInstallerService: NSObject, EngineInstallerProtocol, @unchecke
                 // Resolving an implicit bookmark begins access; balance it once.
                 defer { root.stopAccessingSecurityScopedResource() }
                 let container = FileManager.default.homeDirectoryForCurrentUser
-                    .appendingPathComponent("Library/Containers/com.conight.ChopChop/Data").resolvingSymlinksInPath()
+                    .appendingPathComponent("Library/Containers/\(ReleaseConfiguration.current.bundleIdentifier)/Data").resolvingSymlinksInPath()
                 let resolved = root.resolvingSymlinksInPath()
-                guard resolved.path.hasPrefix(container.path + "/"), resolved.lastPathComponent == "Engines",
-                      resolved.deletingLastPathComponent().lastPathComponent == "ChopChop" else {
+                guard resolved.path.hasPrefix(container.path + "/"), resolved.lastPathComponent == EngineStorage.installationsDirectoryName,
+                      resolved.deletingLastPathComponent().lastPathComponent == EngineStorage.supportDirectoryName else {
                     throw EngineInstallationError.installationFailed("Invalid engine installation directory.")
                 }
                 let identifier = UUID().uuidString
@@ -46,7 +46,7 @@ final class EngineInstallerService: NSObject, EngineInstallerProtocol, @unchecke
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
                 var finished = false
                 defer { if !finished { try? FileManager.default.removeItem(at: folder) } }
-                try await EngineDownload.downloadAndPrepare(version: parsed, destination: folder.appendingPathComponent("aria2-next"),
+                try await EngineDownload.downloadAndPrepare(version: parsed, destination: folder.appendingPathComponent(EngineStorage.executableName),
                                                            progress: { update in self.report(update) })
                 try Task.checkCancellation()
                 finished = true
@@ -91,7 +91,7 @@ final class EngineInstallerService: NSObject, EngineInstallerProtocol, @unchecke
         let status: AppUpdateInstallationStatus = lock.withLock {
             guard token == appToken else { return .failed }
             if appWorker?.isRunning == true || appJob.map({ AppUpdateInstallation.workerIsRunning(in: $0.directory) }) == true { return .waitingForExit }
-            if let job = appJob, let data = try? Data(contentsOf: job.directory.appendingPathComponent("worker-error.json")),
+            if let job = appJob, let data = try? Data(contentsOf: job.directory.appendingPathComponent(AppUpdateStorage.workerErrorFile)),
                (try? JSONDecoder().decode(AppUpdateError.self, from: data)) == .terminationTimedOut { return .terminationTimedOut }
             return .failed
         }

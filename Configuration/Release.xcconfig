@@ -1,0 +1,6 @@
+// Public release identity. Forks configure these three values before publishing.
+// Scripts/release_config.py reads this file too; use --set-public-key for a new key.
+// The private signing key belongs in Keychain or CHOPCHOP_UPDATE_PRIVATE_KEY.
+CHOPCHOP_RELEASE_REPOSITORY = Conight/ChopChop
+CHOPCHOP_APP_IDENTIFIER = com.conight.ChopChop
+CHOPCHOP_UPDATE_PUBLIC_KEY = IixKrPxpS9P4LNIXpywGkfRP/b8B3JSX0aVVRTrN78Q=

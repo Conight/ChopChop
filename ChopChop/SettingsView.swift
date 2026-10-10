@@ -31,6 +31,7 @@ struct PeerLimitConfirmation {
 }
 
 struct SettingsView: View {
+    private static let lastPaneKey = "settings.lastPane"
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var updates: AppUpdateCoordinator
     @Environment(\.controlActiveState) var controlActiveState
@@ -44,7 +45,7 @@ struct SettingsView: View {
 
     init(initialPane: SettingsPane? = nil, search: SettingsSearchModel? = nil) {
         _settingsSearch = StateObject(wrappedValue: search ?? SettingsSearchModel())
-        let saved = AppLaunchConfiguration.isTestAutomation ? nil : UserDefaults.standard.string(forKey: "settings.lastPane")
+        let saved = AppLaunchConfiguration.isTestAutomation ? nil : UserDefaults.standard.string(forKey: Self.lastPaneKey)
         _selectedPane = State(initialValue: initialPane ?? saved.flatMap(SettingsPane.init(rawValue:)) ?? .general)
     }
 
@@ -55,7 +56,7 @@ struct SettingsView: View {
             if let request { selectedPane = request.entry.pane }
         }
         .onChange(of: selectedPane) { _, pane in
-            if !AppLaunchConfiguration.isTestAutomation { UserDefaults.standard.set(pane.rawValue, forKey: "settings.lastPane") }
+            if !AppLaunchConfiguration.isTestAutomation { UserDefaults.standard.set(pane.rawValue, forKey: Self.lastPaneKey) }
         }
         .onAppear {
             syncSharingModeSelectionFromStore()

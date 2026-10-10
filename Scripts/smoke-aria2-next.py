@@ -20,8 +20,9 @@ import time
 import urllib.request
 import uuid
 
+from engine_fixture import download_engine
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+
 PAYLOAD = bytes(range(256)) * 32768
 SECOND_PAYLOAD = b"a different same-name download\n" * 4096
 
@@ -225,8 +226,6 @@ def main():
     previous_engine = parser.parse_args().previous_engine
     if previous_engine and not previous_engine.is_file():
         parser.error("--previous-engine must point to an existing executable")
-    config = json.loads((ROOT / "Scripts/engine-test-release.json").read_text())
-    version = config["version"]
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     process = None
@@ -251,13 +250,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="chopchop-smoke-") as temporary:
         root = pathlib.Path(temporary)
         upstream = root / "upstream-engine"
-        asset = f"aria2-next-{version}-macos-arm64"
-        url = f"https://github.com/AnInsomniacy/aria2-next/releases/download/v{version}/{asset}"
-        subprocess.run(["curl", "--fail", "--location", "--silent", "--show-error", "--retry", "2",
-                        "--connect-timeout", "30", "--max-time", "180", url, "--output", str(upstream)], check=True)
-        if hashlib.sha256(upstream.read_bytes()).hexdigest() != config["sha256"]:
-            raise AssertionError("Upstream test engine SHA-256 differs from the pinned release")
-        upstream.chmod(0o755)
+        version = download_engine(upstream)
         engine = root / "aria2-next"
         entitlements = root / "empty.plist"
         entitlements.write_bytes(plistlib.dumps({}))

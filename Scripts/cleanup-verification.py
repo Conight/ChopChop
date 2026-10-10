@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import sys
 
+from release_config import load
+
 root = pathlib.Path(sys.argv[1]).resolve()
 if not root.is_dir() or root == pathlib.Path('/') or root == pathlib.Path.home():
     sys.exit('Expected a dedicated verification directory')
@@ -17,7 +19,8 @@ if not root.is_dir() or root == pathlib.Path('/') or root == pathlib.Path.home()
 pids = set()
 for log in root.glob('*.log'):
     pids.update(re.findall(r'\bChopChop\[(\d+):', log.read_text(errors='replace')))
-temporary_bases = [pathlib.Path.home() / 'Library/Containers/com.conight.ChopChop/Data/tmp']
+identifier = load()['CHOPCHOP_APP_IDENTIFIER']
+temporary_bases = [pathlib.Path.home() / f'Library/Containers/{identifier}/Data/tmp']
 try:
     temporary_bases.append(pathlib.Path(subprocess.check_output(['getconf', 'DARWIN_USER_TEMP_DIR'], text=True).strip()))
 except subprocess.CalledProcessError:

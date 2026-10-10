@@ -128,3 +128,27 @@ nonisolated enum PreferencesStore {
         return url
     }
 }
+
+nonisolated struct AppPreferences: Equatable, Sendable {
+    var launchAtLogin = false
+    var showMenuBar = true
+    var notifyOnDownloadCompletion = false
+    var bandwidthSchedule = BandwidthSchedule()
+    var browserCaptureEnabled = false
+    var browserCaptureToken = ""
+    var keepRunningAfterClose = true
+    var autoRevealCompletedFile = true
+    var askBeforeOverwrite = true
+    var autoOrganizeFiles = false
+    var preventSleepDuringActiveDownloads = false
+    var handleMagnetLinks = true
+    var handleED2KLinks = true
+    var handleTorrentFiles = true
+    var handleMetalinkFiles = true
+    var captureAskBeforeSending = true
+    var captureMinimumSizeMB = 20
+    var captureForwardCookies = true
+    var captureIgnoreImagesAndFonts = true
+    var suppressRemoveConfirmation = false
+    var deleteFilesWhenSkippingRemoveConfirmation = false
+}

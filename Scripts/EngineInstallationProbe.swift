@@ -5,7 +5,7 @@ import Foundation
 nonisolated enum Aria2NextPaths {
     static func supportDirectory() throws -> URL {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                    appropriateFor: nil, create: true).appendingPathComponent("ChopChop")
+                                    appropriateFor: nil, create: true).appendingPathComponent(EngineStorage.supportDirectoryName)
     }
 }
 
@@ -21,7 +21,7 @@ private actor ProbeProgress {
     static func main() async {
         do {
             let support = try Aria2NextPaths.supportDirectory()
-            let manifest = support.appendingPathComponent("installed-engine.json")
+            let manifest = EngineStorage(supportDirectory: support).manifest
             let originalManifest = try? Data(contentsOf: manifest)
             let manager = EngineInstallationManager(supportDirectory: support)
             let progress = ProbeProgress()

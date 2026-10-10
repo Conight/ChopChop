@@ -24,9 +24,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 "$python_bin" -c 'import sys; assert sys.version_info >= (3, 10), "Python 3.10+ required; set PYTHON to its path"'
-if [[ -z "${DEVELOPER_DIR:-}" ]]; then
-    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-fi
+. "$repo_root/Scripts/xcode-environment.sh"
 mkdir -p "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/chopchop-dmg.XXXXXX")"
@@ -42,7 +40,6 @@ if [[ -z "$app_path" ]]; then
         -derivedDataPath "$temp_dir/DerivedData" \
         -archivePath "$temp_dir/ChopChop.xcarchive" \
         CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ARCHS=arm64 \
-        CHOPCHOP_UPDATE_PUBLIC_KEY="${CHOPCHOP_UPDATE_PUBLIC_KEY-$(cat "$repo_root/Configuration/UpdatePublicKey.txt")}" \
         CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" archive
     app_path="$temp_dir/ChopChop.xcarchive/Products/Applications/ChopChop.app"
 fi

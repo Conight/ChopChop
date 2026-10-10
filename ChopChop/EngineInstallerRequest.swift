@@ -2,7 +2,7 @@ import Foundation
 
 /// A single cancellable request. Replies, disconnection and cancellation share one completion gate.
 nonisolated final class EngineInstallerRequest: NSObject, EngineInstallerProgressReporting, @unchecked Sendable {
-    private let connection = NSXPCConnection(serviceName: "com.conight.ChopChop.EngineInstaller")
+    private let connection = NSXPCConnection(serviceName: ReleaseConfiguration.current.installerIdentifier)
     private let lock = NSLock()
     private var continuation: CheckedContinuation<String, any Error>?
     private var result: Result<String, any Error>?

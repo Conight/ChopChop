@@ -979,7 +979,7 @@ private struct DownloadWindowIdentity: NSViewRepresentable {
     private final class WindowIdentityView: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            window?.identifier = NSUserInterfaceItemIdentifier("ChopChop.Downloads")
+            window?.identifier = NSUserInterfaceItemIdentifier(AppWindowID.downloadsWindow)
         }
     }
 }

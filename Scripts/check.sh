@@ -2,19 +2,7 @@
 # Use full Xcode even when xcode-select points at CommandLineTools.
 set -eu
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-if [ -z "${DEVELOPER_DIR:-}" ]; then
-    selected="$(/usr/bin/xcode-select -p)"
-    if [ -x "$selected/usr/bin/xcodebuild" ]; then
-        DEVELOPER_DIR="$selected"
-    else
-        DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-    fi
-    export DEVELOPER_DIR
-fi
-if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
-    echo 'error: Install Xcode 27 or set DEVELOPER_DIR to a full Xcode installation.' >&2
-    exit 1
-fi
+. "$repo_root/Scripts/xcode-environment.sh"
 
 mode="${1:-unit}"
 if [ "$#" -gt 0 ]; then shift; fi
@@ -32,5 +20,4 @@ exec /usr/bin/xcodebuild -project "$repo_root/ChopChop.xcodeproj" \
     -scheme ChopChop -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "${CHOPCHOP_DERIVED_DATA:-$repo_root/DerivedData}" \
     CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES \
-    CHOPCHOP_UPDATE_PUBLIC_KEY="${CHOPCHOP_UPDATE_PUBLIC_KEY-$(cat "$repo_root/Configuration/UpdatePublicKey.txt")}" \
     CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" "$@"

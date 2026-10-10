@@ -5,7 +5,6 @@ Requires ffmpeg/ffprobe only for test fixtures and validation. They are not app 
 """
 import base64
 import functools
-import hashlib
 import http.server
 import json
 import pathlib
@@ -19,7 +18,8 @@ import time
 import urllib.request
 import uuid
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+from engine_fixture import download_engine
+
 
 
 def run(*args):
@@ -101,14 +101,8 @@ def main():
             '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'dash', '-seg_duration', '1', str(media / 'clip.mpd'))
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(media)))
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        config = json.loads((ROOT / 'Scripts/engine-test-release.json').read_text())
-        version = config['version']
         engine = root / 'aria2-next'
-        asset = f'aria2-next-{version}-macos-arm64'
-        run('curl', '--fail', '--location', '--silent', '--show-error', '--max-time', '180',
-            f'https://github.com/AnInsomniacy/aria2-next/releases/download/v{version}/{asset}', '--output', str(engine))
-        assert hashlib.sha256(engine.read_bytes()).hexdigest() == config['sha256']
-        engine.chmod(0o755)
+        download_engine(engine)
         entitlements = root / 'empty.plist'
         entitlements.write_bytes(plistlib.dumps({}))
         run('codesign', '--force', '--sign', '-', '--timestamp=none', '--entitlements', str(entitlements), str(engine))

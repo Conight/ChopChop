@@ -15,7 +15,7 @@ nonisolated enum AppUpdateInstallation {
         let publicKey: String
         let originalInode: UInt64
         let parentPID: Int32
-        var candidate: URL { directory.appendingPathComponent("ChopChop.app") }
+        var candidate: URL { directory.appendingPathComponent(AppUpdateStorage.applicationName) }
     }
 
     static func installedApp() -> URL {
@@ -42,25 +42,26 @@ nonisolated enum AppUpdateInstallation {
                                    progress: @escaping @Sendable (AppUpdateProgress) -> Void) async throws -> Job {
         try validateLocation(target)
         guard let current = Bundle(url: target),
-              let publicKey = current.object(forInfoDictionaryKey: "ChopChopUpdatePublicKey") as? String,
-              Data(base64Encoded: publicKey)?.count == 32 else { throw AppUpdateError.signingNotConfigured }
+              let configuration = try? ReleaseConfiguration(bundle: current),
+              current.bundleIdentifier == configuration.bundleIdentifier else { throw AppUpdateError.signingNotConfigured }
+        let publicKey = configuration.publicKey
         if let tag = current.object(forInfoDictionaryKey: "ChopChopReleaseVersion") as? String,
            let installed = AppVersion(tag), version <= installed { throw AppUpdateError.invalidApplication }
         progress(.init(stage: .connecting))
         let session = URLSession(configuration: EngineDownload.configuration(timeout: 30))
         defer { session.invalidateAndCancel() }
-        let (data, response) = try await session.data(from: AppUpdateManifest.assetURL(version: version, name: AppUpdateManifest.manifestName(for: version)))
-        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count < 65_536 else { throw AppUpdateError.downloadFailed }
+        let (data, response) = try await session.data(from: configuration.assetURL(version: version, name: AppUpdateManifest.manifestName(for: version)))
+        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count < AppUpdateManifest.maximumEnvelopeSize else { throw AppUpdateError.downloadFailed }
         guard let envelope = try? JSONDecoder().decode(SignedAppUpdate.self, from: data) else { throw AppUpdateError.invalidSignature }
-        let manifest = try envelope.verified(publicKey: publicKey, version: version)
+        let manifest = try envelope.verified(publicKey: publicKey, version: version, bundleIdentifier: configuration.bundleIdentifier)
         try validateSystem(manifest.minimumSystemVersion)
-        let directory = target.deletingLastPathComponent().appendingPathComponent(".ChopChop-update-\(UUID().uuidString)", isDirectory: true)
+        let directory = target.deletingLastPathComponent().appendingPathComponent(AppUpdateStorage.stagingPrefix + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         var complete = false
         defer { if !complete { try? FileManager.default.removeItem(at: directory) } }
         let archive = directory.appendingPathComponent("update.dmg")
         try await AppUpdateTransfer(destination: archive, expectedSize: manifest.size, progress: progress)
-            .receive(from: AppUpdateManifest.assetURL(version: version, name: manifest.filename))
+            .receive(from: configuration.assetURL(version: version, name: manifest.filename))
         try Task.checkCancellation()
         progress(.init(stage: .verifying))
         try manifest.verifyArchive(archive)
@@ -70,9 +71,9 @@ nonisolated enum AppUpdateInstallation {
         try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: false)
         _ = try await EngineDownload.runTool("/usr/bin/hdiutil", arguments: ["attach", archive.path, "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mount.path], timeoutInterval: 60)
         do {
-            let source = mount.appendingPathComponent("ChopChop.app")
+            let source = mount.appendingPathComponent(AppUpdateStorage.applicationName)
             try validateBundle(source, manifest: manifest, publicKey: publicKey, current: target)
-            _ = try await EngineDownload.runTool("/usr/bin/ditto", arguments: [source.path, directory.appendingPathComponent("ChopChop.app").path], timeoutInterval: 120)
+            _ = try await EngineDownload.runTool("/usr/bin/ditto", arguments: [source.path, directory.appendingPathComponent(AppUpdateStorage.applicationName).path], timeoutInterval: 120)
         } catch {
             _ = try? run("/usr/bin/hdiutil", ["detach", mount.path], timeout: 20)
             throw error
@@ -82,7 +83,7 @@ nonisolated enum AppUpdateInstallation {
         let job = Job(target: target, directory: directory, manifest: manifest, signedManifest: data,
                       publicKey: publicKey, originalInode: try inode(target), parentPID: parentPID)
         try validateBundle(job.candidate, manifest: manifest, publicKey: publicKey, current: target)
-        try JSONEncoder().encode(job).write(to: directory.appendingPathComponent("job.json"), options: .atomic)
+        try JSONEncoder().encode(job).write(to: directory.appendingPathComponent(AppUpdateStorage.jobFile), options: .atomic)
         try FileManager.default.removeItem(at: archive)
         try? FileManager.default.removeItem(at: mount)
         complete = true
@@ -104,6 +105,11 @@ nonisolated enum AppUpdateInstallation {
         guard url == url.resolvingSymlinksInPath(),
               let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
               info["CFBundleIdentifier"] as? String == manifest.bundleIdentifier,
+              let installedBundle = Bundle(url: current),
+              let installedConfiguration = try? ReleaseConfiguration(bundle: installedBundle),
+              installedBundle.bundleIdentifier == installedConfiguration.bundleIdentifier,
+              let candidateConfiguration = try? ReleaseConfiguration(info: info),
+              candidateConfiguration == installedConfiguration,
               info["CFBundleExecutable"] as? String == "ChopChop",
               info["ChopChopReleaseVersion"] as? String == "v" + manifest.version,
               info["CFBundleVersion"] as? String == manifest.buildNumber,
@@ -140,26 +146,26 @@ nonisolated enum AppUpdateInstallation {
     static func resume(version: AppVersion, target: URL, parentPID: Int32) throws -> Job? {
         try validateLocation(target)
         guard let current = Bundle(url: target),
-              let key = current.object(forInfoDictionaryKey: "ChopChopUpdatePublicKey") as? String,
-              Data(base64Encoded: key)?.count == 32 else { throw AppUpdateError.signingNotConfigured }
+              let configuration = try? ReleaseConfiguration(bundle: current),
+              current.bundleIdentifier == configuration.bundleIdentifier else { throw AppUpdateError.signingNotConfigured }
+        let key = configuration.publicKey
         if let tag = current.object(forInfoDictionaryKey: "ChopChopReleaseVersion") as? String,
            let installed = AppVersion(tag), version <= installed { return nil }
         let parent = target.deletingLastPathComponent()
         for entry in try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]) {
             let values = try entry.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             guard values.isDirectory == true, values.isSymbolicLink == false,
-                  entry.lastPathComponent.hasPrefix(".ChopChop-update-"),
-                  UUID(uuidString: String(entry.lastPathComponent.dropFirst(17))) != nil else { continue }
+                  AppUpdateStorage.isStagingDirectory(entry) else { continue }
             // Directory enumeration may return /private/tmp while Foundation normalizes it to /tmp.
             // Reject links explicitly, then compare normalized parents instead of their URL spelling.
             let directory = entry.resolvingSymlinksInPath()
             guard directory.deletingLastPathComponent() == parent else { continue }
-            let file = directory.appendingPathComponent("job.json")
+            let file = directory.appendingPathComponent(AppUpdateStorage.jobFile)
             guard let data = try? Data(contentsOf: file), data.count < 131_072,
                   let old = try? JSONDecoder().decode(Job.self, from: data), old.manifest.version == version.description else { continue }
             guard old.target == target, old.directory == directory, old.publicKey == key,
                   try inode(target) == old.originalInode,
-                  try JSONDecoder().decode(SignedAppUpdate.self, from: old.signedManifest).verified(publicKey: key, version: version) == old.manifest else {
+                  try JSONDecoder().decode(SignedAppUpdate.self, from: old.signedManifest).verified(publicKey: key, version: version, bundleIdentifier: configuration.bundleIdentifier) == old.manifest else {
                 throw AppUpdateError.invalidApplication
             }
             // Reconnect after an acknowledgement was lost, but never take over another app process's job.
@@ -178,7 +184,7 @@ nonisolated enum AppUpdateInstallation {
     }
 
     static func workerIsRunning(in directory: URL) -> Bool {
-        guard let data = try? Data(contentsOf: directory.appendingPathComponent("worker-ready")),
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent(AppUpdateStorage.workerReadyFile)),
               let pid = try? JSONDecoder().decode(Int32.self, from: data), pid > 0 else { return false }
         return kill(pid, 0) == 0 || errno == EPERM
     }
@@ -187,12 +193,12 @@ nonisolated enum AppUpdateInstallation {
         guard try inode(job.target) == job.originalInode else { throw AppUpdateError.installationFailed }
         try validateLocation(job.target)
         guard !workerIsRunning(in: job.directory) else { throw AppUpdateError.installerUnavailable }
-        let ready = job.directory.appendingPathComponent("worker-ready")
+        let ready = job.directory.appendingPathComponent(AppUpdateStorage.workerReadyFile)
         try? FileManager.default.removeItem(at: ready)
-        try? FileManager.default.removeItem(at: job.directory.appendingPathComponent("worker-error.json"))
+        try? FileManager.default.removeItem(at: job.directory.appendingPathComponent(AppUpdateStorage.workerErrorFile))
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
-        process.arguments = ["--apply-app-update", job.directory.appendingPathComponent("job.json").path]
+        process.arguments = ["--apply-app-update", job.directory.appendingPathComponent(AppUpdateStorage.jobFile).path]
         process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
         try process.run()
         let deadline = Date().addingTimeInterval(10)
@@ -209,24 +215,25 @@ nonisolated enum AppUpdateInstallation {
         guard data.count < 131_072 else { throw AppUpdateError.invalidApplication }
         let job = try JSONDecoder().decode(Job.self, from: data)
         let ownApp = installedApp().resolvingSymlinksInPath()
-        guard job.target == ownApp, file == job.directory.appendingPathComponent("job.json"),
+        guard job.target == ownApp, file == job.directory.appendingPathComponent(AppUpdateStorage.jobFile),
               job.directory == job.directory.resolvingSymlinksInPath(),
               job.directory.deletingLastPathComponent() == job.target.deletingLastPathComponent(),
-              job.directory.lastPathComponent.hasPrefix(".ChopChop-update-"),
+              AppUpdateStorage.isStagingDirectory(job.directory),
               let current = Bundle(url: job.target),
-              current.object(forInfoDictionaryKey: "ChopChopUpdatePublicKey") as? String == job.publicKey,
+              let configuration = try? ReleaseConfiguration(bundle: current),
+              current.bundleIdentifier == configuration.bundleIdentifier, configuration.publicKey == job.publicKey,
               let version = AppVersion(job.manifest.version),
-              try JSONDecoder().decode(SignedAppUpdate.self, from: job.signedManifest).verified(publicKey: job.publicKey, version: version) == job.manifest,
+              try JSONDecoder().decode(SignedAppUpdate.self, from: job.signedManifest).verified(publicKey: job.publicKey, version: version, bundleIdentifier: configuration.bundleIdentifier) == job.manifest,
               try inode(job.target) == job.originalInode,
               let parent = NSRunningApplication(processIdentifier: job.parentPID),
               parent.bundleURL?.resolvingSymlinksInPath() == job.target else { throw AppUpdateError.invalidApplication }
-        let descriptor = open(job.directory.appendingPathComponent("worker.lock").path, O_CREAT | O_RDWR | O_NOFOLLOW, 0o600)
+        let descriptor = open(job.directory.appendingPathComponent(AppUpdateStorage.workerLockFile).path, O_CREAT | O_RDWR | O_NOFOLLOW, 0o600)
         guard descriptor >= 0 else { throw AppUpdateError.installerUnavailable }
         defer { close(descriptor) }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw AppUpdateError.installerUnavailable }
         defer { _ = flock(descriptor, LOCK_UN) }
         try validateBundle(job.candidate, manifest: job.manifest, publicKey: job.publicKey, current: job.target)
-        try JSONEncoder().encode(getpid()).write(to: job.directory.appendingPathComponent("worker-ready"), options: .atomic)
+        try JSONEncoder().encode(getpid()).write(to: job.directory.appendingPathComponent(AppUpdateStorage.workerReadyFile), options: .atomic)
         do {
             try waitForTermination(of: parent)
             try finishInstallation(job, launch: { try openAndWait($0, reportFailure: $1) }, isRunning: { target in
@@ -234,7 +241,7 @@ nonisolated enum AppUpdateInstallation {
             })
         } catch {
             try? JSONEncoder().encode(error as? AppUpdateError ?? .installationFailed)
-                .write(to: job.directory.appendingPathComponent("worker-error.json"), options: .atomic)
+                .write(to: job.directory.appendingPathComponent(AppUpdateStorage.workerErrorFile), options: .atomic)
             throw error
         }
     }

@@ -13,7 +13,9 @@ import Foundation
             Task {
                 do {
                     let archive = AppUpdateArchive(version: AppVersion(args[2])!, size: Int64(args[3])!, sha256: args[4])
-                    let package = try await AppUpdateArchiveDownloader(directory: URL(fileURLWithPath: args[5])).download(archive, progress: { _ in })
+                    let package = try await AppUpdateArchiveDownloader(directory: URL(fileURLWithPath: args[5]), assetURL: { version, name in
+                        URL(string: "https://github.com/\(args[6])/releases/download/v\(version)/\(name)")!
+                    }).download(archive, progress: { _ in })
                     try await package.verify()
                     print("Downloaded and verified \(package.url.lastPathComponent) (\(package.size) bytes)")
                     exit(0)
@@ -37,7 +39,7 @@ import Foundation
         if args[1] == "verify-signed" {
             let key = try Curve25519.Signing.PrivateKey(rawRepresentation: Data(base64Encoded: String(contentsOfFile: args[2], encoding: .utf8))!)
             let envelope = try JSONDecoder().decode(SignedAppUpdate.self, from: Data(contentsOf: URL(fileURLWithPath: args[3])))
-            let manifest = try envelope.verified(publicKey: key.publicKey.rawRepresentation.base64EncodedString(), version: AppVersion("1.0.0-beta.2")!)
+            let manifest = try envelope.verified(publicKey: key.publicKey.rawRepresentation.base64EncodedString(), version: AppVersion("1.0.0-beta.2")!, bundleIdentifier: "org.example.ChopChopFork")
             try manifest.verifyArchive(URL(fileURLWithPath: args[4]))
             print("Passed signed DMG packaging and manifest round trip")
             return
@@ -49,7 +51,7 @@ import Foundation
         let encodedKey = try String(contentsOf: root.appendingPathComponent("key"), encoding: .utf8)
         let key = try Curve25519.Signing.PrivateKey(rawRepresentation: Data(base64Encoded: encodedKey)!)
         let version = AppVersion("1.0.0-beta.2")!
-        let manifest = AppUpdateManifest(schema: 1, version: version.description, buildNumber: "2", bundleIdentifier: "com.conight.ChopChop",
+        let manifest = AppUpdateManifest(schema: 1, version: version.description, buildNumber: "2", bundleIdentifier: "org.example.ChopChopFork",
             architecture: "arm64", minimumSystemVersion: "26.5", filename: AppUpdateManifest.filename(for: version), size: 1,
             sha256: String(repeating: "a", count: 64), codeDirectoryHash: try AppUpdateManifest.codeHash(at: candidate))
         let payload = try JSONEncoder().encode(manifest)

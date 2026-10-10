@@ -10,6 +10,8 @@ import re
 import subprocess
 import sys
 
+from release_config import load, info as configuration_info
+
 
 def output(*args):
     return subprocess.check_output(args, stderr=subprocess.PIPE)
@@ -27,8 +29,10 @@ def entitlements(path):
 
 def verify(app):
     root = pathlib.Path(__file__).resolve().parent.parent
+    configuration = load()
+    expected_identifier = configuration["CHOPCHOP_APP_IDENTIFIER"]
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    require(info["CFBundleIdentifier"] == "com.conight.ChopChop", "Unexpected app identifier")
+    require(info["CFBundleIdentifier"] == expected_identifier, "Unexpected app identifier")
     require("Aria2NextVersion" not in info, "App must not declare a bundled engine version")
     require(not list(app.rglob("aria2-next*")), "App contains an embedded engine payload")
     require(not list(app.rglob("*.xctest")), "Release contains an XCTest bundle")
@@ -46,14 +50,18 @@ def verify(app):
         require(app_entitlements.get("com.apple.security." + key) is True, f"Missing entitlement: {key}")
     require(not app_entitlements.get("com.apple.security.get-task-allow"), "Release permits debugger injection")
     require(app_entitlements.get("com.apple.security.temporary-exception.files.home-relative-path.read-only") ==
-            ["/Library/Containers/com.conight.ChopChop/Data/Library/Application Support/ChopChop/Engines/"],
+            [f"/Library/Containers/{expected_identifier}/Data/Library/Application Support/ChopChop/Engines/"],
             "Managed engine execution permission is missing or too broad")
     require(not entitlements(installer).get("com.apple.security.app-sandbox"), "Private installer must be able to sign downloaded engines")
     for name in ("Aria2Next-COPYING.txt", "Aria2Next-NOTICE.txt"):
         require((app / "Contents/Resources" / name).read_bytes() == (root / "Vendor/Aria2Next" / name).read_bytes(),
                 f"Engine license notice differs: {name}")
+    installer_info = plistlib.loads((installer / "Contents/Info.plist").read_bytes())
+    require(installer_info["CFBundleIdentifier"] == expected_identifier + ".EngineInstaller", "Unexpected installer identifier")
+    for field, value in configuration_info(configuration).items():
+        require(info.get(field) == value and installer_info.get(field) == value, f"Release configuration differs: {field}")
     update_key = info.get("ChopChopUpdatePublicKey", "")
-    require(update_key == os.environ.get("CHOPCHOP_UPDATE_PUBLIC_KEY", (root / "Configuration/UpdatePublicKey.txt").read_text().strip()), "Update public key does not match build configuration")
+    require(update_key == configuration["CHOPCHOP_UPDATE_PUBLIC_KEY"], "Update public key does not match build configuration")
     if update_key:
         require(len(base64.b64decode(update_key, validate=True)) == 32, "Invalid update verification public key")
     tag = info.get("ChopChopReleaseVersion")

@@ -1,0 +1,258 @@
+import Foundation
+
+nonisolated enum FileAllocationMode: String, CaseIterable, Codable, Identifiable, Sendable {
+    case none
+    case trunc
+    case prealloc
+    case falloc
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: String(localized: "None")
+        case .trunc: String(localized: "Truncate")
+        case .prealloc: String(localized: "Preallocate")
+        case .falloc: String(localized: "Fallocate")
+        }
+    }
+}
+
+nonisolated enum BitTorrentSharingMode: String, CaseIterable, Identifiable, Sendable {
+    case stopByCondition
+    case manualStop
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .stopByCondition: String(localized: "Stop by ratio or time")
+        case .manualStop: String(localized: "Seed until manually stopped")
+        }
+    }
+}
+
+nonisolated struct EngineSettings: Equatable, Sendable {
+    static let defaultRPCPort = 29100
+    static let defaultSplitCount = 64
+    static let defaultBTListenPort = 29120
+    static let defaultDHTListenPort = 29130
+    static let defaultED2KListenPort = 29140
+    static let defaultED2KUDPListenPort = 29150
+    static let validED2KListenPortRange = 0...65_535
+    static let defaultED2KServerMetURL = "https://upd.emule-security.org/server.met"
+    static let defaultED2KNodesDatURL = "https://upd.emule-security.org/nodes.dat"
+    static let defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+    static let systemCACertificatePath = "/etc/ssl/cert.pem"
+
+    static var defaultDownloadDirectoryPath: String? {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+    }
+
+    static var defaultCACertificatePath: String? {
+        FileManager.default.fileExists(atPath: systemCACertificatePath) ? systemCACertificatePath : nil
+    }
+
+    static func isDefaultDownloadDirectoryPath(_ path: String) -> Bool {
+        guard let defaultDownloadDirectoryPath else { return false }
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path ==
+            URL(fileURLWithPath: defaultDownloadDirectoryPath).resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
+    var rpcToken = ""
+    var rpcPort: Int = EngineSettings.defaultRPCPort
+    var downloadDirectoryPath: String? = EngineSettings.defaultDownloadDirectoryPath
+    var downloadDirectoryBookmark: Data?
+    var maxActiveDownloads = 6
+    var maxConnectionsPerTask = 64
+    var splitCount = EngineSettings.defaultSplitCount
+    var maxOverallDownloadLimitKB = 0
+    var maxOverallUploadLimitKB = 0
+    var retryCount = 0
+    var retryWaitSeconds = 10
+    var connectTimeoutSeconds = 10
+    var timeoutSeconds = 10
+    var fileAllocation: FileAllocationMode = .trunc
+    var asyncDNS = false
+    var userAgent = EngineSettings.defaultUserAgent
+    var proxyURL = ""
+    var proxyBypass = ""
+    var btMaxPeers = 128
+    var btDHTEnabled = true
+    var btPeerExchangeEnabled = true
+    var btLocalPeerDiscoveryEnabled = true
+    var btForceEncryption = false
+    var pauseMetadata = true
+    var keepSharing = false
+    var shareRatio = 2
+    var shareTimeMinutes = 2_880
+    var listenPort = EngineSettings.defaultBTListenPort
+    var dhtListenPort = EngineSettings.defaultDHTListenPort
+    var btTracker = ""
+    var btTrackerAutoSync = true
+    var btTrackerSyncIntervalHours = TrackerSyncInterval.daily.rawValue
+    var trackerSourceURLs = TrackerSourceCatalog.defaultSourceURLs
+    var customTrackerSourceURLs: [String] = []
+    var lastTrackerSyncAt: Date?
+    var ed2kListenPort = EngineSettings.defaultED2KListenPort
+    var ed2kUDPListenPort = EngineSettings.defaultED2KUDPListenPort
+    var ed2kServer = ""
+    var ed2kServerMetURL = EngineSettings.defaultED2KServerMetURL
+    var ed2kNodesDatURL = EngineSettings.defaultED2KNodesDatURL
+    var ed2kBootstrapAutoSync = false
+    var ed2kBootstrapSyncIntervalHours = TrackerSyncInterval.daily.rawValue
+    var lastED2KBootstrapSyncAt: Date?
+    var ed2kUploadSlots = 3
+    var ed2kSearchTimeoutSeconds = 20
+
+    var sharingMode: BitTorrentSharingMode {
+        keepSharing ? .manualStop : .stopByCondition
+    }
+
+    var hasDownloadDirectoryAccess: Bool {
+        guard let downloadDirectoryPath,
+              !downloadDirectoryPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return downloadDirectoryBookmark != nil ||
+            Self.isDefaultDownloadDirectoryPath(downloadDirectoryPath)
+    }
+
+    var missingLaunchRequirements: [String] {
+        var requirements: [String] = []
+        if rpcToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            requirements.append(String(localized: "Generate an RPC token"))
+        }
+        if !(1...65535).contains(rpcPort) {
+            requirements.append(String(localized: "Set RPC port between 1 and 65535"))
+        }
+        if !(1...65535).contains(listenPort) {
+            requirements.append(String(localized: "Set BT listen port between 1 and 65535"))
+        }
+        if !(1...65535).contains(dhtListenPort) {
+            requirements.append(String(localized: "Set DHT listen port between 1 and 65535"))
+        }
+        if !Self.validED2KListenPortRange.contains(ed2kListenPort) {
+            requirements.append(String(localized: "Set ED2K listen port between 0 and 65535"))
+        }
+        if !Self.validED2KListenPortRange.contains(ed2kUDPListenPort) {
+            requirements.append(String(localized: "Set ED2K UDP listen port between 0 and 65535"))
+        }
+        if !(1...100).contains(ed2kUploadSlots) {
+            requirements.append(String(localized: "Set ED2K upload slots between 1 and 100"))
+        }
+        if !(10...600).contains(ed2kSearchTimeoutSeconds) {
+            requirements.append(String(localized: "Set ED2K search timeout between 10 and 600 seconds"))
+        }
+        if !hasDownloadDirectoryAccess {
+            requirements.append(String(localized: "Choose a default download folder"))
+        }
+        return requirements
+    }
+
+    var canLaunch: Bool {
+        missingLaunchRequirements.isEmpty
+    }
+
+    func validateLaunchRequirements() throws {
+        guard !rpcToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw EngineError.missingRPCToken
+        }
+        guard (1...65535).contains(rpcPort) else {
+            throw EngineError.invalidRPCPort(rpcPort)
+        }
+        guard (1...65535).contains(listenPort) else {
+            throw EngineError.invalidListenPort(label: String(localized: "BT listen port"), port: listenPort)
+        }
+        guard (1...65535).contains(dhtListenPort) else {
+            throw EngineError.invalidListenPort(label: String(localized: "DHT listen port"), port: dhtListenPort)
+        }
+        guard Self.validED2KListenPortRange.contains(ed2kListenPort) else {
+            throw EngineError.invalidNumericSetting(
+                label: String(localized: "ED2K listen port"),
+                value: ed2kListenPort,
+                range: Self.validED2KListenPortRange
+            )
+        }
+        guard Self.validED2KListenPortRange.contains(ed2kUDPListenPort) else {
+            throw EngineError.invalidNumericSetting(
+                label: String(localized: "ED2K UDP listen port"),
+                value: ed2kUDPListenPort,
+                range: Self.validED2KListenPortRange
+            )
+        }
+        guard (1...100).contains(ed2kUploadSlots) else {
+            throw EngineError.invalidNumericSetting(label: String(localized: "ED2K upload slots"), value: ed2kUploadSlots, range: 1...100)
+        }
+        guard (10...600).contains(ed2kSearchTimeoutSeconds) else {
+            throw EngineError.invalidNumericSetting(label: String(localized: "ED2K search timeout"), value: ed2kSearchTimeoutSeconds, range: 10...600)
+        }
+        guard hasDownloadDirectoryAccess else {
+            throw EngineError.missingDownloadDirectory
+        }
+    }
+
+    func engineOptions(downloadDirectoryPath: String? = nil, includeStartupOnly: Bool) -> [String: String] {
+        var options: [String: String] = [
+            "dir": downloadDirectoryPath ?? self.downloadDirectoryPath ?? "",
+            "continue": "true",
+            "content-disposition-default-utf8": "true",
+            "max-concurrent-downloads": "\(maxActiveDownloads)",
+            "max-connection-per-server": "\(maxConnectionsPerTask)",
+            "split": "\(splitCount)",
+            "max-overall-download-limit": speedLimit(maxOverallDownloadLimitKB),
+            "max-overall-upload-limit": speedLimit(maxOverallUploadLimitKB),
+            "max-tries": "\(retryCount)",
+            "retry-wait": "\(retryWaitSeconds)",
+            "connect-timeout": "\(connectTimeoutSeconds)",
+            "timeout": "\(timeoutSeconds)",
+            "file-allocation": fileAllocation.rawValue,
+            "async-dns": asyncDNS.description,
+            "user-agent": userAgent,
+            "seed-ratio": keepSharing ? "0" : "\(shareRatio)",
+            "pause-metadata": pauseMetadata.description,
+            "bt-tracker": TrackerText.reducedCommaSeparated(from: btTracker)
+        ]
+        if !keepSharing {
+            options["seed-time"] = "\(shareTimeMinutes)"
+        }
+        if !proxyURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            options["all-proxy"] = proxyURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if !proxyBypass.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            options["no-proxy"] = proxyBypass.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if includeStartupOnly {
+            options["rpc-listen-port"] = "\(rpcPort)"
+            options["rpc-secret"] = rpcToken
+            options["listen-port"] = "\(listenPort)"
+            options["dht-listen-port"] = "\(dhtListenPort)"
+            options["ed2k-listen-port"] = "\(ed2kListenPort)"
+            options["ed2k-udp-listen-port"] = "\(ed2kUDPListenPort)"
+            options["ed2k-upload-slots"] = "\(ed2kUploadSlots)"
+            options["ed2k-server"] = ED2KServerText.commaSeparated(from: ed2kServer)
+            options["bt-max-peers"] = "\(btMaxPeers)"
+            options["enable-dht"] = btDHTEnabled.description
+            options["enable-peer-exchange"] = btPeerExchangeEnabled.description
+            options["bt-enable-lpd"] = btLocalPeerDiscoveryEnabled.description
+            options["bt-force-encryption"] = btForceEncryption.description
+            options["bt-require-crypto"] = btForceEncryption.description
+            options["check-certificate"] = "true"
+            if let caCertificatePath = Self.defaultCACertificatePath {
+                options["ca-certificate"] = caCertificatePath
+            }
+        }
+        return options.filter { !$0.value.isEmpty }
+    }
+
+    func hotReloadableEngineOptions(downloadDirectoryPath: String? = nil) -> [String: String] {
+        engineOptions(downloadDirectoryPath: downloadDirectoryPath, includeStartupOnly: false)
+    }
+
+    private func speedLimit(_ kilobytesPerSecond: Int) -> String {
+        kilobytesPerSecond > 0 ? "\(kilobytesPerSecond)K" : "0"
+    }
+}

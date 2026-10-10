@@ -13,8 +13,11 @@ import tempfile
 import threading
 import time
 
+from release_config import load
+
 REPO = Path(__file__).resolve().parent.parent
-ENV = dict(os.environ, DEVELOPER_DIR=os.environ.get('DEVELOPER_DIR', '/Applications/Xcode.app/Contents/Developer'))
+ENV = dict(os.environ, DEVELOPER_DIR=subprocess.check_output(
+    ['sh', str(REPO/'Scripts/xcode-environment.sh'), '--print-xcode-directory'], text=True).strip())
 
 def run(*args, **kwargs):
     return subprocess.run([str(a) for a in args], env=ENV, check=True, **kwargs)
@@ -48,7 +51,7 @@ def workspace():
 def main():
     with workspace() as root:
         # Use exactly the shared production implementation; no network or installer substitutes.
-        sources = ['AppVersion', 'AppUpdatePackage', 'AppUpdateTransfer', 'AppUpdateInstallation', 'EngineRelease', 'EngineDownload']
+        sources = ['ReleaseConfiguration', 'AppUpdateStorage', 'AppVersion', 'AppUpdatePackage', 'AppUpdateTransfer', 'AppUpdateInstallation', 'EngineRelease', 'EngineDownload']
         run('xcrun', 'swiftc', '-parse-as-library', '-module-cache-path', root/'cache',
             *(REPO/'ChopChop'/f'{name}.swift' for name in sources), REPO/'Scripts/AppUpdateSmoke.swift', '-o', root/'smoke')
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
@@ -57,7 +60,7 @@ def main():
         finally: server.shutdown(); server.server_close()
         if requested := os.environ.get('CHOPCHOP_VERIFY_RELEASE_DOWNLOAD'):
             release = json.loads(requested)
-            run(root/'smoke', 'download-release', release['version'], release['size'], release['sha256'], root/'published-release')
+            run(root/'smoke', 'download-release', release['version'], release['size'], release['sha256'], root/'published-release', load()['CHOPCHOP_RELEASE_REPOSITORY'])
         fixture_source = root/'fixture.swift'
         fixture_source.write_text('import AppKit\nlet app = NSApplication.shared\napp.setActivationPolicy(.prohibited)\napp.run()\n')
         run('xcrun', 'swiftc', '-module-cache-path', root/'cache', fixture_source, '-o', root/'fixture')
@@ -73,7 +76,7 @@ def main():
                 (app/'Contents/Resources').mkdir()
                 shutil.copy2(root/('failing' if mode == 'worker-failure' and version.endswith('2') else 'fixture'), app/'Contents/MacOS/ChopChop')
                 shutil.copytree(helper, app/'Contents/XPCServices/EngineInstaller.xpc')
-                (app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='com.conight.ChopChop', CFBundleExecutable='ChopChop', CFBundleName='ChopChop Update Test', CFBundlePackageType='APPL', CFBundleVersion='2' if version.endswith('2') else '1', CFBundleShortVersionString='1.0.0', ChopChopReleaseVersion='v'+version, ChopChopUpdatePublicKey=public_key, LSMinimumSystemVersion='26.5', LSUIElement=True)))
+                (app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.example.ChopChopFork', ChopChopAppIdentifier='org.example.ChopChopFork', ChopChopReleaseRepository='example/ChopChopFork', CFBundleExecutable='ChopChop', CFBundleName='ChopChop Update Test', CFBundlePackageType='APPL', CFBundleVersion='2' if version.endswith('2') else '1', CFBundleShortVersionString='1.0.0', ChopChopReleaseVersion='v'+version, ChopChopUpdatePublicKey=public_key, LSMinimumSystemVersion='26.5', LSUIElement=True)))
                 run('codesign', '--force', '--sign', '-', '--options', 'runtime', app, capture_output=True)
             (case/'user-data').write_text('untouched')
             try: run(root/'smoke', mode, case, timeout=90)
@@ -84,8 +87,10 @@ def main():
         dmg = root/'ChopChop-v1.0.0-beta.2-macos-arm64.dmg'
         manifest = root/'ChopChop-v1.0.0-beta.2-update.json'
         run('hdiutil', 'create', '-srcfolder', payload, '-format', 'UDZO', dmg, capture_output=True)
+        configuration = root/'Release.xcconfig'
+        configuration.write_text('CHOPCHOP_RELEASE_REPOSITORY = example/ChopChopFork\nCHOPCHOP_APP_IDENTIFIER = org.example.ChopChopFork\nCHOPCHOP_UPDATE_PUBLIC_KEY = ' + plistlib.loads((payload/'ChopChop.app/Contents/Info.plist').read_bytes())['ChopChopUpdatePublicKey'] + '\n')
         signing_env = dict(ENV, CHOPCHOP_UPDATE_PRIVATE_KEY=(root/'success/key').read_text(), CHOPCHOP_VALIDATION_ROOT=str(root))
-        subprocess.run([str(REPO/'Scripts/sign-update-dmg.sh'), str(dmg), str(manifest)], env=signing_env, check=True)
+        subprocess.run([str(REPO/'Scripts/sign-update-dmg.sh'), str(dmg), str(manifest), "--configuration", str(configuration)], env=signing_env, check=True)
         run(root/'smoke', 'verify-signed', root/'success/key', manifest, dmg)
         print('App updater integration passed; disposable files removed.')
 

@@ -23,7 +23,6 @@ jobs:
         shell: bash
     env:
       OUTPUT_DIR: build/distribution
-      CHOPCHOP_UPDATE_PUBLIC_KEY: ${{ vars.CHOPCHOP_UPDATE_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,16 +49,10 @@ jobs:
           if settings['MARKETING_VERSION'] != version:
               sys.exit(f"Tag version {version} does not match MARKETING_VERSION {settings['MARKETING_VERSION']}")
           PY
-      - name: Require the pinned update public key
-        run: |
-          python3 - <<'PYKEY'
-          import os, base64, pathlib
-          key = base64.b64decode(os.environ['CHOPCHOP_UPDATE_PUBLIC_KEY'], validate=True)
-          if len(key) != 32:
-              raise SystemExit('Configure CHOPCHOP_UPDATE_PUBLIC_KEY before publishing signed updates.')
-          if os.environ['CHOPCHOP_UPDATE_PUBLIC_KEY'].strip() != pathlib.Path('Configuration/UpdatePublicKey.txt').read_text().strip():
-              raise SystemExit('Repository and release signing keys differ. Do not rotate the update key accidentally.')
-          PYKEY
+      - name: Validate public release configuration
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: python3 Scripts/release_config.py --check-repository "$RELEASE_REPOSITORY"
       - name: Verify all features and package DMG
         env:
           CHOPCHOP_RELEASE_VERSION: ${{ github.ref_name }}

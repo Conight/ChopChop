@@ -92,12 +92,27 @@ nonisolated struct EngineVersion: Comparable, Codable, Sendable, CustomStringCon
     }
 }
 
+/// Canonical upstream endpoints and asset names. Never trust asset URLs from a response.
+nonisolated enum EngineDistribution {
+    static let repository = "AnInsomniacy/aria2-next"
+    static let repositoryURL = URL(string: "https://github.com/\(repository)")!
+    static let latestAPI = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
+    static var latestPage: URL { repositoryURL.appendingPathComponent("releases/latest") }
+    static func page(version: EngineVersion) -> URL { repositoryURL.appendingPathComponent("releases/tag/v\(version)") }
+    static func release(version: EngineVersion) -> EngineRelease {
+        let directory = repositoryURL.appendingPathComponent("releases/download/v\(version)")
+        return EngineRelease(version: version,
+                             downloadURL: directory.appendingPathComponent("aria2-next-\(version)-macos-arm64"),
+                             checksumURL: directory.appendingPathComponent("aria2-next-\(version)-checksums.sha256"))
+    }
+}
+
 nonisolated struct EngineRelease: Equatable, Sendable, Identifiable {
     var version: EngineVersion
     var downloadURL: URL
     var checksumURL: URL
     var id: String { version.description }
-    var pageURL: URL { URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/tag/v\(version)")! }
+    var pageURL: URL { EngineDistribution.page(version: version) }
 }
 
 nonisolated enum EngineInstallationError: LocalizedError {

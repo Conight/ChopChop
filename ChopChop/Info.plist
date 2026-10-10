@@ -6,6 +6,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>ChopChop</string>
+	<key>ChopChopReleaseRepository</key>
+	<string>$(CHOPCHOP_RELEASE_REPOSITORY)</string>
+	<key>ChopChopAppIdentifier</key>
+	<string>$(CHOPCHOP_APP_IDENTIFIER)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -75,7 +79,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.conight.ChopChop.queue-task</string>
+			<string>$(CHOPCHOP_APP_IDENTIFIER).queue-task</string>
 			<key>UTTypeDescription</key>
 			<string>ChopChop queue item</string>
 			<key>UTTypeConformsTo</key>
