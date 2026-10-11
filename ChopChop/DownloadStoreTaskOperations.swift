@@ -176,6 +176,21 @@ extension DownloadStore {
             try await client.changePosition(id, to: position)
         }
     }
+
+    func moveQueuedTasks(_ ids: [String], before target: String?, toEnd: Bool) async {
+        guard !isUpdatingEngine, !isReorderingQueue, !isPerformingBatchOperation else { return }
+        isReorderingQueue = true
+        defer { isReorderingQueue = false }
+        await performTaskMutation(alertTitle: String(localized: "Reorder Queue Failed")) { client in
+            let queue = try await client.waitingQueueIDs()
+            guard let moves = DownloadQueueOrder.moves(ids, before: target, toEnd: toEnd, in: queue) else {
+                throw DownloadOperationError(String(localized: "The queue changed. Try dragging the task again."))
+            }
+            for move in moves { try await client.changePosition(move.id, to: move.position) }
+        }
+        // performTaskMutation refreshes even after an RPC error. Never publish an
+        // optimistic queue order that could conceal a rejected or partial move.
+    }
     func beginRemove(_ task: DownloadTask) {
         guard !preferences.suppressRemoveConfirmation else {
             let includingFiles = preferences.deleteFilesWhenSkippingRemoveConfirmation

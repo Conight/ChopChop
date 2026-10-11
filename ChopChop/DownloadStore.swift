@@ -69,9 +69,23 @@ final class DownloadStore: ObservableObject {
 
     @Published private(set) var engineSetupState: EngineSetupState = .unchecked
     @Published private(set) var installedEngine: EngineInstallation?
-    @Published private(set) var engineUpdateStatus = String(localized: "Checks automatically at launch")
+    @Published private(set) var engineUpdateStatus = String(localized: "Not checked yet")
     @Published private(set) var availableEngineUpdate: EngineRelease?
+    @Published private(set) var latestEngineRelease: EngineRelease?
+    @Published private(set) var recentEngineReleases: [EngineRelease] = []
+    /// nil follows the upstream Latest release; explicit versions apply to this installation only.
+    @Published var selectedEngineVersion: EngineVersion? {
+        didSet {
+            engineUpgradeError = nil
+            engineUpgradeResult = nil
+            engineVersionSelectionNotice = nil
+        }
+    }
+    @Published private(set) var engineReleaseListError: String?
+    @Published private(set) var engineVersionSelectionNotice: String?
+    private var didLoadEngineReleases = false
     @Published private(set) var engineSettingsRequested = false
+    @Published private(set) var updateSettingsRequested = false
     @Published private(set) var isCheckingEngineUpdate = false
     @Published private(set) var engineUpgradeProgress: EngineInstallationProgress?
     @Published private(set) var engineUpgradeError: String?
@@ -97,6 +111,10 @@ final class DownloadStore: ObservableObject {
     @Published var isPerformingBatchOperation = false
     @Published var searchQuery = ""
     @Published var addDraft = AddDownloadDraft()
+    @Published var isReorderingQueue = false
+    @Published var trackerSyncFeedback = ActionFeedback.idle
+    @Published var bootstrapSyncFeedback = ActionFeedback.idle
+    @Published var runtimeSettingsFeedback = ActionFeedback.idle
     @Published var isSyncingTrackers = false
     @Published var isSyncingED2KBootstrap = false
     @Published var ed2kBootstrapStatus = ED2KBootstrapStatus()
@@ -314,7 +332,6 @@ final class DownloadStore: ObservableObject {
             return
         }
         useEngine(installation)
-        startEngineUpdateCheck()
         await startEngine(startupSync: true)
     }
 
@@ -323,12 +340,17 @@ final class DownloadStore: ObservableObject {
         return String(localized: "Unavailable")
     }
 
-    var engineSidebarVersionDescription: String {
-        guard let release = availableEngineUpdate else { return engineVersionDescription }
-        return "\(engineVersionDescription) → \(release.version.description)"
-    }
+    var engineSidebarVersionDescription: String { engineVersionDescription }
 
     func requestEngineSettings() { engineSettingsRequested = true }
+
+    func requestUpdateSettings() { updateSettingsRequested = true }
+
+    func consumeUpdateSettingsRequest() -> Bool {
+        guard updateSettingsRequested else { return false }
+        updateSettingsRequested = false
+        return true
+    }
 
     func consumeEngineSettingsRequest() -> Bool {
         guard engineSettingsRequested else { return false }
@@ -338,17 +360,33 @@ final class DownloadStore: ObservableObject {
 
     var isUpdatingEngine: Bool { engineUpgradeProgress != nil }
 
+    var selectedEngineRelease: EngineRelease? {
+        guard let selectedEngineVersion else { return latestEngineRelease }
+        return recentEngineReleases.first { $0.version == selectedEngineVersion }
+    }
+
+    var canInstallRequiredEngine: Bool {
+        engineSetupState.requiresInstallation && !engineSetupState.isInstalling && !isShuttingDown
+            && !isCheckingEngineUpdate && (selectedEngineVersion == nil || selectedEngineRelease != nil)
+    }
+
+    var hasEngineVersionChange: Bool {
+        installedEngine != nil && selectedEngineRelease != nil
+            && (selectedEngineVersion == nil ? availableEngineUpdate != nil : selectedEngineVersion != installedEngine?.version)
+    }
+
     var canUpdateEngine: Bool {
         !isShuttingDown && !isUpdatingEngine && !isCheckingEngineUpdate && !isEngineTransitioning
-            && installedEngine != nil && availableEngineUpdate != nil
+            && hasEngineVersionChange
             && !isSearchingED2K && !isResolvingBitTorrentFiles && bitTorrentSelectionSession == nil && !mediaDownloads.isPresented
     }
 
     func updateEngine() {
-        guard canUpdateEngine, let release = availableEngineUpdate, let previous = installedEngine else { return }
+        guard canUpdateEngine, let previous = installedEngine else { return }
+        let selection = selectedEngineVersion
         engineUpgradeError = nil
         engineUpgradeResult = nil
-        engineUpgradeProgress = .init(stage: .connecting)
+        engineUpgradeProgress = .init(stage: selection == nil ? .checkingRelease : .connecting)
         engineUpgradeTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.engineUpgradeProgress = nil; self.engineUpgradeTask = nil }
@@ -356,6 +394,12 @@ final class DownloadStore: ObservableObject {
             var switchingEngine = false
             var backup: EngineRuntimeBackup?
             do {
+                let release = try await self.resolveEngineRelease(selection)
+                // Latest can move while the settings page is open. Never implicitly downgrade.
+                if selection == nil, release.version <= previous.version {
+                    self.refreshEngineUpdateStatus()
+                    return
+                }
                 let installation = try await self.engineInstallationManager.install(release) { [weak self] stage in
                     await self?.updateEngineUpgradeProgress(stage)
                 }
@@ -382,7 +426,6 @@ final class DownloadStore: ObservableObject {
                 self.engineUpgradeProgress = .init(stage: .activating)
                 try await self.engineInstallationManager.activate(installation)
                 self.useEngine(installation)
-                self.engineUpdateStatus = String(localized: "Up to date (\(installation.version.description))")
                 self.engineUpgradeResult = String(localized: "Aria2 Next \(installation.version.description) is installed.")
                 await backup?.discard()
             } catch {
@@ -438,9 +481,7 @@ final class DownloadStore: ObservableObject {
 
     private func useEngine(_ installation: EngineInstallation) {
         installedEngine = installation
-        if let update = availableEngineUpdate, update.version <= installation.version {
-            availableEngineUpdate = nil
-        }
+        refreshEngineUpdateStatus()
         engineController.selectInstallation(installation)
         engineSetupState = .ready
         if engineSettings.rpcToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -451,40 +492,95 @@ final class DownloadStore: ObservableObject {
         }
     }
 
+    private func refreshEngineUpdateStatus() {
+        guard let latestEngineRelease else {
+            availableEngineUpdate = nil
+            return
+        }
+        if let installedEngine, latestEngineRelease.version <= installedEngine.version {
+            availableEngineUpdate = nil
+            engineUpdateStatus = String(localized: "Up to date (\(installedEngine.version.description))")
+        } else {
+            availableEngineUpdate = installedEngine == nil ? nil : latestEngineRelease
+            engineUpdateStatus = String(localized: "Version \(latestEngineRelease.version.description) available")
+        }
+    }
+
+    func loadEngineReleasesIfNeeded() {
+        guard !didLoadEngineReleases, !AppLaunchConfiguration.isTestAutomation else { return }
+        startEngineUpdateCheck()
+    }
+
+    var canCheckEngineUpdates: Bool {
+        engineUpdateTask == nil && !isShuttingDown && !isUpdatingEngine && !engineSetupState.isInstalling
+    }
+
     func startEngineUpdateCheck() {
-        guard engineUpdateTask == nil, let installedEngine, !isShuttingDown, !isUpdatingEngine else { return }
+        guard canCheckEngineUpdates else { return }
         // UI automation uses a local engine without contacting GitHub.
         guard !AppLaunchConfiguration.isUITesting else { return }
         isCheckingEngineUpdate = true
-        engineUpdateStatus = String(localized: "Checking for updates…")
+        didLoadEngineReleases = true
+        if latestEngineRelease == nil {
+            engineUpdateStatus = String(localized: "Checking for updates…")
+        }
         engineUpdateTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.engineUpdateTask = nil; self.isCheckingEngineUpdate = false }
             do {
                 let release = try await self.engineInstallationManager.latestRelease()
                 guard !self.isShuttingDown, !Task.isCancelled else { return }
-                if release.version > installedEngine.version {
-                    self.engineUpdateStatus = String(localized: "Version \(release.version.description) available")
-                    self.availableEngineUpdate = release
-                } else {
-                    self.engineUpdateStatus = String(localized: "Up to date (\(installedEngine.version.description))")
-                    self.availableEngineUpdate = nil
-                }
+                self.latestEngineRelease = release
+                self.refreshEngineUpdateStatus()
             } catch {
                 guard !self.isShuttingDown, !Task.isCancelled else { return }
                 self.engineUpdateStatus = String(localized: "Could not check for updates. Try again later.")
             }
+            do {
+                let releases = try await self.engineInstallationManager.recentReleases()
+                guard !self.isShuttingDown, !Task.isCancelled else { return }
+                guard !releases.isEmpty else { throw EngineInstallationError.invalidRelease }
+                self.engineReleaseListError = nil
+                self.engineVersionSelectionNotice = nil
+                self.recentEngineReleases = releases
+                if let selected = self.selectedEngineVersion, !releases.contains(where: { $0.version == selected }) {
+                    self.selectedEngineVersion = nil
+                    self.engineVersionSelectionNotice = String(localized: "The selected version is no longer in the recent releases. Latest is selected.")
+                }
+            } catch {
+                guard !self.isShuttingDown, !Task.isCancelled else { return }
+                self.engineReleaseListError = String(localized: "Could not load recent versions. Refresh to try again, or choose Latest.")
+            }
         }
     }
 
+    func waitForEngineUpdateCheck() async {
+        await engineUpdateTask?.value
+    }
+
+    private func resolveEngineRelease(_ version: EngineVersion?) async throws -> EngineRelease {
+        if let version {
+            guard let release = recentEngineReleases.first(where: { $0.version == version }) else {
+                throw EngineInstallationError.invalidRelease
+            }
+            return release
+        }
+        let release = try await engineInstallationManager.latestRelease()
+        try Task.checkCancellation()
+        latestEngineRelease = release
+        refreshEngineUpdateStatus()
+        return release
+    }
+
     func installRequiredEngine() {
-        guard engineSetupState.requiresInstallation, !engineSetupState.isInstalling, !isShuttingDown else { return }
-        engineSetupState = .installing(.init(stage: .checkingRelease))
+        guard canInstallRequiredEngine else { return }
+        let selection = selectedEngineVersion
+        engineSetupState = .installing(.init(stage: selection == nil ? .checkingRelease : .connecting))
         engineInstallTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.engineInstallTask = nil }
             do {
-                let release = try await self.engineInstallationManager.latestRelease()
+                let release = try await self.resolveEngineRelease(selection)
                 let installation = try await self.engineInstallationManager.install(release) { [weak self] stage in
                     await self?.updateEngineInstallationProgress(stage)
                 }
@@ -492,7 +588,6 @@ final class DownloadStore: ObservableObject {
                 self.engineSetupState = .installing(.init(stage: .activating))
                 try await self.engineInstallationManager.activate(installation)
                 self.useEngine(installation)
-                self.engineUpdateStatus = String(localized: "Up to date (\(installation.version.description))")
                 await self.startEngine(startupSync: true)
             } catch {
                 guard !self.isShuttingDown else { return }
@@ -1335,7 +1430,9 @@ final class DownloadStore: ObservableObject {
     }
 
     func applyRuntimeEngineOptions() async {
-        guard !isUpdatingEngine else { return }
+        guard !isUpdatingEngine, runtimeSettingsFeedback != .working else { return }
+        runtimeSettingsFeedback = .working
+        defer { if runtimeSettingsFeedback == .working { runtimeSettingsFeedback = .idle } }
         guard engineController.isRunning else {
             postError(String(localized: "Start Aria2 Next before applying runtime options."), title: String(localized: "Apply Settings Failed"))
             return
@@ -1357,6 +1454,7 @@ final class DownloadStore: ObservableObject {
             options.merge(preferences.bandwidthSchedule.options(at: Date(), base: engineSettings)) { _, effective in effective }
             try await client.changeGlobalOption(options)
             lastBandwidthOptions = nil
+            runtimeSettingsFeedback = .succeeded
             if needsSharingRestart {
                 postActivity(String(localized: "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."))
             } else {
@@ -1389,6 +1487,7 @@ final class DownloadStore: ObservableObject {
 
     private func syncBitTorrentTrackers(startup: Bool, reportFailures: Bool) async {
         guard !isSyncingTrackers else { return }
+        trackerSyncFeedback = .idle
         let sources = engineSettings.trackerSourceURLs
         guard !sources.isEmpty else {
             if reportFailures {
@@ -1398,7 +1497,11 @@ final class DownloadStore: ObservableObject {
         }
 
         isSyncingTrackers = true
-        defer { isSyncingTrackers = false }
+        trackerSyncFeedback = .working
+        defer {
+            isSyncingTrackers = false
+            if trackerSyncFeedback == .working { trackerSyncFeedback = .idle }
+        }
 
         let result = await trackerFetcher.fetchTrackerSources(sources)
         guard !Task.isCancelled, !isShuttingDown else { return }
@@ -1424,13 +1527,14 @@ final class DownloadStore: ObservableObject {
                 updateRuntime(lastError: error.localizedDescription)
                 if reportFailures {
                     postError(error, title: String(localized: "Apply Trackers Failed"))
-                    return
                 }
+                return
             }
         }
 
         let successCount = result.data.count
         if result.failures.isEmpty {
+            trackerSyncFeedback = .succeeded
             postActivity(startup ? String(localized: "Trackers auto-synced.") : String(localized: "Trackers synced."))
         } else if reportFailures {
             postError(
@@ -1490,6 +1594,7 @@ final class DownloadStore: ObservableObject {
 
     private func syncED2KBootstrap(startup: Bool, reportFailures: Bool) async {
         guard !isSyncingED2KBootstrap else { return }
+        bootstrapSyncFeedback = .idle
         guard ED2KBootstrapURLValidator.isValid(engineSettings.ed2kServerMetURL),
               ED2KBootstrapURLValidator.isValid(engineSettings.ed2kNodesDatURL) else {
             if reportFailures {
@@ -1499,7 +1604,11 @@ final class DownloadStore: ObservableObject {
         }
 
         isSyncingED2KBootstrap = true
-        defer { isSyncingED2KBootstrap = false }
+        bootstrapSyncFeedback = .working
+        defer {
+            isSyncingED2KBootstrap = false
+            if bootstrapSyncFeedback == .working { bootstrapSyncFeedback = .idle }
+        }
 
         do {
             let result = try await ed2kBootstrapFetcher.fetch(
@@ -1513,6 +1622,7 @@ final class DownloadStore: ObservableObject {
             var settings = engineSettings
             settings.lastED2KBootstrapSyncAt = Date()
             engineSettings = settings
+            bootstrapSyncFeedback = .succeeded
             postActivity(startup ? String(localized: "ED2K bootstrap auto-synced.") : String(localized: "ED2K bootstrap files synced."))
         } catch {
             updateRuntime(lastError: error.localizedDescription)

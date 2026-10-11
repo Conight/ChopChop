@@ -9,6 +9,7 @@ enum SettingsPane: String, CaseIterable, Hashable, Identifiable {
     case ed2k = "ED2K"
     case integrations = "Integrations"
     case engine = "Engine"
+    case updates = "Updates"
 
     var localizedTitle: String { L10n.key(rawValue) }
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum SettingsPane: String, CaseIterable, Hashable, Identifiable {
         case .ed2k: "server.rack"
         case .integrations: "puzzlepiece.extension"
         case .engine: "cpu"
+        case .updates: "arrow.triangle.2.circlepath"
         }
     }
 }
@@ -63,9 +65,13 @@ struct SettingsView: View {
             syncED2KSearchFileTypeSelectionFromStore()
             store.publishStartupAlerts()
             navigateToRequestedEngineSettings()
+            navigateToRequestedUpdateSettings()
         }
         .onChange(of: store.engineSettingsRequested) { _, _ in
             navigateToRequestedEngineSettings()
+        }
+        .onChange(of: store.updateSettingsRequested) { _, _ in
+            navigateToRequestedUpdateSettings()
         }
         .onChange(of: store.engineSettings.keepSharing) { _, _ in
             syncSharingModeSelectionFromStore()
@@ -163,6 +169,12 @@ struct SettingsView: View {
 
     func showAppUpdates() { openWindow(id: AppWindowID.updates) }
 
+    private func navigateToRequestedUpdateSettings() {
+        guard store.consumeUpdateSettingsRequest() else { return }
+        settingsSearch.cancel()
+        selectedPane = .updates
+    }
+
     private var sidebarSelection: Binding<SettingsPane?> {
         Binding(get: { selectedPane }, set: { pane in
             guard let pane else { return }
@@ -183,6 +195,7 @@ struct SettingsView: View {
             protocols
             browserCapture
         case .engine: engine
+        case .updates: updateSettings
         }
     }
 
@@ -193,9 +206,11 @@ struct SettingsView: View {
                 Text(String(localized: "Saved automatically. Apply changes to the running engine; port changes require a restart."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                Button(String(localized: "Apply Settings")) {
+                Button {
                     runStoreTask { await store.applyRuntimeEngineOptions() }
-                }.disabled(!runtimeCanApplySettings)
+                } label: {
+                    ActionFeedbackLabel(title: String(localized: "Apply Settings"), systemImage: "slider.horizontal.3", feedback: store.runtimeSettingsFeedback)
+                }.disabled(!runtimeCanApplySettings || store.runtimeSettingsFeedback == .working)
             }
             .padding(.horizontal, AppLayout.settingsInset).padding(.vertical, AppLayout.groupInset)
             .frame(maxWidth: AppLayout.settingsWidth)

@@ -146,13 +146,19 @@ struct FileVerificationView: View {
                               systemImage: digest == value ? "checkmark.circle.fill" : "xmark.octagon.fill")
                             .foregroundStyle(digest == value ? .green : .red)
                     }
-                    Button(String(localized: "Copy Checksum")) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(digest, forType: .string) }
+                    FeedbackButton(title: String(localized: "Copy Checksum"), systemImage: "doc.on.doc", successTitle: String(localized: "Copied")) {
+                        NSPasteboard.general.clearContents()
+                        return NSPasteboard.general.setString(digest, forType: .string)
+                    }
                 }
                 if let issue = inputIssue ?? verifier.issue {
                     Text(issue).font(.caption).foregroundStyle(.red)
                     Button(String(localized: "Locate Downloaded File…")) { locate() }
                 }
             }.padding(.top, 8)
+                .stateChangeMotion(verifier.progress != nil)
+                .stateChangeMotion(verifier.digest != nil)
+                .stateChangeMotion((inputIssue ?? verifier.issue) != nil)
         }
         .onChange(of: algorithm) { _, _ in verifier.reset(); inputIssue = nil }
         .onChange(of: expected) { _, _ in inputIssue = (try? algorithm.normalizedExpected(expected)) == nil && !expected.trimmedForEngine.isEmpty ? String(localized: "Check the checksum length and hexadecimal characters.") : nil }

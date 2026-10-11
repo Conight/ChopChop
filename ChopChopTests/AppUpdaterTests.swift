@@ -5,6 +5,18 @@ import XCTest
 @testable import ChopChop
 
 final class AppUpdaterTests: XCTestCase {
+    @MainActor
+    func testUpdateAnimationKeyIgnoresBytePollingAndDistinguishesStages() {
+        let release = AppRelease(version: AppVersion("1.0.0")!, notes: "")
+        let first = AppUpdateCoordinator.State.preparing(release, .init(stage: .downloading, completedBytes: 10, totalBytes: 100))
+        let next = AppUpdateCoordinator.State.preparing(release, .init(stage: .downloading, completedBytes: 50, totalBytes: 100))
+        let verified = AppUpdateCoordinator.State.preparing(release, .init(stage: .verifying))
+        XCTAssertEqual(first.motionPhase, next.motionPhase)
+        XCTAssertNotEqual(first.motionPhase, verified.motionPhase)
+        XCTAssertNotEqual(verified.motionPhase, AppUpdateCoordinator.State.ready(release).motionPhase)
+        XCTAssertNil(AppMotion.animation(reduceMotion: true))
+    }
+
     func testUpdateDirectoryOwnershipRequiresAnExactPrefixAndUUID() {
         let id = UUID().uuidString
         let root = URL(fileURLWithPath: "/tmp/update-layout-test", isDirectory: true)

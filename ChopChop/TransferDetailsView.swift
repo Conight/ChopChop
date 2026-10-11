@@ -205,6 +205,8 @@ struct TransferDetailsView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
+        .stateChangeMotion(monitor.snapshot != nil)
+        .stateChangeMotion(monitor.issue != nil)
         .background(WindowVisibilityReader(visible: $windowVisible).frame(width: 0, height: 0))
         .task(id: "\(task.id):\(task.isAvailableInEngine):\(scenePhase == .active && windowVisible):\(store.isUpdatingEngine)") {
             guard scenePhase == .active && windowVisible, task.isAvailableInEngine, !store.isUpdatingEngine else { return }
@@ -298,13 +300,15 @@ struct TransferOptionsView: View {
                 Text(String(localized: "Task upload limit (KiB/s)")).font(.caption).foregroundStyle(.secondary)
                 TextField(String(localized: "Task upload limit (KiB/s)"), value: $uploadKiB, format: .number.grouping(.never))
                     .nativeTextFieldStyle().disabled(busy || originalKiB == nil)
-                Button(String(localized: "Apply Upload Limit")) {
+                Button {
                     busy = true; saved = false
                     Task {
                         defer { busy = false }
                         do { try await store.setTorrentUploadLimit(task, kib: uploadKiB); originalKiB = uploadKiB; issue = nil; saved = true }
                         catch { issue = DownloadPrivacy.redact(error.localizedDescription) }
                     }
+                } label: {
+                    ActionFeedbackLabel(title: String(localized: "Apply Upload Limit"), systemImage: "slider.horizontal.3", feedback: busy ? .working : saved ? .succeeded : .idle)
                 }.disabled(busy || originalKiB == nil || uploadKiB == originalKiB || task.primaryControlAction == nil)
                     .controlSize(.small)
                 if saved { Label(String(localized: "Upload limit saved"), systemImage: "checkmark.circle").font(.caption) }

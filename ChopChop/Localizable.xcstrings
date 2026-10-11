@@ -35,6 +35,23 @@
         }
       }
     },
+    "%@ (installed)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (installed)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（已安装）"
+          }
+        }
+      }
+    },
     "%@ KiB/s": {
       "extractionState": "manual",
       "localizations": {
@@ -3067,6 +3084,40 @@
         }
       }
     },
+    "Check All Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check All Updates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查全部更新"
+          }
+        }
+      }
+    },
+    "Check All Updates…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check All Updates…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查全部更新…"
+          }
+        }
+      }
+    },
     "Check ChopChop Updates": {
       "extractionState": "manual",
       "localizations": {
@@ -3101,6 +3152,40 @@
         }
       }
     },
+    "Check ChopChop and Engine versions when the app opens. You choose when to download and install updates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check ChopChop and Engine versions when the app opens. You choose when to download and install updates."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动时检查 ChopChop 和引擎的新版本，由你决定何时下载和安装。"
+          }
+        }
+      }
+    },
+    "Check Engine Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Engine Updates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查引擎更新"
+          }
+        }
+      }
+    },
     "Check for Updates": {
       "extractionState": "manual",
       "localizations": {
@@ -3118,6 +3203,23 @@
         }
       }
     },
+    "Check for Updates…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查更新…"
+          }
+        }
+      }
+    },
     "Check for new versions of ChopChop.": {
       "extractionState": "manual",
       "localizations": {
@@ -3131,6 +3233,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "检查是否有可用的 ChopChop 新版本。"
+          }
+        }
+      }
+    },
+    "Check for updates at launch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for updates at launch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动时检查更新"
           }
         }
       }
@@ -3216,6 +3335,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在检查更新…"
+          }
+        }
+      }
+    },
+    "Checking the engine version…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking the engine version…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查引擎版本…"
           }
         }
       }
@@ -3641,6 +3777,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "ChopChop 更新"
+          }
+        }
+      }
+    },
+    "ChopChop and Engine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop and Engine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 和引擎"
           }
         }
       }
@@ -4358,6 +4511,23 @@
         }
       }
     },
+    "Copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制"
+          }
+        }
+      }
+    },
     "Copy Checksum": {
       "extractionState": "manual",
       "localizations": {
@@ -4609,6 +4779,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载下载历史：%@"
+          }
+        }
+      }
+    },
+    "Could not load recent versions. Refresh to try again, or choose Latest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load recent versions. Refresh to try again, or choose Latest."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载最近的版本。请刷新重试，或选择 Latest（最新版）。"
           }
         }
       }
@@ -8390,6 +8577,23 @@
         }
       }
     },
+    "Installed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装"
+          }
+        }
+      }
+    },
     "Installed version": {
       "extractionState": "manual",
       "localizations": {
@@ -8606,6 +8810,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "上次同步：%@"
+          }
+        }
+      }
+    },
+    "Latest (%@)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest（%@）"
+          }
+        }
+      }
+    },
+    "Latest (latest version)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest (latest version)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest（最新版）"
           }
         }
       }
@@ -8878,6 +9116,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在读取传输详情…"
+          }
+        }
+      }
+    },
+    "Loading versions…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading versions…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载版本…"
           }
         }
       }
@@ -10004,6 +10259,23 @@
         }
       }
     },
+    "Not checked yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未检查更新"
+          }
+        }
+      }
+    },
     "Not complete": {
       "extractionState": "manual",
       "localizations": {
@@ -10458,6 +10730,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 Torrent 或 Metalink…"
+          }
+        }
+      }
+    },
+    "Open Updates settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Updates settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开更新设置"
           }
         }
       }
@@ -12195,6 +12484,23 @@
         }
       }
     },
+    "Refresh Versions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Versions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新版本"
+          }
+        }
+      }
+    },
     "Rejected data": {
       "extractionState": "manual",
       "localizations": {
@@ -12871,6 +13177,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试下载"
+          }
+        }
+      }
+    },
+    "Retry Installation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry Installation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试安装"
           }
         }
       }
@@ -15352,6 +15675,23 @@
         }
       }
     },
+    "Switch to %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换至 %@"
+          }
+        }
+      }
+    },
     "Sync Bootstrap Files": {
       "extractionState": "manual",
       "localizations": {
@@ -16082,6 +16422,23 @@
         }
       }
     },
+    "The queue changed. Try dragging the task again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The queue changed. Try dragging the task again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "队列已发生变化，请重新拖动任务。"
+          }
+        }
+      }
+    },
     "The running engine does not advertise media track selection. Update Aria2 Next in Engine settings.": {
       "extractionState": "manual",
       "localizations": {
@@ -16180,6 +16537,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选轨道或输出格式不兼容。请更换选择或使用 MKV。"
+          }
+        }
+      }
+    },
+    "The selected version is no longer in the recent releases. Latest is selected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected version is no longer in the recent releases. Latest is selected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选版本已不在最近发布的版本中，已改选 Latest（最新版）。"
           }
         }
       }
@@ -16520,6 +16894,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "不支持此协议。请使用 HTTP、HTTPS、SFTP、Magnet、ED2K、Torrent 或 Metalink。Aria2 Next 已不再支持 FTP。"
+          }
+        }
+      }
+    },
+    "This release does not contain a supported Apple Silicon engine.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This release does not contain a supported Apple Silicon engine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本不包含受支持的 Apple Silicon 引擎。"
           }
         }
       }
@@ -17543,6 +17934,23 @@
         }
       }
     },
+    "Up to date": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to date"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已是最新版本"
+          }
+        }
+      }
+    },
     "Up to date (%@)": {
       "extractionState": "manual",
       "localizations": {
@@ -17590,6 +17998,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新频道"
+          }
+        }
+      }
+    },
+    "Update Checks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Checks"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新检查"
           }
         }
       }
@@ -17674,6 +18099,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新到 %@"
+          }
+        }
+      }
+    },
+    "Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
           }
         }
       }
@@ -18201,6 +18643,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "有版本 %@ 可用"
+          }
+        }
+      }
+    },
+    "Version to install": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version to install"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装版本"
           }
         }
       }

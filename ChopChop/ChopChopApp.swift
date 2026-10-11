@@ -15,7 +15,6 @@ struct ChopChopApp: App {
     @StateObject private var store: DownloadStore
     @StateObject private var supportNavigation = AppSupportNavigation()
     @StateObject private var updates = AppUpdateCoordinator()
-    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         AppLaunchConfiguration.prepare()
@@ -30,11 +29,7 @@ struct ChopChopApp: App {
                 .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
                     guard !AppLaunchConfiguration.isTestAutomation else { return }
-                    await updates.check(automatically: true)
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active, !AppLaunchConfiguration.isTestAutomation else { return }
-                    Task { await updates.check(automatically: true) }
+                    await updates.checkAtLaunch(using: store)
                 }
                 .onAppear {
                     appDelegate.configureMenuBar(store: store)

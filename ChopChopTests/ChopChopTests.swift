@@ -2433,6 +2433,7 @@ final class ChopChopTests: XCTestCase {
         store.engineSettings.trackerSourceURLs = ["https://source.example.com/trackers.txt"]
 
         await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(store.trackerSyncFeedback, .succeeded)
 
         XCTAssertEqual(fetcher.requestedSources.value(), ["https://source.example.com/trackers.txt"])
         XCTAssertEqual(
@@ -2447,6 +2448,56 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testFailedRuntimeOperationsNeverLeaveSuccessFeedback() async throws {
+        let client = try makeRPCClient { request in
+            try Self.rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"Rejected"}}"#)
+        }
+        let fetcher = MockTrackerFetcher(result: TrackerSourceFetchResult(data: ["udp://tracker.example:6969/announce"], failures: []))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        store.engineSettings.trackerSourceURLs = ["https://source.example/trackers"]
+        store.trackerSyncFeedback = .succeeded
+        await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(store.trackerSyncFeedback, .idle, "Fetching alone is not success if the running engine rejects the trackers")
+        XCTAssertFalse(store.isSyncingTrackers)
+        store.runtimeSettingsFeedback = .succeeded
+        await store.applyRuntimeEngineOptions()
+        XCTAssertEqual(store.runtimeSettingsFeedback, .idle)
+        store.bootstrapSyncFeedback = .succeeded
+        store.engineSettings.ed2kServerMetURL = "file:///invalid"
+        await store.syncED2KBootstrapManually()
+        XCTAssertEqual(store.bootstrapSyncFeedback, .idle)
+        XCTAssertFalse(store.isSyncingED2KBootstrap)
+    }
+
+    @MainActor
+    func testNativeQueueRejectionRefreshesEngineOrder() async throws {
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            if method == "aria2.tellWaiting" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"a","status":"paused","files":[]},{"gid":"b","status":"paused","files":[]}]}"#)
+            }
+            if method == "aria2.changePosition" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"Queue changed"}}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.tasks = [makeTask(id: "a", status: .paused), makeTask(id: "b", status: .paused)]
+        var alert: UserFacingAlert?
+        let observation = store.userAlerts.sink { alert = $0 }
+        await store.moveQueuedTasks(["a"], before: nil, toEnd: true)
+        XCTAssertFalse(store.isReorderingQueue)
+        XCTAssertEqual(store.visibleTasks(for: .waiting).map(\.id), ["a", "b"])
+        XCTAssertEqual(alert?.title, String(localized: "Reorder Queue Failed"))
+        XCTAssertTrue(calls.value().contains("aria2.changePosition"))
+        XCTAssertGreaterThanOrEqual(calls.value().filter { $0 == "aria2.tellWaiting" }.count, 2)
+        _ = observation
+    }
+
+    @MainActor
     func testManualTrackerSyncReportsEmptySourceSelection() async throws {
         let fetcher = MockTrackerFetcher(result: TrackerSourceFetchResult(data: [], failures: []))
         let store = try makeInjectedStore(
@@ -2456,6 +2507,7 @@ final class ChopChopTests: XCTestCase {
             trackerFetcher: fetcher
         )
         store.engineSettings.trackerSourceURLs = []
+        store.trackerSyncFeedback = .succeeded
         var receivedAlert: UserFacingAlert?
         let cancellable = store.userAlerts.sink { alert in
             receivedAlert = alert
@@ -2463,6 +2515,7 @@ final class ChopChopTests: XCTestCase {
 
         await store.syncBitTorrentTrackersManually()
 
+        XCTAssertEqual(store.trackerSyncFeedback, .idle)
         XCTAssertEqual(receivedAlert?.title, "Tracker Sync Failed")
         XCTAssertEqual(receivedAlert?.message, "Select at least one tracker source.")
         XCTAssertTrue(fetcher.requestedSources.value().isEmpty)
@@ -2489,6 +2542,7 @@ final class ChopChopTests: XCTestCase {
         store.engineSettings.proxyURL = "http://127.0.0.1:7890"
 
         await store.syncED2KBootstrapManually()
+        XCTAssertEqual(store.bootstrapSyncFeedback, .succeeded)
 
         XCTAssertEqual(fetcher.requestedArguments.value().count, 1)
         XCTAssertEqual(fetcher.requestedArguments.value().first?.serverMetURL, "https://example.com/server.met")
@@ -3473,6 +3527,7 @@ final class ChopChopTests: XCTestCase {
         store.engineSettings.btTrackerAutoSync = false
         defer { store.shutdown() }
         await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
         XCTAssertEqual(store.engineSettings.rpcToken, "existing-token")
         XCTAssertEqual(store.engineSettings.downloadDirectoryPath, existingFolder.path)
@@ -3491,6 +3546,7 @@ final class ChopChopTests: XCTestCase {
         store.engineSettings.btTrackerAutoSync = false
         defer { store.shutdown() }
         await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
         let notified = await waitForMainActorCondition(timeout: 2) { store.availableEngineUpdate != nil }
         XCTAssertTrue(notified)
         XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
@@ -3521,9 +3577,173 @@ final class ChopChopTests: XCTestCase {
         let store = try makeInjectedStore(engineController: controller, engineInstallationManager: manager)
         store.engineSettings.btTrackerAutoSync = false
         await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
         let ready = await waitForMainActorCondition(timeout: 2) { store.canUpdateEngine }
         XCTAssertTrue(ready)
         return (store, controller)
+    }
+
+    @MainActor
+    func testLatestEngineSelectionResolvesAgainAtInstallationTime() async throws {
+        let manager = StartupEngineManager()
+        let (store, _) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        XCTAssertNil(store.selectedEngineVersion)
+        XCTAssertEqual(store.recentEngineReleases.count, 5)
+        await manager.setLatest("2.11.0")
+        store.updateEngine()
+        let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.engineVersionDescription, "2.11.0")
+        let requested = await manager.requestedVersions
+        XCTAssertEqual(requested, [EngineVersion("2.11.0")!])
+    }
+
+    @MainActor
+    func testManualEngineVersionCanDowngradeWithoutLosingLatestReminder() async throws {
+        let manager = StartupEngineManager()
+        let (store, controller) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        store.selectedEngineVersion = EngineVersion("2.9.0")
+        XCTAssertFalse(store.canUpdateEngine, "The installed version must not be installed again")
+        store.selectedEngineVersion = EngineVersion("2.8.5")
+        XCTAssertTrue(store.canUpdateEngine)
+        store.updateEngine()
+        let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
+        XCTAssertTrue(finished)
+        XCTAssertNil(store.engineUpgradeError)
+        XCTAssertEqual(store.engineVersionDescription, "2.8.5")
+        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
+        XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
+        XCTAssertEqual(controller.stopCallCount, 1)
+        XCTAssertFalse(store.canUpdateEngine)
+        let checks = await manager.releaseChecks
+        XCTAssertEqual(checks, 1, "An explicit version must not resolve to Latest")
+        store.selectedEngineVersion = nil
+        XCTAssertTrue(store.canUpdateEngine)
+    }
+
+    @MainActor
+    func testFailedManualDowngradeRestoresInstalledEngine() async throws {
+        let manager = StartupEngineManager()
+        let (store, controller) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        controller.rejectedVersion = EngineVersion("2.8.5")
+        store.selectedEngineVersion = EngineVersion("2.8.5")
+        store.updateEngine()
+        let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.installedEngine?.version, EngineVersion("2.9.0"))
+        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("2.9.0"))
+        XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
+        XCTAssertNotNil(store.engineUpgradeError)
+        XCTAssertTrue(store.canUpdateEngine)
+        let activations = await manager.activationCount
+        XCTAssertEqual(activations, 0)
+    }
+
+    @MainActor
+    func testFirstEngineInstallationUsesExplicitVersion() async throws {
+        let manager = StartupEngineManager(missing: true)
+        let client = try makeRPCClient { request in
+            try Self.responseForStoreMutationPoll(method: Self.captureRPCMethod(from: request), request: request)
+        }
+        let controller = MockEngineController(client: client, isRunning: false, hasLaunchedProcess: false)
+        let store = try makeInjectedStore(engineController: controller, engineInstallationManager: manager)
+        store.engineSettings.btTrackerAutoSync = false
+        defer { store.shutdown() }
+        await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
+        let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(loaded)
+        store.selectedEngineVersion = EngineVersion("1.0.0")
+        XCTAssertFalse(store.canInstallRequiredEngine, "Versions outside the fetched list cannot be installed")
+        store.selectedEngineVersion = EngineVersion("2.8.4")
+        XCTAssertTrue(store.canInstallRequiredEngine)
+        store.installRequiredEngine()
+        let ready = await waitForMainActorCondition(timeout: 3) { store.engineSetupState == .ready }
+        XCTAssertTrue(ready)
+        XCTAssertEqual(store.installedEngine?.version, EngineVersion("2.8.4"))
+        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
+        let requested = await manager.requestedVersions
+        XCTAssertEqual(requested, [EngineVersion("2.8.4")!])
+    }
+
+    @MainActor
+    func testEngineRefreshKeepsVersionChangeDescriptionAndExistingErrorVisible() async throws {
+        let manager = StartupEngineManager()
+        let (store, _) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        store.selectedEngineVersion = EngineVersion("2.8.5")
+        XCTAssertTrue(store.hasEngineVersionChange)
+        let status = store.engineUpdateStatus
+        await manager.rejectListing()
+        store.startEngineUpdateCheck()
+        XCTAssertTrue(store.isCheckingEngineUpdate)
+        XCTAssertFalse(store.canUpdateEngine)
+        XCTAssertTrue(store.hasEngineVersionChange, "Temporarily disabling installation must not remove its explanation")
+        XCTAssertEqual(store.engineUpdateStatus, status)
+        let finished = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(finished)
+        let error = try XCTUnwrap(store.engineReleaseListError)
+        store.startEngineUpdateCheck()
+        XCTAssertEqual(store.engineReleaseListError, error, "Keep the previous result in place until the new check completes")
+        let retried = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(retried)
+    }
+
+    @MainActor
+    func testReleaseListFailureStillAllowsLatestAndRefreshRetainsCachedVersions() async throws {
+        let manager = StartupEngineManager()
+        let (store, _) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        let cached = store.recentEngineReleases
+        store.selectedEngineVersion = EngineVersion("2.8.5")
+        await manager.rejectListing()
+        store.startEngineUpdateCheck()
+        let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(loaded)
+        XCTAssertNotNil(store.engineReleaseListError)
+        XCTAssertEqual(store.recentEngineReleases, cached)
+        XCTAssertEqual(store.selectedEngineVersion, EngineVersion("2.8.5"))
+        store.selectedEngineVersion = nil
+        XCTAssertTrue(store.canUpdateEngine)
+        store.updateEngine()
+        let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.engineVersionDescription, "2.10.0")
+    }
+
+    @MainActor
+    func testReleaseRefreshDropsExpiredSelectionWithNotice() async throws {
+        let manager = StartupEngineManager()
+        let (store, _) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        store.selectedEngineVersion = EngineVersion("2.8.4")
+        await manager.setVersions(["2.11.0", "2.10.0", "2.9.0", "2.8.6", "2.8.5"])
+        store.startEngineUpdateCheck()
+        let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(loaded)
+        XCTAssertNil(store.selectedEngineVersion)
+        XCTAssertNotNil(store.engineVersionSelectionNotice)
+        XCTAssertEqual(store.recentEngineReleases.count, 5)
+        let activations = await manager.activationCount
+        XCTAssertEqual(activations, 0, "Refreshing the list must never install anything")
+    }
+
+    @MainActor
+    func testLatestMovingBackDoesNotImplicitlyDowngrade() async throws {
+        let manager = StartupEngineManager()
+        let (store, _) = try await makeEngineUpdateStore(manager: manager)
+        defer { store.shutdown() }
+        await manager.setLatest("2.8.5")
+        store.updateEngine()
+        let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
+        XCTAssertNil(store.engineUpgradeError)
+        let requested = await manager.requestedVersions
+        XCTAssertTrue(requested.isEmpty)
     }
 
     @MainActor
@@ -3578,7 +3798,7 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        XCTAssertEqual(store.engineSidebarVersionDescription, "2.9.0 → 2.10.0")
+        XCTAssertEqual(store.engineSidebarVersionDescription, "2.9.0")
         store.updateEngine()
         store.updateEngine() // A repeated click must not start a second installation.
         XCTAssertFalse(store.canStartEngine)
@@ -4261,6 +4481,7 @@ final class ChopChopTests: XCTestCase {
             store.preferences.bandwidthSchedule.endMinute = 0
             store.preferences.bandwidthSchedule.uploadKB = 64
             await store.applyRuntimeEngineOptions()
+            XCTAssertEqual(store.runtimeSettingsFeedback, .succeeded)
             XCTAssertEqual(calls.value(), ["aria2.getGlobalOption", "aria2.changeGlobalOption"])
             XCTAssertEqual(changes.value()["max-overall-upload-limit"], "64K")
             XCTAssertNil(changes.value()["seed-time"], "Empty or zero would stop sharing, not clear the deadline")
@@ -4677,6 +4898,13 @@ private actor StartupEngineManager: EngineInstallationManaging {
     var releaseChecks = 0
     var activationCount = 0
     var failActivation = false
+    var failListing = false
+    var latestVersion = EngineVersion("2.10.0")!
+    var versions = ["2.10.0", "2.9.0", "2.8.6", "2.8.5", "2.8.4"]
+    var requestedVersions: [EngineVersion] = []
+    func setLatest(_ version: String) { latestVersion = EngineVersion(version)! }
+    func setVersions(_ versions: [String]) { self.versions = versions }
+    func rejectListing() { failListing = true }
     func rejectActivation() { failActivation = true }
     var installDelay: Duration = .zero
     func setInstallDelay(_ delay: Duration) { installDelay = delay }
@@ -4695,9 +4923,14 @@ private actor StartupEngineManager: EngineInstallationManaging {
     func latestRelease() async throws -> EngineRelease {
         releaseChecks += 1
         if offline { throw URLError(.notConnectedToInternet) }
-        return EngineRelease(version: EngineVersion("2.10.0")!, downloadURL: URL(string: "https://example.com/engine")!, checksumURL: URL(string: "https://example.com/checksum")!)
+        return EngineDistribution.release(version: latestVersion)
+    }
+    func recentReleases() async throws -> [EngineRelease] {
+        if offline || failListing { throw URLError(.notConnectedToInternet) }
+        return versions.map { EngineDistribution.release(version: EngineVersion($0)!) }
     }
     func install(_ release: EngineRelease, progress: @escaping @Sendable (EngineInstallationProgress) async -> Void) async throws -> EngineInstallation {
+        requestedVersions.append(release.version)
         await progress(.init(stage: .downloading, completedBytes: 250, totalBytes: 1_000, bytesPerSecond: 100))
         try await Task.sleep(for: installDelay)
         if failInstall { throw URLError(.notConnectedToInternet) }

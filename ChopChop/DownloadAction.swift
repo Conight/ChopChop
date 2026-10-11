@@ -36,7 +36,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .restartEngine: "Restart Engine"
         case .stopEngine: "Stop Engine"
         case .engineSettings: "Engine Settings…"
-        case .checkUpdates: "Check ChopChop Updates…"
+        case .checkUpdates: "Check All Updates…"
         case .diagnostics: "Preview Diagnostic Report"
         case .help: "ChopChop Help"
         }

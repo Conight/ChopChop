@@ -36,6 +36,8 @@ struct MediaDownloadOptionsView: View {
                     .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             }
         }
+        .stateChangeMotion(coordinator.phase)
+        .stateChangeMotion(coordinator.error != nil)
     }
 
     @ViewBuilder

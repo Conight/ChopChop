@@ -74,6 +74,13 @@ final class TaskDetailsPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.scenePhase, .inactive)
         store.selectedTaskID = "details"
         presentation.present(store: store, moveSelection: { _ in })
+        presentation.dismiss()
+        presentation.present(store: store, moveSelection: { _ in })
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(presentation.isPresented, "A previous dismissal must not hide a quickly reopened panel")
+        XCTAssertTrue(presentation.panel === panel)
+        XCTAssertNotNil(panel.contentViewController)
+        XCTAssertTrue(panel.parent === owner)
         owner.close()
         XCTAssertFalse(presentation.isPresented)
         XCTAssertNil(panel.contentViewController)

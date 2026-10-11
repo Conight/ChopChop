@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */; };
 		7BB000000000000000000001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000001 /* AppIcon.icon */; };
 		7BB000000000000000000002 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000002 /* AppBrand.swift */; };
 		5527F77B43F249B9B31CF8E4 /* DownloadTaskRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FA1074DF7D4CF1BA6F0C78 /* DownloadTaskRow.swift */; };
@@ -148,6 +149,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUpdatesPage.swift; sourceTree = "<group>"; };
 		7BA000000000000000000001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		7BA000000000000000000002 /* AppBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBrand.swift; sourceTree = "<group>"; };
 		08FA1074DF7D4CF1BA6F0C78 /* DownloadTaskRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTaskRow.swift; sourceTree = "<group>"; };
@@ -341,6 +343,7 @@
 				70DFCCD191A2D88A14CBDBB9 /* SettingsED2KPage.swift */,
 				A535E717D334750D52C58372 /* SettingsIntegrationsPage.swift */,
 				BF2DAA41DBE251468A12E017 /* SettingsEnginePage.swift */,
+				15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */,
 				EB60F50300208130EDB1425E /* SettingsTrackerEditors.swift */,
 				9ACA212227CC5DCAFB9A2F52 /* SettingsControls.swift */,
 				3EECC66651144655627C2375 /* SettingsSearch.swift */,
@@ -615,6 +618,7 @@
 				EAE1A559FE30E348304DFF49 /* SettingsED2KPage.swift in Sources */,
 				D1F5E781D3A8E6F2DA334E86 /* SettingsIntegrationsPage.swift in Sources */,
 				172760A8B9385AC8C8585AEF /* SettingsEnginePage.swift in Sources */,
+				7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */,
 				8F935B7C513893269CFFA0BD /* SettingsTrackerEditors.swift in Sources */,
 				7F86A90198316EE9994C3820 /* SettingsControls.swift in Sources */,
 				0048CD96A4DE07CCA4072EED /* SettingsSearch.swift in Sources */,
@@ -857,7 +861,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -895,7 +899,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

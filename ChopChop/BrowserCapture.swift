@@ -192,9 +192,9 @@ struct BrowserIntegrationView: View {
                     Text(String(localized: "Copy the pairing code, open the extension’s settings, and save it there. Resetting pairing disconnects all previously paired browsers."))
                         .fixedSize(horizontal: false, vertical: true)
                     HStack {
-                        Button(String(localized: "Copy Pairing Code")) {
+                        FeedbackButton(title: String(localized: "Copy Pairing Code"), systemImage: "doc.on.doc", successTitle: String(localized: "Copied")) {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString("\(server.port):\(store.preferences.browserCaptureToken)", forType: .string)
+                            return NSPasteboard.general.setString("\(server.port):\(store.preferences.browserCaptureToken)", forType: .string)
                         }.disabled(!server.isListening)
                         Button(String(localized: "Reset Pairing")) { store.resetBrowserPairing() }.disabled(!server.isListening)
                     }

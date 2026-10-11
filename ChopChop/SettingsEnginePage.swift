@@ -17,7 +17,21 @@ extension SettingsView {
                 .font(.callout).foregroundStyle(.secondary)
         }
 
-        SettingsSection(title: String(localized: "Engine Update")) {
+        engineAdvanced
+    }
+
+    var engineUpdates: some View {
+        SettingsSection(title: String(localized: "Engine")) {
+            KeyValueLine(title: String(localized: "Installed version"), value: store.engineVersionDescription)
+            EngineVersionPicker(showsRefreshButton: false, loadsAutomatically: false)
+            UpdateCheckRow(status: store.engineUpdateStatus,
+                           isChecking: store.isCheckingEngineUpdate,
+                           canCheck: store.canCheckEngineUpdates,
+                           accessibilityTitle: String(localized: "Check Engine Updates"),
+                           identifier: "settings-check-engine-updates-button") {
+                store.startEngineUpdateCheck()
+            }
+            .settingsAnchor("updates.check-engine")
             VStack(alignment: .leading, spacing: 16) {
                 if let progress = store.engineUpgradeProgress {
                     EngineInstallationProgressView(progress: progress, onCancel: store.cancelEngineUpdate)
@@ -38,34 +52,42 @@ extension SettingsView {
                         .accessibilityIdentifier("settings-engine-update-error")
                     } else if let result = store.engineUpgradeResult {
                         Label(result, systemImage: store.availableEngineUpdate == nil ? "checkmark.circle" : "info.circle")
-                    } else {
-                        Text(store.engineUpdateStatus).fontWeight(.medium)
                     }
 
-                    if store.availableEngineUpdate != nil {
+                    if store.hasEngineVersionChange {
                         Text(String(localized: "ChopChop downloads and verifies the update before restarting the engine. Downloads briefly pause during the restart."))
                             .font(.callout).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 12) {
-                        if let release = store.availableEngineUpdate {
-                            Button(store.engineUpgradeError == nil ? String(localized: "Update to \(release.version.description)") : String(localized: "Retry Update to \(release.version.description)")) {
-                                store.updateEngine()
+                        if let release = store.selectedEngineRelease {
+                            Button(engineVersionActionTitle(release)) {
+                                if store.engineSetupState.requiresInstallation { store.installRequiredEngine() }
+                                else { store.updateEngine() }
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(!store.canUpdateEngine)
+                            .disabled(store.engineSetupState.requiresInstallation ? !store.canInstallRequiredEngine : !store.canUpdateEngine)
                             .accessibilityIdentifier("settings-update-engine-button")
                         }
-                        Button(String(localized: "Check for Updates")) { store.startEngineUpdateCheck() }
-                            .disabled(store.installedEngine == nil || store.isCheckingEngineUpdate)
-                        if store.isCheckingEngineUpdate { ProgressView().controlSize(.small) }
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .stateChangeMotion(store.engineUpgradeProgress != nil)
+            .stateChangeMotion(store.engineUpgradeError != nil)
+            .stateChangeMotion(store.engineUpgradeResult != nil)
             .settingsAnchor("engine.update")
         }
 
-        engineAdvanced
+    }
+
+    private func engineVersionActionTitle(_ release: EngineRelease) -> String {
+        if store.installedEngine == nil { return String(localized: "Download and Start") }
+        if release.version == store.installedEngine?.version { return String(localized: "Installed") }
+        if store.engineUpgradeError != nil { return String(localized: "Retry Installation") }
+        if let installed = store.installedEngine, release.version < installed.version {
+            return String(localized: "Switch to \(release.version.description)")
+        }
+        return String(localized: "Update to \(release.version.description)")
     }
 
     @ViewBuilder
@@ -121,10 +143,10 @@ extension SettingsView {
                 Button {
                     runStoreTask { await store.applyRuntimeEngineOptions() }
                 } label: {
-                    Label(String(localized: "Apply Settings"), systemImage: "slider.horizontal.3")
+                    ActionFeedbackLabel(title: String(localized: "Apply Settings"), systemImage: "slider.horizontal.3", feedback: store.runtimeSettingsFeedback)
                 }
                 .buttonStyle(.bordered)
-                .disabled(!runtimeCanApplySettings)
+                .disabled(!runtimeCanApplySettings || store.runtimeSettingsFeedback == .working)
             }
             .settingsAnchor("engine.start-engine")
             RuntimeRequirementsView(missingRequirements: store.engineSettings.missingLaunchRequirements)

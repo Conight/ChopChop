@@ -91,6 +91,7 @@ final class AppUpdateCoordinator: ObservableObject {
         case waitingToQuit(AppRelease)
     }
     @Published private(set) var state: State = .idle
+    @Published private(set) var isCheckingAll = false
     @Published var automaticallyChecks: Bool { didSet { defaults.set(automaticallyChecks, forKey: Self.automaticKey) } }
     @Published private var selectedChannel: AppUpdateChannel
     var channel: AppUpdateChannel {
@@ -123,6 +124,7 @@ final class AppUpdateCoordinator: ObservableObject {
     private let monitorInterval: Duration
     private var token: String?
     private var lastRelease: AppRelease?
+    private var didCheckAtLaunch = false
     private static let automaticKey = "appUpdates.automaticallyChecks"
     private static let lastAttemptKey = "appUpdates.lastAttempt"
     private static let channelKey = "appUpdates.channel"
@@ -151,6 +153,11 @@ final class AppUpdateCoordinator: ObservableObject {
     var busy: Bool {
         switch state { case .checking, .preparing, .ready, .installing, .waitingToQuit: true; default: false }
     }
+    var canCheckForUpdates: Bool {
+        guard !busy, canChangeChannel else { return false }
+        if case .downloaded = state { return false }
+        return true
+    }
     var release: AppRelease? {
         switch state { case .available(let r), .preparing(let r, _), .ready(let r), .installing(let r), .waitingToQuit(let r), .downloaded(let r, _): r; case .failed: lastRelease; default: nil }
     }
@@ -167,15 +174,43 @@ final class AppUpdateCoordinator: ObservableObject {
         operation?.cancel(); installationMonitor?.cancel(); installer?.disconnect()
     }
 
-    func check(automatically: Bool = false) async {
+    /// One launch check for both components, shared by every download window.
+    func checkAtLaunch(using store: DownloadStore) async {
+        guard !didCheckAtLaunch else { return }
+        didCheckAtLaunch = true
+        let needsRestoration = !restored
+        await restoreIfNeeded()
+        guard automaticallyChecks else { return }
+        isCheckingAll = true
+        defer { isCheckingAll = false }
+        store.startEngineUpdateCheck()
+        if !needsRestoration || state == .idle {
+            await check(automatically: true, atLaunch: true)
+        }
+        await store.waitForEngineUpdateCheck()
+    }
+
+    func checkAll(using store: DownloadStore) async {
+        guard !isCheckingAll, canCheckForUpdates, store.canCheckEngineUpdates else { return }
+        isCheckingAll = true
+        defer { isCheckingAll = false }
+        store.startEngineUpdateCheck()
+        await check()
+        await store.waitForEngineUpdateCheck()
+    }
+
+    func isChecking(using store: DownloadStore) -> Bool {
+        state == .checking || store.isCheckingEngineUpdate
+    }
+
+    func check(automatically: Bool = false, atLaunch: Bool = false) async {
         let needsRestoration = !restored
         await restoreIfNeeded()
         if needsRestoration, state != .idle { return }
-        guard !busy, canChangeChannel else { return }
-        if case .downloaded = state { return }
+        guard canCheckForUpdates else { return }
         if automatically {
             guard automaticallyChecks, build.version != nil, !installationNeedsAttention else { return }
-            if let last = defaults.object(forKey: Self.lastAttemptKey) as? Date {
+            if !atLaunch, let last = defaults.object(forKey: Self.lastAttemptKey) as? Date {
                 let elapsed = now().timeIntervalSince(last)
                 if elapsed >= 0 && elapsed < 86_400 { return }
             }

@@ -76,16 +76,19 @@ struct DownloadRepairView: View {
                         Text(String(localized: "For a new source address, use Edit and Add Again. Partial data cannot safely be matched by filename alone."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    Button(task.status == .failed ? String(localized: "Apply and Retry with Saved Progress") : String(localized: "Apply and Resume")) {
+                    Button {
                         busy = true; issue = nil
                         Task {
                             defer { busy = false }
                             do { try await store.repairConnection(task, repair: repair); repair = DownloadConnectionRepair() }
                             catch { issue = DownloadPrivacy.redact(error.localizedDescription) }
                         }
+                    } label: {
+                        ActionFeedbackLabel(title: task.status == .failed ? String(localized: "Apply and Retry with Saved Progress") : String(localized: "Apply and Resume"),
+                                            systemImage: "arrow.clockwise", feedback: busy ? .working : .idle)
                     }.buttonStyle(.borderedProminent)
                     if let issue { Text(issue).font(.caption).foregroundStyle(.red) }
-                }.nativeTextFieldStyle().padding(.top, 8).disabled(busy)
+                }.stateChangeMotion(issue != nil).nativeTextFieldStyle().padding(.top, 8).disabled(busy)
             }
             .onDisappear { repair = DownloadConnectionRepair() }
         }

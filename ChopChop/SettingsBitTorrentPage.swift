@@ -108,7 +108,7 @@ extension SettingsView {
                 Button {
                     runStoreTask { await store.syncBitTorrentTrackersManually() }
                 } label: {
-                    Label(store.isSyncingTrackers ? String(localized: "Syncing") : String(localized: "Sync Trackers"), systemImage: "arrow.triangle.2.circlepath")
+                    ActionFeedbackLabel(title: String(localized: "Sync Trackers"), systemImage: "arrow.triangle.2.circlepath", feedback: store.trackerSyncFeedback)
                 }
                 .disabled(store.isSyncingTrackers)
                 .buttonStyle(.bordered)

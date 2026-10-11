@@ -81,7 +81,7 @@ extension SettingsView {
                 Button {
                     runStoreTask { await store.syncED2KBootstrapManually() }
                 } label: {
-                    Label(store.isSyncingED2KBootstrap ? String(localized: "Syncing") : String(localized: "Sync Bootstrap Files"), systemImage: "arrow.triangle.2.circlepath")
+                    ActionFeedbackLabel(title: String(localized: "Sync Bootstrap Files"), systemImage: "arrow.triangle.2.circlepath", feedback: store.bootstrapSyncFeedback)
                 }
                 .buttonStyle(.bordered)
                 .disabled(store.isSyncingED2KBootstrap)

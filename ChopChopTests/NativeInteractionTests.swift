@@ -198,6 +198,38 @@ final class NativeInteractionTests: XCTestCase {
     }
 
     @MainActor
+    func testAnimatedSettingsSearchKeepsTypingFocusAndSurvivesQuickReopen() async throws {
+        let model = SettingsSearchModel()
+        let host = NSHostingController(rootView: SettingsSearchField(model: model).frame(width: 240, height: 28).padding(20))
+        host.sizingOptions = []
+        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 300, height: 150),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.alphaValue = 0; window.contentViewController = host
+        window.orderBack(nil)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+        let field = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSSearchField }.first)
+        let coordinator = try XCTUnwrap(field.delegate as? SettingsSearchField.Coordinator)
+        defer { coordinator.close() }
+        window.makeFirstResponder(field)
+        model.query = "engine"; field.stringValue = "engine"; model.isPresented = true
+        coordinator.schedulePresentation()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(coordinator.popover.isShown)
+        XCTAssertNotNil(field.currentEditor(), "Popover presentation must leave typing in the search field")
+        model.cancel(); coordinator.schedulePresentation()
+        try await Task.sleep(for: .milliseconds(20))
+        model.query = "update"; field.stringValue = "update"; model.isPresented = true
+        coordinator.schedulePresentation()
+        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertEqual(model.query, "update")
+        XCTAssertTrue(model.isPresented)
+        XCTAssertTrue(coordinator.popover.isShown, "A pending close must not discard a new search")
+        XCTAssertNotNil(field.currentEditor())
+    }
+
+    @MainActor
     func testNativeCommandPanelFitsAndClosesWithOwner() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }

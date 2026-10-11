@@ -85,6 +85,7 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
             x: owner.frame.midX - panel.frame.width / 2, y: owner.frame.midY - panel.frame.height / 2,
             width: panel.frame.width, height: panel.frame.height)
         panel.setFrame(Self.fittedFrame(proposed, screens: NSScreen.screens.map(\.visibleFrame), fallback: screen), display: false)
+        NativePanelMotion.prepare(panel)
         owner.addChildWindow(panel, ordered: .above)
         isPresented = true
         updateActivity()
@@ -100,6 +101,7 @@ final class TaskDetailsPresentation: NSObject, ObservableObject, NSWindowDelegat
         if let panel {
             rememberedFrame = panel.frame
             owner?.removeChildWindow(panel)
+            NativePanelMotion.prepare(panel)
             panel.orderOut(nil)
             panel.contentViewController = nil // Cancels task-scoped RPC observation.
         }

@@ -39,7 +39,7 @@ struct DownloadConsoleView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
-            DownloadSidebar(selection: $sidebarSelection)
+            DownloadSidebar(selection: $sidebarSelection, updates: updates)
                 .desktopControls()
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 320)
@@ -108,11 +108,6 @@ struct DownloadConsoleView: View {
                     .disabled(store.selectedTask == nil)
                     .help(detailsPresentation.isPresented ? String(localized: "Hide Details") : String(localized: "Show Details"))
                     .accessibilityIdentifier("toolbar-inspector-button")
-                }
-                if let updates {
-                    ToolbarItem(placement: .primaryAction) {
-                        AppUpdateIndicator(updates: updates)
-                    }
                 }
             }
             .searchable(text: $store.searchQuery, placement: .toolbar, prompt: String(localized: "Search downloads"))
@@ -253,8 +248,9 @@ struct DownloadConsoleView: View {
             }, searchCommands: presentCommandSearch,
             openEngineSettings: { store.requestEngineSettings(); openSettings() },
             checkUpdates: updates.map { updates in { @MainActor in
-                openWindow(id: AppWindowID.updates)
-                Task { await updates.check() }
+                store.requestUpdateSettings()
+                openSettings()
+                Task { await updates.checkAll(using: store) }
             } },
             openDiagnostics: supportNavigation.map { navigation in { @MainActor in
                 navigation.diagnosticPreviewRequested = true
@@ -363,6 +359,7 @@ struct DownloadConsoleView: View {
 private struct DownloadSidebar: View {
     @EnvironmentObject private var store: DownloadStore
     @Binding var selection: SidebarDestination?
+    var updates: AppUpdateCoordinator?
 
     private let library: [SidebarDestination] = [.all, .active, .waiting, .completed, .failed]
     private let smartCollections: [SidebarDestination] = [.torrents, .ed2k, .browserCapture]
@@ -393,8 +390,14 @@ private struct DownloadSidebar: View {
             .scrollContentBackground(.hidden)
 
             GroupBox {
-                SidebarActivityFooter()
-                    .padding(6)
+                Group {
+                    if let updates {
+                        UpdateActivityFooter(updates: updates)
+                    } else {
+                        SidebarActivityFooter()
+                    }
+                }
+                .padding(6)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
@@ -416,7 +419,18 @@ private struct SidebarRow: View {
     }
 }
 
-private struct SidebarActivityFooter: View {
+struct UpdateActivityFooter: View {
+    @ObservedObject var updates: AppUpdateCoordinator
+
+    var body: some View {
+        SidebarActivityFooter(isCheckingAppUpdate: updates.state == .checking,
+                              appUpdateAvailable: updates.updateAvailable || updates.installationNeedsAttention)
+    }
+}
+
+struct SidebarActivityFooter: View {
+    var isCheckingAppUpdate = false
+    var appUpdateAvailable = false
     @EnvironmentObject private var store: DownloadStore
     @Environment(\.openSettings) private var openSettings
 
@@ -453,9 +467,13 @@ private struct SidebarActivityFooter: View {
         .accessibilityIdentifier("sidebar-quick-stats-card")
     }
 
+    private var isCheckingUpdates: Bool { isCheckingAppUpdate || store.isCheckingEngineUpdate }
+    private var hasUpdate: Bool { appUpdateAvailable || store.availableEngineUpdate != nil }
+
     private var engineSettingsButton: some View {
         Button {
-            store.requestEngineSettings()
+            if isCheckingUpdates || hasUpdate || store.isUpdatingEngine { store.requestUpdateSettings() }
+            else { store.requestEngineSettings() }
             openSettings()
         } label: {
             VStack(alignment: .leading, spacing: 6) {
@@ -465,17 +483,30 @@ private struct SidebarActivityFooter: View {
                         Text(String(localized: "Engine \(store.engineSidebarVersionDescription)"))
                             .font(.callout.weight(.medium)).lineLimit(1)
                             .minimumScaleFactor(0.85)
+                            .frame(height: 18, alignment: .leading)
                             .accessibilityIdentifier("sidebar-quick-stats-engine-version-row")
                         Label {
                             Text(runtimeStatusLabel).foregroundStyle(.secondary)
+                                .contentTransition(.opacity)
                         } icon: {
                             Image(systemName: runtimeStatusSymbol).foregroundStyle(runtimeStatusTint)
+                                .frame(width: 14, height: 14)
+                                .opacity(isCheckingUpdates ? 0 : 1)
+                                .overlay {
+                                    if isCheckingUpdates {
+                                        ProgressView().controlSize(.mini)
+                                            .accessibilityHidden(true)
+                                    }
+                                }
                         }
-                        .font(.caption).lineLimit(1)
+                        .stateChangeMotion(isCheckingUpdates)
+                        .stateChangeMotion(runtimeStatusSymbol)
+                        .font(.caption).lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(height: 16, alignment: .leading)
                         .accessibilityIdentifier("sidebar-quick-stats-engine-status-row")
                     }
                     Spacer(minLength: 4)
-                    if store.availableEngineUpdate != nil && !store.isUpdatingEngine {
+                    if hasUpdate && !store.isUpdatingEngine && !isCheckingUpdates {
                         EngineUpdateBadge().accessibilityHidden(true)
                     } else {
                         Image(systemName: "chevron.forward").font(.caption2).foregroundStyle(.tertiary)
@@ -499,14 +530,13 @@ private struct SidebarActivityFooter: View {
     }
 
     private var engineSettingsHelp: String {
-        if let progress = store.engineUpgradeProgress { return String(localized: "\(progress.title) Open Engine settings for details.") }
-        if let release = store.availableEngineUpdate {
-            return String(localized: "Aria2 Next \(release.version.description) is available. Open Engine settings to update.")
-        }
+        if isCheckingUpdates { return String(localized: "Checking for updates…") }
+        if hasUpdate || store.isUpdatingEngine { return String(localized: "Open Updates settings") }
         return String(localized: "Open Engine settings in ChopChop")
     }
 
     private var runtimeStatusLabel: String {
+        if isCheckingUpdates { return String(localized: "Checking for updates…") }
         if let progress = store.engineUpgradeProgress {
             return progress.sidebarDescription
         }
@@ -581,7 +611,7 @@ struct DownloadCanvas: View {
                 BrowserCaptureView()
             } else {
                 VStack(spacing: 0) {
-                    if let issue = store.connectionIssue ?? store.historyIssue ?? store.downloadPlanIssue ?? store.bandwidthPlanIssue ?? store.batchOperationIssue {
+                    if let issue = connectionIssue {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "exclamationmark.triangle")
                             Text(issue).lineLimit(3).textSelection(.enabled)
@@ -604,19 +634,23 @@ struct DownloadCanvas: View {
                     }
                     GeometryReader { geometry in
                         List(selection: $store.selectedTaskIDs) {
-                            ForEach(visibleTasks) { task in
-                                DownloadTaskRow(context: context(for: task), row: store.listPresentation.row(for: task),
-                                    isSelected: store.selectedTaskIDs.contains(task.id),
-                                    actionsEnabled: DownloadAction.engineReady(in: store) && !store.isPerformingBatchOperation,
-                                    removalEnabled: !store.isUpdatingEngine && !store.isPerformingBatchOperation,
-                                    scheduleArmed: store.armedScheduledTaskIDs.contains(task.id),
-                                    compact: geometry.size.width < 720)
-                                    .equatable()
-                                    .tag(task.id)
-                                    .modifier(QueueReordering(store: store, task: task))
+                            if #available(macOS 27.0, *), destination == .waiting {
+                                ForEach(visibleTasks.filter(\.canReorderInQueue)) { task in
+                                    taskRow(task, compact: geometry.size.width < 720)
+                                }.reorderable()
+                                ForEach(visibleTasks.filter { !$0.canReorderInQueue }) { task in
+                                    taskRow(task, compact: geometry.size.width < 720)
+                                }
+                            } else {
+                                ForEach(visibleTasks) { task in
+                                    taskRow(task, compact: geometry.size.width < 720)
+                                        .modifier(QueueReordering(store: store, task: task))
+                                }
                             }
                         }
                         .listStyle(.inset)
+                        .modifier(NativeQueueContainer(store: store, enabled: destination == .waiting))
+                        .stateChangeMotion(visibleTasks.map(\.id), enabled: store.searchQuery.isEmpty)
                         .contextMenu(forSelectionType: String.self) { ids in
                             if let task = store.tasks.first(where: { ids.contains($0.id) }) {
                                 DownloadTaskContextMenu(task: task, context: context(for: task, ids: ids))
@@ -641,15 +675,31 @@ struct DownloadCanvas: View {
                         }
                         .accessibilityIdentifier("download-task-list")
                         .overlay {
-                            if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()) }
+                            if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()).transition(.opacity) }
                         }
+                        .stateChangeMotion(visibleTasks.isEmpty)
                     }
                 }
             }
         }
+        .stateChangeMotion(store.selectedTaskIDs.count > 1)
+        .stateChangeMotion(connectionIssue != nil)
         .onChange(of: destination) { _, _ in clearHiddenSelection() }
         .onChange(of: store.searchQuery) { _, _ in clearHiddenSelection() }
         .background(DownloadWorkspaceBackdrop())
+    }
+
+    private var connectionIssue: String? {
+        store.connectionIssue ?? store.historyIssue ?? store.downloadPlanIssue ?? store.bandwidthPlanIssue ?? store.batchOperationIssue
+    }
+
+    private func taskRow(_ task: DownloadTask, compact: Bool) -> some View {
+        DownloadTaskRow(context: context(for: task), row: store.listPresentation.row(for: task),
+            isSelected: store.selectedTaskIDs.contains(task.id),
+            actionsEnabled: DownloadAction.engineReady(in: store) && !store.isPerformingBatchOperation,
+            removalEnabled: !store.isUpdatingEngine && !store.isPerformingBatchOperation,
+            scheduleArmed: store.armedScheduledTaskIDs.contains(task.id), compact: compact)
+            .equatable().tag(task.id)
     }
 
     private func context(for task: DownloadTask, ids: Set<String>? = nil) -> DownloadActionContext {

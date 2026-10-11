@@ -217,13 +217,24 @@ struct AddDownloadPanel: View {
                     }
                     .disabled(isSubmitting && !store.isResolvingBitTorrentFiles)
                     .accessibilityIdentifier("add-download-change-source-button")
-                } else if isSubmitting { ProgressView().controlSize(.small) }
+                } else {
+                    ZStack {
+                        if isSubmitting { ProgressView().controlSize(.small) }
+                    }.frame(width: 16, height: 16).accessibilityHidden(!isSubmitting)
+                }
                 Spacer()
                 Button(String(localized: "Cancel"), role: .cancel, action: dismiss)
                     .keyboardShortcut(.cancelAction)
                     .disabled(isSubmitting && !store.isResolvingBitTorrentFiles && mediaCoordinator.phase != .inspecting)
                     .accessibilityIdentifier("add-download-cancel-button")
-                Button(primaryButtonTitle, action: submit)
+                Button(action: submit) {
+                    ZStack {
+                        // Reserve the wider selection action before metadata arrives.
+                        Text(String(localized: "Download Selected Tracks")).hidden()
+                        Text(String(localized: "Download Selected Files")).hidden()
+                        Text(primaryButtonTitle).contentTransition(.opacity)
+                    }.stateChangeMotion(primaryButtonTitle)
+                }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(primaryButtonDisabled)

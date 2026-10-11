@@ -11,6 +11,28 @@ final class DownloadPlanningTests: XCTestCase {
         XCTAssertNil(DownloadQueueOrder.position(moving: "missing", before: "a", in: queue))
     }
 
+    func testNativeQueueMovePreservesGroupOrderAndRejectsStaleIDs() throws {
+        let queue = ["a", "b", "c", "d", "e"]
+        func result(_ ids: [String], before: String? = nil, toEnd: Bool = false) throws -> [String] {
+            var changed = queue
+            for move in try XCTUnwrap(DownloadQueueOrder.moves(ids, before: before, toEnd: toEnd, in: queue)) {
+                changed.removeAll { $0 == move.id }
+                changed.insert(move.id, at: move.position)
+            }
+            return changed
+        }
+        XCTAssertEqual(try result(["c", "a"], before: "e"), ["b", "d", "a", "c", "e"])
+        XCTAssertEqual(try result(["c", "e"], before: "a"), ["c", "e", "a", "b", "d"])
+        XCTAssertEqual(try result(["a", "b"], toEnd: true), ["c", "d", "e", "a", "b"])
+        XCTAssertEqual(try result(["a", "b"], before: "c"), queue)
+        for ids in [["missing"], ["a", "a"], []] {
+            XCTAssertNil(DownloadQueueOrder.moves(ids, before: "c", toEnd: false, in: queue))
+        }
+        XCTAssertNil(DownloadQueueOrder.moves(["a"], before: "a", toEnd: false, in: queue))
+        XCTAssertNil(DownloadQueueOrder.moves(["a"], before: "missing", toEnd: false, in: queue))
+        XCTAssertNil(DownloadQueueOrder.moves(["a"], before: nil, toEnd: false, in: queue))
+    }
+
     func testDailyWindowCrossesMidnightAndUsesExclusiveEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

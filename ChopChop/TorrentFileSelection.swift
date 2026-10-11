@@ -159,6 +159,7 @@ struct BitTorrentFileSelectionView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .stateChangeMotion(session.phase)
         .onAppear(perform: rebuildTree)
         .onChange(of: session.files) { _, _ in rebuildTree() }
         .accessibilityIdentifier("bt-file-selection")

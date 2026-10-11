@@ -58,7 +58,12 @@ final class ChopChopUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Installed version"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Unavailable"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.buttons["Check for Updates"].exists)
+        let updatesPane = sidebarDestination(in: app, id: "settings-pane-updates", label: "Updates")
+        updatesPane.click()
+        XCTAssertTrue(app.buttons["settings-check-updates-button"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["settings-check-chopchop-updates-button"].exists)
+        XCTAssertTrue(app.buttons["settings-check-engine-updates-button"].exists)
+        XCTAssertFalse(app.buttons["engine-refresh-versions-button"].exists)
         XCTAssertFalse(app.buttons["Download for This Mac"].exists)
         XCTAssertFalse(app.buttons["Download Latest"].exists)
     }

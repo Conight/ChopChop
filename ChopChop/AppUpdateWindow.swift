@@ -1,18 +1,6 @@
 import AppKit
 import SwiftUI
 
-struct AppUpdateIndicator: View {
-    @ObservedObject var updates: AppUpdateCoordinator
-    @Environment(\.openWindow) private var openWindow
-    var body: some View {
-        if updates.updateAvailable || updates.installationNeedsAttention {
-            Button { openWindow(id: AppWindowID.updates) } label: {
-                Label(updates.installationNeedsAttention ? String(localized: "Update Failed") : String(localized: "Update Available"), systemImage: updates.installationNeedsAttention ? "exclamationmark.arrow.triangle.2.circlepath" : "arrow.down.circle")
-            }.help(String(localized: "View ChopChop Update"))
-        }
-    }
-}
-
 extension AppUpdateChannel {
     var title: String { switch self { case .stable: String(localized: "Stable Releases"); case .prerelease: String(localized: "Pre-releases") } }
 }
@@ -58,6 +46,7 @@ struct AppUpdateWindow: View {
                 // A download must remain visible even after scrolling to the end of the release notes.
                 VStack(alignment: .leading, spacing: 16) {
                     status
+                        .stateChangeMotion(updates.state.motionPhase)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 32)
@@ -74,6 +63,7 @@ struct AppUpdateWindow: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         status
+                            .stateChangeMotion(updates.state.motionPhase)
                         if let release = updates.release {
                             if !release.notes.isEmpty {
                                 Text("What’s New").font(.headline)
@@ -94,9 +84,10 @@ struct AppUpdateWindow: View {
                 }.keyboardShortcut(.cancelAction)
                 Spacer()
                 actions
-            }.padding(20)
+            }.frame(minHeight: 32).padding(20)
         }
         .frame(minWidth: 480, idealWidth: 540, minHeight: 400, idealHeight: 500)
+        .stateChangeMotion(showsOperation)
         .background(.background)
         .task { if updates.state == .idle { await updates.check() } }
     }
@@ -127,32 +118,30 @@ struct AppUpdateWindow: View {
         case .available: Label("An update is available.", systemImage: "arrow.down.circle")
         case .preparing(_, let progress):
             VStack(alignment: .leading, spacing: 12) {
-                if progress.stage == .downloading {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Downloading update…").font(.headline)
-                        Spacer()
-                        if let fraction = progress.fraction {
-                            Text(fraction, format: .percent.precision(.fractionLength(0)))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                        }
-                    }
-                    ProgressView(value: progress.fraction)
-                        .progressViewStyle(.linear)
-                        .accessibilityLabel(Text("Update download progress"))
-                    ViewThatFits(in: .horizontal) {
-                        HStack {
-                            Text(progress.byteSummary)
-                            Spacer(minLength: 12)
-                            if let speed = progress.speedSummary { Text(speed) }
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(progress.byteSummary)
-                            if let speed = progress.speedSummary { Text(speed) }
-                        }
-                    }.font(.callout).monospacedDigit().foregroundStyle(.secondary)
-                } else {
-                    phaseProgress(progressTitle(progress.stage))
+                HStack(alignment: .firstTextBaseline) {
+                    Text(progressTitle(progress.stage)).font(.headline).contentTransition(.opacity)
+                    Spacer()
+                    Text(progress.fraction ?? 1, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit().foregroundStyle(.secondary)
+                        .opacity(progress.stage == .downloading && progress.fraction != nil ? 1 : 0)
+                        .accessibilityHidden(progress.stage != .downloading || progress.fraction == nil)
                 }
+                ProgressView(value: progress.stage == .downloading ? progress.fraction : nil)
+                    .progressViewStyle(.linear)
+                    .accessibilityLabel(progressTitle(progress.stage))
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        Text(progress.byteSummary)
+                        Spacer(minLength: 12)
+                        if let speed = progress.speedSummary { Text(speed) }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(progress.byteSummary)
+                        if let speed = progress.speedSummary { Text(speed) }
+                    }
+                }.font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                    .opacity(progress.stage == .downloading ? 1 : 0)
+                    .accessibilityHidden(progress.stage != .downloading)
                 Text("You can hide this window. The update will continue.")
                     .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
             }
@@ -194,7 +183,7 @@ struct AppUpdateWindow: View {
         case .available:
             Button("Download Update") { updates.download() }.buttonStyle(.borderedProminent)
         default:
-            Button("Check ChopChop Updates") { Task { await updates.check() } }.buttonStyle(.borderedProminent)
+            Button("Check for Updates") { Task { await updates.check() } }.buttonStyle(.borderedProminent)
         }
     }
     private func phaseProgress(_ title: String) -> some View {
@@ -228,5 +217,29 @@ extension AppUpdateProgress {
         guard bytesPerSecond.isFinite, bytesPerSecond > 0, bytesPerSecond < Double(Int64.max) else { return nil }
         let speed = ByteCountFormatter.string(fromByteCount: Int64(bytesPerSecond), countStyle: .file)
         return String(localized: "\(speed)/s")
+    }
+}
+
+// Byte and speed reports do not change the animation key.
+extension AppUpdateCoordinator.State {
+    var motionPhase: Int {
+        switch self {
+        case .idle: 0
+        case .checking: 1
+        case .current: 2
+        case .available: 3
+        case .preparing(_, let progress):
+            switch progress.stage {
+            case .connecting: 4
+            case .downloading: 5
+            case .verifying: 6
+            case .preparing: 7
+            }
+        case .ready: 8
+        case .downloaded: 9
+        case .installing: 10
+        case .waitingToQuit: 11
+        case .failed: 12
+        }
     }
 }

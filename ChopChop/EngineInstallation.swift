@@ -31,6 +31,7 @@ nonisolated enum EngineSetupState: Equatable, Sendable {
 nonisolated protocol EngineInstallationManaging: Sendable {
     func localInstallation() async -> EngineInstallation?
     func latestRelease() async throws -> EngineRelease
+    func recentReleases() async throws -> [EngineRelease]
     func activate(_ installation: EngineInstallation) async throws
     func backupRuntimeState() async throws -> EngineRuntimeBackup?
     func install(_ release: EngineRelease, progress: @escaping @Sendable (EngineInstallationProgress) async -> Void) async throws -> EngineInstallation
@@ -66,6 +67,7 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
     }
 
     func latestRelease() async throws -> EngineRelease { try await EngineDownload.latestRelease() }
+    func recentReleases() async throws -> [EngineRelease] { try await EngineDownload.recentReleases() }
 
     @concurrent func install(_ release: EngineRelease, progress: @escaping @Sendable (EngineInstallationProgress) async -> Void) async throws -> EngineInstallation {
         let engines = storage.installations

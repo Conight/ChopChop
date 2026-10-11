@@ -47,22 +47,53 @@ nonisolated struct DiagnosticReport: Encodable, Sendable {
 struct AppUpdateSettingsView: View {
     @ObservedObject var updates: AppUpdateCoordinator
     var openUpdates: () -> Void
+    @State private var hadUpdateAction = false
     var body: some View {
-        Section(String(localized: "ChopChop Updates")) {
+        Section("ChopChop") {
             LabeledContent(String(localized: "Installed version"), value: updates.build.displayVersion)
             Picker("Update Channel", selection: $updates.channel) {
                 ForEach(AppUpdateChannel.allCases, id: \.self) { Text($0.title).tag($0) }
             }.disabled(updates.busy || !updates.canChangeChannel)
-            Toggle(String(localized: "Automatically check for ChopChop updates"), isOn: Binding(
-                get: { updates.build.version != nil && updates.automaticallyChecks },
-                set: { updates.automaticallyChecks = $0 }))
-                .disabled(updates.build.version == nil)
-            Text(String(localized: "Checks at most once a day. You choose when to download and install updates."))
-                .font(.callout).foregroundStyle(.secondary)
-            Button(updates.updateAvailable ? String(localized: "View Update…") : String(localized: "Check ChopChop Updates…")) {
-                openUpdates()
+            UpdateCheckRow(status: status, isChecking: updates.state == .checking,
+                           canCheck: updates.canCheckForUpdates,
+                           accessibilityTitle: String(localized: "Check ChopChop Updates"),
+                           identifier: "settings-check-chopchop-updates-button") {
                 Task { await updates.check() }
             }
+            .settingsAnchor("updates.check-chopchop")
+            if updates.updateAvailable || updates.installationNeedsAttention || (updates.state == .checking && hadUpdateAction) {
+                Button(String(localized: "View Update…"), action: openUpdates)
+                    .disabled(updates.state == .checking)
+            }
+        }
+        .onChange(of: updates.state, initial: true) { _, state in
+            if state != .checking {
+                hadUpdateAction = updates.updateAvailable || updates.installationNeedsAttention
+            }
+        }
+    }
+
+    private var status: String {
+        if let release = updates.release, case .available = updates.state {
+            return String(localized: "Version \(release.version.description) available")
+        }
+        switch updates.state {
+        case .idle: return String(localized: "Not checked yet")
+        case .checking: return String(localized: "Checking for updates…")
+        case .current: return String(localized: "Up to date")
+        case .failed(let error): return error.localizedDescription
+        case .preparing(_, let progress):
+            switch progress.stage {
+            case .connecting: return String(localized: "Connecting to GitHub…")
+            case .downloading: return String(localized: "Downloading update…")
+            case .verifying: return String(localized: "Verifying update…")
+            case .preparing: return String(localized: "Preparing update…")
+            }
+        case .ready: return String(localized: "Ready to install")
+        case .downloaded: return String(localized: "Installer downloaded")
+        case .installing: return String(localized: "Saving downloads and restarting…")
+        case .waitingToQuit: return String(localized: "Waiting for ChopChop to quit…")
+        case .available: return String(localized: "Update Available")
         }
     }
 }
@@ -141,13 +172,15 @@ struct AppSupportView: View {
 struct AppSupportCommands: Commands {
     @ObservedObject var updates: AppUpdateCoordinator
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     let store: DownloadStore
     let navigation: AppSupportNavigation
     private var context: DownloadActionContext {
         DownloadActionContext(store: store, window: DownloadWindowActions(
             checkUpdates: {
-                openWindow(id: AppWindowID.updates)
-                Task { await updates.check() }
+                store.requestUpdateSettings()
+                openSettings()
+                Task { await updates.checkAll(using: store) }
             }, openDiagnostics: {
                 navigation.diagnosticPreviewRequested = true
                 openWindow(id: AppWindowID.help)

@@ -26,7 +26,7 @@ nonisolated struct EngineInstallationProgress: Codable, Equatable, Sendable {
 
     var title: String {
         switch stage {
-        case .checkingRelease: String(localized: "Checking the latest version…")
+        case .checkingRelease: String(localized: "Checking the engine version…")
         case .connecting: String(localized: "Connecting to the download server…")
         case .downloading: String(localized: "Downloading Aria2 Next…")
         case .verifying: String(localized: "Verifying the download…")
@@ -71,7 +71,7 @@ nonisolated struct EngineInstallationProgress: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated struct EngineVersion: Comparable, Codable, Sendable, CustomStringConvertible {
+nonisolated struct EngineVersion: Comparable, Hashable, Codable, Sendable, CustomStringConvertible {
     let major: Int
     let minor: Int
     let patch: Int
@@ -97,6 +97,8 @@ nonisolated enum EngineDistribution {
     static let repository = "AnInsomniacy/aria2-next"
     static let repositoryURL = URL(string: "https://github.com/\(repository)")!
     static let latestAPI = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
+    static let recentAPI = URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=100")!
+    static let recentVersionLimit = 5
     static var latestPage: URL { repositoryURL.appendingPathComponent("releases/latest") }
     static func page(version: EngineVersion) -> URL { repositoryURL.appendingPathComponent("releases/tag/v\(version)") }
     static func release(version: EngineVersion) -> EngineRelease {
@@ -119,7 +121,7 @@ nonisolated enum EngineInstallationError: LocalizedError {
     case invalidRelease, invalidChecksum, invalidExecutable, unexpectedResponse(Int), installationFailed(String)
     var errorDescription: String? {
         switch self {
-        case .invalidRelease: String(localized: "The latest stable release does not contain a supported Apple Silicon engine.")
+        case .invalidRelease: String(localized: "This release does not contain a supported Apple Silicon engine.")
         case .invalidChecksum: String(localized: "The downloaded engine did not match its official SHA-256 checksum. Please retry.")
         case .invalidExecutable: String(localized: "The downloaded file is not a supported Apple Silicon Aria2 Next executable.")
         case .unexpectedResponse(let code): String(localized: "The download server returned HTTP \(code). Please try again later.")

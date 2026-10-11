@@ -97,6 +97,22 @@ final class ManagedEngineTests: XCTestCase {
         }
     }
 
+    func testRecentReleasesKeepOnlyFiveNewestUniqueSupportedStableVersions() throws {
+        let valid = ["2.8.1", "2.9.0", "2.8.4", "2.8.6", "2.8.5", "2.10.0", "2.8.6"]
+            .map { releaseJSON(version: $0) }
+        let invalid = [releaseJSON(version: "3.0.0", prerelease: true),
+                       releaseJSON(version: "4.0.0", host: "evil.example"),
+                       releaseJSON(version: "5.0.0", architecture: "x86_64"),
+                       releaseJSON(version: "6.0.0", draft: true),
+                       releaseJSON(version: "02.8.6"), releaseJSON(version: "7.0.0-beta.1")]
+        let json = Data(("[" + (invalid + valid).map { String(decoding: $0, as: UTF8.self) }.joined(separator: ",") + "]").utf8)
+        let releases = try EngineDownload.parseRecentReleases(json)
+        XCTAssertEqual(releases.map(\.version.description), ["2.10.0", "2.9.0", "2.8.6", "2.8.5", "2.8.4"])
+        XCTAssertEqual(try EngineDownload.parseRecentReleases(Data("[]".utf8)), [])
+        XCTAssertThrowsError(try EngineDownload.parseRecentReleases(Data("{}".utf8)))
+        XCTAssertEqual(try EngineDownload.parseRecentReleases(Data(("[" + String(decoding: releaseJSON(), as: UTF8.self) + "]").utf8)).count, 1)
+    }
+
     func testDownloadVerificationRejectsTamperingWrongFilenameAndWrongArchitecture() throws {
         let release = try EngineDownload.parseRelease(releaseJSON())
         let data = Data([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1] + Array(repeating: UInt8(0), count: 40))
@@ -205,7 +221,7 @@ final class ManagedEngineTests: XCTestCase {
         }
         let target = try XCTUnwrap(store.availableEngineUpdate?.version)
         XCTAssertTrue(store.canUpdateEngine)
-        XCTAssertEqual(store.engineSidebarVersionDescription, "\(oldVersion) → \(target)")
+        XCTAssertEqual(store.engineSidebarVersionDescription, oldVersion)
         store.updateEngine()
         for _ in 0..<2400 {
             if !store.isUpdatingEngine { break }
@@ -241,11 +257,11 @@ final class ManagedEngineTests: XCTestCase {
         await backup.discard()
     }
 
-    private func releaseJSON(prerelease: Bool = false, host: String = "github.com", architecture: String = "arm64") -> Data {
+    private func releaseJSON(version: String = "2.8.6", prerelease: Bool = false, host: String = "github.com", architecture: String = "arm64", draft: Bool = false) -> Data {
         Data("""
-        {"tag_name":"v2.8.6","draft":false,"prerelease":\(prerelease),"assets":[
-        {"name":"aria2-next-2.8.6-macos-\(architecture)","browser_download_url":"https://\(host)/AnInsomniacy/aria2-next/releases/download/v2.8.6/aria2-next-2.8.6-macos-\(architecture)"},
-        {"name":"aria2-next-2.8.6-checksums.sha256","browser_download_url":"https://\(host)/AnInsomniacy/aria2-next/releases/download/v2.8.6/aria2-next-2.8.6-checksums.sha256"}]}
+        {"tag_name":"v\(version)","draft":\(draft),"prerelease":\(prerelease),"assets":[
+        {"name":"aria2-next-\(version)-macos-\(architecture)","browser_download_url":"https://\(host)/AnInsomniacy/aria2-next/releases/download/v\(version)/aria2-next-\(version)-macos-\(architecture)"},
+        {"name":"aria2-next-\(version)-checksums.sha256","browser_download_url":"https://\(host)/AnInsomniacy/aria2-next/releases/download/v\(version)/aria2-next-\(version)-checksums.sha256"}]}
         """.utf8)
     }
 

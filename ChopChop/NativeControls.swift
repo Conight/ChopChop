@@ -1,4 +1,111 @@
+import AppKit
 import SwiftUI
+
+/// Animate semantic changes, never an entire polling snapshot or a search query.
+nonisolated enum AppMotion {
+    static let duration = 0.18
+    static func animation(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeInOut(duration: duration)
+    }
+}
+
+private struct StateChangeMotion<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: Value
+    var enabled = true
+    func body(content: Content) -> some View {
+        content.animation(AppMotion.animation(reduceMotion: reduceMotion || !enabled), value: value)
+    }
+}
+
+extension View {
+    func stateChangeMotion<Value: Equatable>(_ value: Value, enabled: Bool = true) -> some View {
+        modifier(StateChangeMotion(value: value, enabled: enabled))
+    }
+}
+
+nonisolated enum ActionFeedback: Equatable {
+    case idle, working, succeeded
+}
+
+private struct FeedbackRevision: Equatable {
+    var feedback: ActionFeedback
+    var revision: Int
+}
+
+/// The same icon slot and title envelope survive every operation state.
+/// A successful operation gets one brief checkmark; failure never implies success.
+struct ActionFeedbackLabel: View {
+    let title: String
+    let systemImage: String
+    var feedback: ActionFeedback = .idle
+    var successTitle: String? = nil
+    var revision = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var successExpired = false
+
+    private var showsSuccess: Bool { feedback == .succeeded && !successExpired }
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: showsSuccess ? "checkmark" : systemImage)
+                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                .opacity(feedback == .working ? 0 : 1)
+                .frame(width: 16, height: 16)
+                .overlay {
+                    if feedback == .working {
+                        ProgressView().controlSize(.mini).accessibilityHidden(true)
+                    }
+                }
+            ZStack {
+                Text(title).hidden()
+                if let successTitle { Text(successTitle).hidden() }
+                Text(showsSuccess ? (successTitle ?? title) : title)
+                    .contentTransition(.opacity)
+            }
+        }
+        .stateChangeMotion(feedback)
+        .stateChangeMotion(showsSuccess)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(showsSuccess ? (successTitle ?? title) : title)
+        .accessibilityValue(feedback == .working ? String(localized: "In progress") : showsSuccess ? String(localized: "Completed") : "")
+        .task(id: FeedbackRevision(feedback: feedback, revision: revision)) {
+            successExpired = false
+            guard feedback == .succeeded else { return }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            successExpired = true
+        }
+    }
+}
+
+/// Operations continue if a settings page closes. Only the transient visual
+/// confirmation is tied to the label's lifetime.
+struct FeedbackButton: View {
+    let title: String
+    let systemImage: String
+    var successTitle: String? = nil
+    let action: @MainActor () async -> Bool
+    @State private var feedback = ActionFeedback.idle
+    @State private var revision = 0
+
+    var body: some View {
+        Button {
+            guard feedback != .working else { return }
+            revision += 1
+            feedback = .working
+            Task { feedback = await action() ? .succeeded : .idle }
+        } label: {
+            ActionFeedbackLabel(title: title, systemImage: systemImage, feedback: feedback, successTitle: successTitle, revision: revision)
+        }
+        .disabled(feedback == .working)
+    }
+}
+
+/// AppKit owns ordering animations and cancellation when a panel reopens quickly.
+@MainActor enum NativePanelMotion {
+    static func prepare(_ panel: NSPanel) {
+        panel.animationBehavior = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? .none : .utilityWindow
+    }
+}
 
 /// App-owned spacing. Native List/Form chrome keeps its system metrics; only the
 /// content inside each container uses these values. Each boundary owns its inset once.

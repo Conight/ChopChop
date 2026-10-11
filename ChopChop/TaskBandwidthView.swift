@@ -56,6 +56,9 @@ struct TaskBandwidthView: View {
                 if limits == nil { Button(String(localized: "Retry")) { Task { await load() } } }
             }
         }
+        .stateChangeMotion(limits != nil)
+        .stateChangeMotion(issue != nil)
+        .stateChangeMotion(saved)
         .nativeTextFieldStyle()
         .task(id: task.id) { await load() }
     }
@@ -81,7 +84,7 @@ struct TaskBandwidthView: View {
     }
 
     private var applyButton: some View {
-        Button(String(localized: "Apply")) {
+        Button {
             guard let limits else { return }
             busy = true; issue = nil; saved = false
             Task {
@@ -91,6 +94,8 @@ struct TaskBandwidthView: View {
                     original = limits; saved = true
                 } catch { issue = DownloadPrivacy.redact(error.localizedDescription) }
             }
+        } label: {
+            ActionFeedbackLabel(title: String(localized: "Apply"), systemImage: "slider.horizontal.3", feedback: busy ? .working : saved ? .succeeded : .idle)
         }.disabled(busy || limits == original)
     }
 

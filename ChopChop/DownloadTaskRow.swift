@@ -3,6 +3,8 @@ import SwiftUI
 /// A flat desktop row. List owns selection, separators and pointer
 /// behavior; only the content has app-defined spacing.
 struct DownloadTaskRow: View, Equatable {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var completionCount = 0
     let context: DownloadActionContext
     @ObservedObject var row: DownloadRowState
     let isSelected: Bool
@@ -49,6 +51,9 @@ struct DownloadTaskRow: View, Equatable {
         .help(taskHelp)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("task-row-\(task.id)")
+        .onChange(of: task.status) { previous, current in
+            if previous != .completed && current == .completed { completionCount += 1 }
+        }
     }
 
     private var identity: some View {
@@ -59,7 +64,14 @@ struct DownloadTaskRow: View, Equatable {
                     .lineLimit(1).truncationMode(.middle)
                     .accessibilityIdentifier("task-\(task.id)-name")
                 HStack(spacing: 5) {
-                    Label(task.phaseLabel, systemImage: display.statusSymbol)
+                    Label {
+                        Text(task.phaseLabel).contentTransition(.opacity)
+                    } icon: {
+                        Image(systemName: display.statusSymbol)
+                            .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                            .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? 0 : completionCount)
+                    }
+                        .stateChangeMotion(task.phaseLabel)
                         .foregroundStyle((task.status == .failed || task.torrentFileIssue != nil) && !isSelected ? Color.red : .secondary)
                         .lineLimit(1).truncationMode(.tail)
                         .accessibilityIdentifier("task-\(task.id)-status")
@@ -124,6 +136,8 @@ struct DownloadTaskRow: View, Equatable {
                 (action == .pause ? DownloadAction.pause : .resume).perform(in: context)
             } label: {
                 Label("\(action.helpTitle) \(task.name)", systemImage: action.symbolName).labelStyle(.iconOnly)
+                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                    .stateChangeMotion(action.symbolName)
             }
             .buttonStyle(.borderless).controlSize(.small)
             .disabled(!actionsEnabled).help(action.helpTitle)

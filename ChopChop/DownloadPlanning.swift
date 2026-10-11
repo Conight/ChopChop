@@ -42,6 +42,47 @@ nonisolated enum DownloadQueueOrder {
         guard let target else { return 0 }
         return queue.filter { $0 != id }.firstIndex(of: target)
     }
+
+    /// Resolve against a fresh engine queue. A filtered list's end is not the
+    /// engine's beginning, and stale/foreign drag IDs must never move another task.
+    static func moves(_ ids: [String], before target: String?, toEnd: Bool, in queue: [String]) -> [(id: String, position: Int)]? {
+        let moving = Set(ids)
+        guard !moving.isEmpty, moving.count == ids.count,
+              moving.isSubset(of: Set(queue)),
+              toEnd || (target.map { queue.contains($0) && !moving.contains($0) } ?? false) else { return nil }
+        var current = queue
+        var result: [(String, Int)] = []
+        for id in queue.filter({ moving.contains($0) }) {
+            let old = current.firstIndex(of: id)!
+            current.remove(at: old)
+            let position = toEnd ? current.count : current.firstIndex(of: target!)!
+            current.insert(id, at: position)
+            if old != position { result.append((id, position)) }
+        }
+        return result
+    }
+}
+
+nonisolated extension DownloadTask {
+    var canReorderInQueue: Bool { isAvailableInEngine && (status == .waiting || status == .paused) }
+}
+
+struct NativeQueueContainer: ViewModifier {
+    @ObservedObject var store: DownloadStore
+    var enabled: Bool
+    func body(content: Content) -> some View {
+        if #available(macOS 27.0, *) {
+            content.reorderContainer(for: DownloadTask.self, isEnabled: enabled && !store.isReorderingQueue && !store.isUpdatingEngine && !store.isPerformingBatchOperation && store.engineController.isRunning) { difference in
+                let target: String?
+                let toEnd: Bool
+                switch difference.destination.position {
+                case .before(let id): target = id; toEnd = false
+                case .end: target = nil; toEnd = true
+                }
+                Task { await store.moveQueuedTasks(difference.sources, before: target, toEnd: toEnd) }
+            }
+        } else { content }
+    }
 }
 
 extension UTType {
@@ -59,7 +100,7 @@ struct QueueReordering: ViewModifier {
     let store: DownloadStore
     let task: DownloadTask
     func body(content: Content) -> some View {
-        if task.isAvailableInEngine && (task.status == .waiting || task.status == .paused) {
+        if task.canReorderInQueue {
             content.draggable(QueuedDownloadReference(gid: task.id))
                 .dropDestination(for: QueuedDownloadReference.self) { items, _ in
                     guard let first = items.first, items.count == 1, first.gid != task.id else { return false }
@@ -90,14 +131,18 @@ struct TaskScheduleView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         HStack {
                             if !store.armedScheduledTaskIDs.contains(task.id) {
-                                Button(String(localized: "Enable Schedule")) { schedule(scheduled > Date() ? scheduled : Date().addingTimeInterval(60)) }
+                                Button { schedule(scheduled > Date() ? scheduled : Date().addingTimeInterval(60)) } label: {
+                                    ActionFeedbackLabel(title: String(localized: "Enable Schedule"), systemImage: "calendar", feedback: saving ? .working : .idle)
+                                }
                             }
                             Button(String(localized: "Cancel Schedule")) { store.cancelSchedule(task.id) }
                         }
                     } else {
                         DatePicker(String(localized: "Start"), selection: $date, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                             .datePickerStyle(.field)
-                        Button(String(localized: "Schedule Start")) { schedule(date) }
+                        Button { schedule(date) } label: {
+                            ActionFeedbackLabel(title: String(localized: "Schedule Start"), systemImage: "calendar", feedback: saving ? .working : .idle)
+                        }
                         Text(String(localized: "Pauses this task until the selected time. Keep ChopChop open. After a restart, enable the schedule again."))
                             .font(.caption).foregroundStyle(.secondary)
                     }

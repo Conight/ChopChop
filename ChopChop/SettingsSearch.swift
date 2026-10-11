@@ -14,7 +14,7 @@ enum SettingsSearchIndex {
         .init(id: "general.notifications", pane: .general, title: "Download Completion Notifications"),
         .init(id: "integrations.browser", pane: .integrations, title: "Browser Integration"),
         .init(id: "engine.version", pane: .engine, title: "Installed version"),
-        .init(id: "engine.update", pane: .engine, title: "Engine Update"),
+        .init(id: "engine.update", pane: .updates, title: "Engine Update"),
         .init(id: "engine.rpc-token", pane: .engine, title: "RPC token"),
         .init(id: "engine.rpc-port", pane: .engine, title: "RPC port"),
         .init(id: "bitTorrent.tracker-sources", pane: .bitTorrent, title: "Tracker Sources"),
@@ -23,7 +23,11 @@ enum SettingsSearchIndex {
         .init(id: "general.show-in-menu-bar", pane: .general, title: "Show in menu bar"),
         .init(id: "general.keep-running-after-window-closes", pane: .general, title: "Keep running after window closes"),
         .init(id: "general.prevent-sleep-while-downloads-are-active", pane: .general, title: "Prevent sleep while downloads are active"),
-        .init(id: "general.chopchop-updates", pane: .general, title: "ChopChop Updates"),
+        .init(id: "updates.at-launch", pane: .updates, title: "Check for updates at launch"),
+        .init(id: "updates.check", pane: .updates, title: "Check All Updates"),
+        .init(id: "updates.check-chopchop", pane: .updates, title: "Check ChopChop Updates"),
+        .init(id: "updates.check-engine", pane: .updates, title: "Check Engine Updates"),
+        .init(id: "updates.chopchop", pane: .updates, title: "ChopChop Updates"),
         .init(id: "downloads.default-save-location", pane: .downloads, title: "Default save location"),
         .init(id: "downloads.auto-organize-files", pane: .downloads, title: "Auto organize files"),
         .init(id: "downloads.confirm-before-removing-downloads", pane: .downloads, title: "Confirm before removing downloads"),
@@ -95,7 +99,7 @@ enum SettingsSearchIndex {
         "network.proxy-url": "proxy 代理",
         "bitTorrent.seeding": "seed upload ratio 做种 上传 分享率",
         "downloads.default-save-location": "directory folder path 文件夹 目录 路径 保存",
-        "general.chopchop-updates": "version release update 版本 更新",
+        "updates.chopchop": "version release update 版本 更新",
         "engine.rpc-token": "authentication password 认证 密码 令牌"
     ]
 }
@@ -177,7 +181,7 @@ struct SettingsSearchField: NSViewRepresentable {
             self.model = model
             super.init()
             popover.behavior = .transient
-            popover.animates = false
+            popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             popover.delegate = self
             let host = NSHostingController(rootView: SettingsSearchResults(model: model))
             host.sizingOptions = []
@@ -203,6 +207,7 @@ struct SettingsSearchField: NSViewRepresentable {
             guard !popover.isShown, let editor = field.currentEditor() else { return }
             if let textView = editor as? NSTextView, textView.hasMarkedText() { return }
             let range = editor.selectedRange
+            popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             popover.show(relativeTo: field.bounds, of: field, preferredEdge: .maxY)
             // Completion choices must not steal text input or reset an IME selection.
             field.selectText(nil)

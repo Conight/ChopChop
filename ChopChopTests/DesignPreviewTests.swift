@@ -13,6 +13,85 @@ private final class LayoutPreviewWindow: NSWindow {
 
 final class DesignPreviewTests: XCTestCase {
     @MainActor
+    func testFeedbackButtonsKeepTheirGeometryThroughBusySuccessAndReset() async throws {
+        for scheme in [ColorScheme.light, .dark] {
+            let host = NSHostingController(rootView: Button {} label: {
+                ActionFeedbackLabel(title: String(localized: "Copy Pairing Code"), systemImage: "doc.on.doc", successTitle: String(localized: "Copied"))
+            }.buttonStyle(.bordered).environment(\.colorScheme, scheme))
+            host.sizingOptions = []
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false; window.contentViewController = host
+            defer { window.close() }
+            let proposal = NSSize(width: 320, height: 100)
+            let initial = host.sizeThatFits(in: proposal)
+            for feedback in [ActionFeedback.working, .succeeded, .idle] {
+                host.rootView = Button {} label: {
+                    ActionFeedbackLabel(title: String(localized: "Copy Pairing Code"), systemImage: "doc.on.doc", feedback: feedback, successTitle: String(localized: "Copied"))
+                }.buttonStyle(.bordered).environment(\.colorScheme, scheme)
+                try await Task.sleep(for: .milliseconds(220))
+                let size = host.sizeThatFits(in: proposal)
+                XCTAssertEqual(size.width, initial.width, accuracy: 0.5)
+                XCTAssertEqual(size.height, initial.height, accuracy: 0.5)
+            }
+        }
+    }
+
+    @MainActor
+    func testEngineInstallationStageChangesKeepTheProgressContainerStable() async throws {
+        let host = NSHostingController(rootView: EngineInstallationProgressView(progress: .init(stage: .connecting), onCancel: {}))
+        host.sizingOptions = []
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentViewController = host
+        defer { window.close() }
+        let proposal = NSSize(width: 360, height: 200)
+        let initial = host.sizeThatFits(in: proposal)
+        for stage in [EngineInstallationProgress.Stage.downloading, .verifying, .preparing, .savingDownloads, .restarting, .activating, .restoring] {
+            host.rootView = EngineInstallationProgressView(progress: .init(stage: stage, completedBytes: 250, totalBytes: 1000), onCancel: {})
+            try await Task.sleep(for: .milliseconds(220))
+            let size = host.sizeThatFits(in: proposal)
+            XCTAssertEqual(size.width, initial.width, accuracy: 0.5, "\(stage)")
+            XCTAssertEqual(size.height, initial.height, accuracy: 0.5, "\(stage)")
+        }
+    }
+
+    @MainActor
+    func testSidebarUpdateCheckingKeepsFooterSizeStable() async throws {
+        let suite = "ChopChop-sidebar-update-layout-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let probe = UpdateCheckProbe(holdApp: true, holdEngine: true)
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true), engineInstallationManager: probe)
+        defer { store.shutdown(); Task { await probe.finishApp(); await probe.finishEngine() } }
+        store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 1234))
+        let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.1"), client: probe, defaults: defaults)
+        let host = NSHostingController(rootView: UpdateActivityFooter(updates: updates).environmentObject(store).desktopControls().frame(width: 188))
+        host.sizingOptions = []
+        let window = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 188, height: 180),
+                                         styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentViewController = host
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(200))
+        let proposal = NSSize(width: 188, height: 180)
+        let before = host.sizeThatFits(in: proposal)
+        let check = Task { await updates.checkAll(using: store) }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(updates.isChecking(using: store))
+        let during = host.sizeThatFits(in: proposal)
+        XCTAssertEqual(during.height, before.height, accuracy: 0.5)
+        XCTAssertEqual(during.width, before.width, accuracy: 0.5)
+        await probe.finishEngine()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(updates.isChecking(using: store))
+        XCTAssertEqual(host.sizeThatFits(in: proposal).height, before.height, accuracy: 0.5)
+        await probe.finishApp()
+        await check.value
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(updates.isChecking(using: store))
+        XCTAssertEqual(host.sizeThatFits(in: proposal).height, before.height, accuracy: 0.5)
+    }
+
+    @MainActor
     func testAddDownloadSheetKeepsFieldBordersInsideDisclosure() async throws {
         try await verifyAddDownloadSheet(width: 740, height: nil, appearance: .aqua)
     }
@@ -549,6 +628,78 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
+    func testEngineVersionRefreshKeepsPickerSizeStable() async throws {
+        let manager = EngineVersionPreviewManager()
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true),
+                                  engineInstallationManager: manager)
+        defer { store.shutdown(); Task { await manager.resumeChecks() } }
+        await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
+        for _ in 0..<100 where store.isCheckingEngineUpdate { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.isCheckingEngineUpdate)
+        let host = NSHostingController(rootView: EngineVersionPicker().environmentObject(store).desktopControls().fixedSize())
+        host.sizingOptions = []
+        let window = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 100),
+                                         styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentViewController = host
+        defer { window.close() }
+        for selection in [EngineVersion?.none, EngineVersion("2.8.2")] {
+            store.selectedEngineVersion = selection
+            try await Task.sleep(for: .milliseconds(200))
+            let proposal = NSSize(width: 500, height: 100)
+            let before = host.sizeThatFits(in: proposal)
+            let status = store.engineUpdateStatus
+            await manager.suspendChecks()
+            store.startEngineUpdateCheck()
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertTrue(store.isCheckingEngineUpdate)
+            let during = host.sizeThatFits(in: proposal)
+            XCTAssertEqual(during.width, before.width, accuracy: 0.5, "The loading indicator must keep the button's width")
+            XCTAssertEqual(during.height, before.height, accuracy: 0.5, "Refreshing must not shrink the row")
+            XCTAssertEqual(store.engineUpdateStatus, status)
+            await manager.resumeChecks()
+            for _ in 0..<100 where store.isCheckingEngineUpdate { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertFalse(store.isCheckingEngineUpdate)
+            try await Task.sleep(for: .milliseconds(200))
+            let after = host.sizeThatFits(in: proposal)
+            XCTAssertEqual(after.width, before.width, accuracy: 0.5)
+            XCTAssertEqual(after.height, before.height, accuracy: 0.5)
+        }
+    }
+
+    @MainActor
+    func testEngineVersionPickerFitsCompactSetupAndSettings() async throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true),
+                                  engineInstallationManager: EngineVersionPreviewManager())
+        defer { store.shutdown() }
+        await store.prepareEngineOnLaunch()
+        store.startEngineUpdateCheck()
+        for _ in 0..<100 where store.isCheckingEngineUpdate { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.isCheckingEngineUpdate)
+        XCTAssertEqual(store.recentEngineReleases.count, 5)
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let suite = "ChopChop-engine-versions-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.1"), client: DesignReleaseClient(), defaults: defaults)
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
+            store.selectedEngineVersion = nil
+            try await render(EngineSetupView().environmentObject(store), name: "engine-setup-latest-\(appearance.rawValue)",
+                             size: NSSize(width: 400, height: 340), appearance: appearance, output: output)
+            store.selectedEngineVersion = EngineVersion("2.8.2")
+            try await render(EngineSetupView().environmentObject(store), name: "engine-setup-version-\(appearance.rawValue)",
+                             size: NSSize(width: 400, height: 340), appearance: appearance, output: output)
+            try await render(SettingsView(initialPane: .updates).environmentObject(store).environmentObject(updates),
+                             name: "settings-engine-versions-\(appearance.rawValue)", size: NSSize(width: 860, height: 560),
+                             appearance: appearance, output: output)
+            XCTAssertEqual(store.selectedEngineVersion, EngineVersion("2.8.2"))
+        }
+        print("ENGINE_VERSION_PREVIEW_OUTPUT=\(output.path)")
+    }
+
+    @MainActor
     func testFlatSettingsFitSmallWindowAndKeepBottomControlsReachable() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
@@ -566,7 +717,7 @@ final class DesignPreviewTests: XCTestCase {
                 let view = SettingsView(initialPane: pane).environmentObject(store).environmentObject(updates)
                 try await render(view, name: "settings-flat-\(pane.rawValue)-\(appearance.rawValue)",
                                  size: NSSize(width: 860, height: 560), appearance: appearance, output: output)
-                if [.network, .bitTorrent, .ed2k, .engine, .integrations, .downloads, .general].contains(pane) {
+                if [.network, .bitTorrent, .ed2k, .engine, .integrations, .downloads, .general, .updates].contains(pane) {
                     try await render(view, name: "settings-flat-\(pane.rawValue)-bottom-\(appearance.rawValue)",
                                      size: NSSize(width: 860, height: 560), appearance: appearance, output: output, scrollToBottom: true)
                 }
@@ -981,5 +1132,29 @@ private struct InvisibleSheetWindow: NSViewRepresentable {
 private struct DesignReleaseClient: AppReleaseFetching {
     func latest(for current: AppVersion?, channel: AppUpdateChannel) async throws -> AppRelease? {
         AppRelease(version: AppVersion("0.0.2-beta.1")!, notes: "Improved downloads and recovery. 下载与恢复改进。")
+    }
+}
+
+private actor EngineVersionPreviewManager: EngineInstallationManaging {
+    private var checksSuspended = false
+    private var checks: [CheckedContinuation<Void, Never>] = []
+    func suspendChecks() { checksSuspended = true }
+    func resumeChecks() {
+        checksSuspended = false
+        checks.forEach { $0.resume() }
+        checks.removeAll()
+    }
+    func localInstallation() async -> EngineInstallation? { nil }
+    func latestRelease() async throws -> EngineRelease {
+        if checksSuspended { await withCheckedContinuation { checks.append($0) } }
+        return EngineDistribution.release(version: EngineVersion("2.8.6")!)
+    }
+    func recentReleases() async throws -> [EngineRelease] {
+        (2...6).reversed().map { EngineDistribution.release(version: EngineVersion("2.8.\($0)")!) }
+    }
+    func activate(_ installation: EngineInstallation) async throws { throw CancellationError() }
+    func backupRuntimeState() async throws -> EngineRuntimeBackup? { nil }
+    func install(_ release: EngineRelease, progress: @escaping @Sendable (EngineInstallationProgress) async -> Void) async throws -> EngineInstallation {
+        throw CancellationError()
     }
 }

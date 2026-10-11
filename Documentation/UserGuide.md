@@ -23,6 +23,8 @@
 
 任务列表使用系统文件类型图标，依次显示名称、进度和传输状态；右侧保留暂停／继续，已完成任务可直接在 Finder 中显示。刷新位于工具栏的“更多操作”菜单，也可按 `⌘R`；移除任务位于右键菜单、“下载”菜单或详情面板。左下角显示下载／上传速度、近期速度曲线和可点击的引擎状态。
 
+同步、应用设置和复制操作会在原位置显示处理状态与短暂的成功反馈；更新阶段切换保持进度区域稳定。macOS 27 的“等待中”列表支持原生拖动排序预览，实际顺序以引擎结果为准。界面过渡遵循系统“减少动态效果”设置。
+
 ### 种子文件与 Finder
 
 右键下载任务 → **在 Finder 中显示**（也可用“下载”菜单或 `⇧⌘R`）：普通单文件选中文件；BT 任务选中它的文件夹。文件详情中也可右键定位已落盘的文件。
@@ -39,12 +41,12 @@
 
 ### 两种更新
 
-设置使用通用、下载、网络、BitTorrent、ED2K、集成和引擎七个一级分类。每个分类的选项在同一页面分组平铺，向下滚动即可查看；Tracker 来源和列表也直接在 BitTorrent 页面编辑，无需进入子页面。网络、BitTorrent 和 ED2K 的“应用设置”按钮固定在底部。
+设置使用通用、下载、网络、BitTorrent、ED2K、集成、引擎和更新八个一级分类。每个分类的选项在同一页面分组平铺，向下滚动即可查看；Tracker 来源和列表也直接在 BitTorrent 页面编辑，无需进入子页面。网络、BitTorrent 和 ED2K 的“应用设置”按钮固定在底部。
 
-- **ChopChop 应用**：应用菜单 → 检查 ChopChop 更新…，或设置 → 通用。可关闭每日更新检查，并选择稳定版或预发布版。点击“下载更新”后，独立进度页显示百分比、已下载大小和速度；连接、校验和准备阶段显示对应状态。可取消下载，隐藏窗口则继续下载。支持签名更新时可“安装并重新启动”；旧版安装包下载完成后，选择“退出并打开安装程序”，应用保存任务并退出后，再将新 App 拖入“应用程序”。任务、设置和引擎存放于应用之外，会保留。
-- **Aria2 Next 引擎**：点击主窗口左下角整个引擎状态区域，进入引擎设置。可在应用内下载安装更新，并查看真实进度。
+- **ChopChop 应用**：应用菜单 → 检查全部更新…，或设置 → 更新。此处统一管理软件和引擎更新：顶部“检查全部更新”同时检查两者，ChopChop 和引擎分组各有独立的“检查更新”按钮。应用可选择稳定版或预发布版。“启动时检查更新”默认开启，每次启动检查一次；关闭后仍可手动检查。点击“下载更新”后，独立进度页显示百分比、已下载大小和速度；连接、校验和准备阶段显示对应状态。可取消下载，隐藏窗口则继续下载。支持签名更新时可“安装并重新启动”；旧版安装包下载完成后，选择“退出并打开安装程序”，应用保存任务并退出后，再将新 App 拖入“应用程序”。任务、设置和引擎存放于应用之外，会保留。
+- **Aria2 Next 引擎**：在设置 → 更新中选择 Latest 或最近五个兼容版本之一，也可点击主窗口左下角的“新版本”提示进入。启动检查和手动检查时，左下角显示“正在检查更新…”和加载动效，完成后恢复运行状态。安装时显示真实下载进度。
 
-开发构建没有发布标签，只提供手动检查；正式构建只提示正式版，测试构建同时接受更新的测试版和正式版。检查失败不会影响已有下载。
+开发构建没有发布标签，软件更新只提供手动检查，引擎仍支持启动检查；正式构建只提示正式版，测试构建同时接受更新的测试版和正式版。检查失败不会影响已有下载。
 
 ### 通知、失败与反馈
 
@@ -106,11 +108,11 @@ Keep ChopChop running when sending links. If the extension cannot connect, open 
 
 ### Updates, notifications and feedback
 
-Settings has seven top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations and Engine. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Network, BitTorrent and ED2K keep Apply Settings at the bottom.
+Settings has eight top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations, Engine and Updates. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Network, BitTorrent and ED2K keep Apply Settings at the bottom.
 
-**App updates:** use ChopChop → Check ChopChop Updates… or Settings → General. Daily checks can be disabled. Choose Download Update to download directly in ChopChop; the update window shows progress and installation options. Existing tasks, settings and the engine are kept outside the app bundle.
+**App updates:** use ChopChop → Check All Updates… or Settings → Updates. Use Check All Updates for both components, or Check for Updates in the ChopChop or Engine section to check just that component. The shared Check for updates at launch option controls app and Engine checks; manual checks remain available when it is off. Choose Download Update to download directly in ChopChop; the update window shows progress and installation options. Existing tasks, settings and the engine are kept outside the app bundle.
 
-**Engine updates:** click the Engine area in the lower-left sidebar to manage and update Aria2 Next inside ChopChop, with download progress.
+**Engine updates:** open Settings → Updates, or click the sidebar’s New badge. Choose Latest or one of the five newest compatible versions. The sidebar shows a spinner while either component is checking, then returns to the engine runtime status.
 
 Development builds require manual app-update checks. Stable builds check stable releases; beta builds also include newer prereleases. Checking failures do not stop downloads.
 
@@ -132,12 +134,12 @@ Background task refresh is less frequent when idle or hidden. Download schedules
 
 ### Updating ChopChop
 
-Choose **ChopChop → Check ChopChop Updates** to open the update window. Select **Stable Releases** for stable versions, or **Pre-releases** to include betas as well. Settings → General controls automatic daily checking; background checks do not interrupt your work.
+Choose **ChopChop → Check All Updates** to check both components and open Settings → Updates. Select **Stable Releases** for stable versions, or **Pre-releases** to include betas as well. **Check for updates at launch** is enabled by default and checks once per app launch. Choose **View Update…** to read release notes and install an available app update.
 
 Review the release notes, then choose **Download Update**. The window switches to a dedicated progress page showing the percentage, bytes received and measured speed. Unknown totals, connection, verification and preparation use an indeterminate bar with the current stage. Progress and cancellation stay visible even if you previously scrolled to the bottom of the notes. **Hide** leaves the download running; reopen the update window to see its progress.
 
 For a signed update, choose **Install and Restart** when preparation finishes. ChopChop saves its sessions before quitting. Downloads and BitTorrent seeding remain paused when it reopens. You can cancel the download or discard a prepared update.
 
-Older releases without signed update metadata still download directly in ChopChop, with progress, cancellation and SHA-256 verification. When the download finishes, choose **Quit and Open Installer**: ChopChop opens the DMG, saves its downloads and exits. Then drag ChopChop to Applications. If opening fails, the app stays open and **Try Again** reuses the verified download. **Show in Finder** reveals the DMG without quitting. Unwritable installation locations also offer **Download Installer**. Engine updates are managed separately in Engine settings.
+Older releases without signed update metadata still download directly in ChopChop, with progress, cancellation and SHA-256 verification. When the download finishes, choose **Quit and Open Installer**: ChopChop opens the DMG, saves its downloads and exits. Then drag ChopChop to Applications. If opening fails, the app stays open and **Try Again** reuses the verified download. **Show in Finder** reveals the DMG without quitting. Unwritable installation locations also offer **Download Installer**. Engine versions and installation are also managed in Settings → Updates.
 
 Downloaded installers and prepared signed updates can be recovered after reopening ChopChop; their files are verified again before use. While waiting for termination, **Retry Quit** requests a normal exit and never force-quits ongoing session saving. If the installer stops waiting, the app reports the failure and offers a retry of the prepared package.

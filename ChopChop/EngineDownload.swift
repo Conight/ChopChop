@@ -12,6 +12,19 @@ nonisolated enum EngineDownload {
 
     static func parseRelease(_ data: Data) throws -> EngineRelease {
         let payload = try JSONDecoder().decode(GitHubRelease.self, from: data)
+        return try supportedRelease(payload)
+    }
+
+    static func parseRecentReleases(_ data: Data) throws -> [EngineRelease] {
+        let payloads = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        var seen = Set<EngineVersion>()
+        let releases = payloads.compactMap { try? supportedRelease($0) }
+            .filter { seen.insert($0.version).inserted }
+            .sorted { $0.version > $1.version }
+        return Array(releases.prefix(EngineDistribution.recentVersionLimit))
+    }
+
+    private static func supportedRelease(_ payload: GitHubRelease) throws -> EngineRelease {
         guard !payload.draft, !payload.prerelease, let version = EngineVersion(payload.tag_name),
               payload.tag_name == "v\(version)" else { throw EngineInstallationError.invalidRelease }
         let expected = EngineDistribution.release(version: version)
@@ -25,13 +38,21 @@ nonisolated enum EngineDownload {
     }
 
     @concurrent static func latestRelease() async throws -> EngineRelease {
+        try parseRelease(await releaseData(from: EngineDistribution.latestAPI))
+    }
+
+    @concurrent static func recentReleases() async throws -> [EngineRelease] {
+        try parseRecentReleases(await releaseData(from: EngineDistribution.recentAPI))
+    }
+
+    private static func releaseData(from url: URL) async throws -> Data {
         let session = Self.session(timeout: 15)
         defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: EngineDistribution.latestAPI)
+        var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Self.validate(response)
-        return try Self.parseRelease(data)
+        return data
     }
 
     static func verifyDownload(_ data: Data, checksums: Data, release: EngineRelease) throws {

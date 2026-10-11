@@ -60,6 +60,7 @@ final class CommandSearchPresentation: NSObject, ObservableObject, NSWindowDeleg
             NSRect(x: owner.frame.midX - 270, y: owner.frame.midY - 120, width: 540, height: 400),
             screens: NSScreen.screens.map(\.visibleFrame), fallback: screen), display: false)
         self.panel = panel
+        NativePanelMotion.prepare(panel)
         owner.addChildWindow(panel, ordered: .above)
         closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: owner, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.dismiss(returnFocus: false) }
@@ -74,6 +75,7 @@ final class CommandSearchPresentation: NSObject, ObservableObject, NSWindowDeleg
         closeObserver = nil
         panel.delegate = nil
         owner?.removeChildWindow(panel)
+        NativePanelMotion.prepare(panel)
         panel.orderOut(nil)
         panel.contentViewController = nil
         if returnFocus, let owner, owner.isVisible {

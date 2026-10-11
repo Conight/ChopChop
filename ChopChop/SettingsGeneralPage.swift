@@ -13,7 +13,5 @@ extension SettingsView {
             .settingsAnchor("general.prevent-sleep-while-downloads-are-active")
             CompletionNotificationSetting(coordinator: store.notifications).settingsAnchor("general.notifications")
         }
-        AppUpdateSettingsView(updates: updates, openUpdates: showAppUpdates)
-            .settingsAnchor("general.chopchop-updates")
     }
 }
