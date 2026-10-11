@@ -6,7 +6,7 @@ struct EngineSetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
-            Label(String(localized: "Aria2 Next Required"), systemImage: "arrow.down.circle.fill")
+            Text(String(localized: "Aria2 Next Required"))
                 .font(AppTypography.windowTitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

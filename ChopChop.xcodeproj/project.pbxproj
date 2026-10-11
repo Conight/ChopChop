@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7BB000000000000000000001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000001 /* AppIcon.icon */; };
+		7BB000000000000000000002 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000002 /* AppBrand.swift */; };
 		5527F77B43F249B9B31CF8E4 /* DownloadTaskRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FA1074DF7D4CF1BA6F0C78 /* DownloadTaskRow.swift */; };
 		7876D49725374E5ABA394515 /* AppTermination.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A3971C5FDB489BB85F1070; };
 		60B000000000000000000031 /* MacIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000031; };
@@ -146,6 +148,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		7BA000000000000000000001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		7BA000000000000000000002 /* AppBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBrand.swift; sourceTree = "<group>"; };
 		08FA1074DF7D4CF1BA6F0C78 /* DownloadTaskRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTaskRow.swift; sourceTree = "<group>"; };
 		D9A3971C5FDB489BB85F1070 /* AppTermination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTermination.swift; sourceTree = "<group>"; };
 		60A000000000000000000031 /* MacIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIntegration.swift; sourceTree = "<group>"; };
@@ -410,6 +414,8 @@
 				60A00000000000000000000B /* PreferencesStore.swift */,
 				60A00000000000000000000D /* SettingsView.swift */,
 				60A00000000000000000000E /* TaskInspectorView.swift */,
+				7BA000000000000000000001 /* AppIcon.icon */,
+				7BA000000000000000000002 /* AppBrand.swift */,
 				60A00000000000000000000F /* Assets.xcassets */,
 				60A000000000000000000014 /* Info.plist */,
 			);
@@ -563,6 +569,7 @@
 				62B000000000000000000004 /* Localizable.xcstrings in Resources */,
                 62B000000000000000000005 /* AppShortcuts.xcstrings in Resources */,
 				60B000000000000000000026 /* BrowserExtension in Resources */,
+				7BB000000000000000000001 /* AppIcon.icon in Resources */,
 				60B00000000000000000000F /* Assets.xcassets in Resources */,
 				60B000000000000000000011 /* Aria2Next-COPYING.txt in Resources */,
 				60B000000000000000000012 /* Aria2Next-NOTICE.txt in Resources */,
@@ -641,6 +648,7 @@
 				60B000000000000000000017 /* EngineSetupView.swift in Sources */,
 				60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */,
 				60B000000000000000000002 /* Aria2RPCClient.swift in Sources */,
+				7BB000000000000000000002 /* AppBrand.swift in Sources */,
 				60B000000000000000000003 /* ChopChopApp.swift in Sources */,
 				60B000000000000000000004 /* ContentView.swift in Sources */,
 				60B000000000000000000005 /* DownloadConsoleView.swift in Sources */,
@@ -849,7 +857,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -887,7 +895,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

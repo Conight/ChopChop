@@ -256,7 +256,7 @@ private final class MenuBarStatusController: NSObject {
     private func ensureStatusItem() {
         if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            item.button?.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: "ChopChop")
+            item.button?.image = AppBrand.menuBarImage
             item.button?.imagePosition = .imageOnly
             item.button?.target = self
             item.button?.action = #selector(togglePopover(_:))

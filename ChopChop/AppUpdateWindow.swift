@@ -46,8 +46,7 @@ struct AppUpdateWindow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 16) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
-                    .resizable().frame(width: 64, height: 64).accessibilityHidden(true)
+                AppBrandIcon(size: 64)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("ChopChop Updates").font(.title2).fontWeight(.semibold)
                     Text(updates.build.displayVersion + (updates.release.map { " → \($0.version)" } ?? ""))

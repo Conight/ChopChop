@@ -11,17 +11,6 @@ struct MenuBarPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("ChopChop")
-                        .font(.headline)
-                    Text(runtimeText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
             HStack(spacing: 12) {
                 transferMetric(String(localized: "Download speed"), value: ByteFormat.speed(store.activeSpeed), symbol: "arrow.down")
                 transferMetric(String(localized: "Upload speed"), value: ByteFormat.speed(store.uploadSpeed), symbol: "arrow.up")
@@ -99,20 +88,5 @@ struct MenuBarPanel: View {
             Text(value).font(.body.weight(.medium)).monospacedDigit()
         }.frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .ignore).accessibilityLabel(title).accessibilityValue(value)
-    }
-
-    private var runtimeText: String {
-        switch store.runtime.phase {
-        case .stopped:
-            String(localized: "Engine stopped")
-        case .starting:
-            String(localized: "Engine starting")
-        case .running:
-            String(localized: "Engine running")
-        case .stopping:
-            String(localized: "Engine stopping")
-        case .failed:
-            String(localized: "Engine failed")
-        }
     }
 }
