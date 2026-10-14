@@ -124,7 +124,7 @@ nonisolated extension AddDownloadDraft {
 
 nonisolated extension EngineCapabilities {
     var supportsMedia: Bool {
-        enabledFeatures?.contains("HLS/DASH") == true && mediaFeatures?.contains("stable-track-ids") == true
+        enabledFeatures.contains("HLS/DASH") && mediaFeatures.contains("stable-track-ids")
     }
 }
 

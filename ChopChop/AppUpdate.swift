@@ -1,19 +1,22 @@
 import AppKit
-import Combine
+import Observation
 import Foundation
 
 nonisolated struct AppBuild: Sendable {
     let version: AppVersion?
     let displayVersion: String
     let buildNumber: String
+    let isDevelopment: Bool
 
     init(bundle: Bundle = .main) {
+        isDevelopment = bundle.object(forInfoDictionaryKey: "ChopChopDevelopmentBuild") as? Bool == true
         let tag = bundle.object(forInfoDictionaryKey: "ChopChopReleaseVersion") as? String ?? "development"
         version = AppVersion(tag)
         displayVersion = version?.description ?? ((bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.1") + String(localized: " (Development)"))
         buildNumber = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     }
-    init(version: String, buildNumber: String = "1") {
+    init(version: String, buildNumber: String = "1", isDevelopment: Bool = false) {
+        self.isDevelopment = isDevelopment
         self.version = AppVersion(version); displayVersion = version; self.buildNumber = buildNumber
     }
 }
@@ -83,17 +86,18 @@ nonisolated struct GitHubAppReleaseClient: AppReleaseFetching {
 }
 
 @MainActor
-final class AppUpdateCoordinator: ObservableObject {
+@Observable
+final class AppUpdateCoordinator {
     enum State: Equatable {
         case idle, checking, current, available(AppRelease), failed(AppUpdateError)
         case preparing(AppRelease, AppUpdateProgress), ready(AppRelease), installing(AppRelease)
         case downloaded(AppRelease, DownloadedAppUpdateArchive)
         case waitingToQuit(AppRelease)
     }
-    @Published private(set) var state: State = .idle
-    @Published private(set) var isCheckingAll = false
-    @Published var automaticallyChecks: Bool { didSet { defaults.set(automaticallyChecks, forKey: Self.automaticKey) } }
-    @Published private var selectedChannel: AppUpdateChannel
+    private(set) var state: State = .idle
+    private(set) var isCheckingAll = false
+    var automaticallyChecks: Bool { didSet { defaults.set(automaticallyChecks, forKey: Self.automaticKey) } }
+    private var selectedChannel: AppUpdateChannel
     var channel: AppUpdateChannel {
         get { selectedChannel }
         set {
@@ -111,8 +115,8 @@ final class AppUpdateCoordinator: ObservableObject {
     private let defaults: UserDefaults
     private let now: () -> Date
     private var generation = UUID()
-    private var operation: Task<Void, Never>?
-    private var installer: (any AppUpdateInstalling)?
+    @ObservationIgnored private var operation: Task<Void, Never>?
+    @ObservationIgnored private var installer: (any AppUpdateInstalling)?
     private let makeInstaller: @MainActor () -> any AppUpdateInstalling
     private let terminateApplication: @MainActor () -> Void
     private let archiveDownloader: any AppUpdateArchiveDownloading
@@ -120,7 +124,7 @@ final class AppUpdateCoordinator: ObservableObject {
     private let recovery: AppUpdateRecoveryStore
     private var restored = false
     private var downloadedArchive: DownloadedAppUpdateArchive?
-    private var installationMonitor: Task<Void, Never>?
+    @ObservationIgnored private var installationMonitor: Task<Void, Never>?
     private let monitorInterval: Duration
     private var token: String?
     private var lastRelease: AppRelease?
@@ -154,7 +158,7 @@ final class AppUpdateCoordinator: ObservableObject {
         switch state { case .checking, .preparing, .ready, .installing, .waitingToQuit: true; default: false }
     }
     var canCheckForUpdates: Bool {
-        guard !busy, canChangeChannel else { return false }
+        guard !build.isDevelopment, !busy, canChangeChannel else { return false }
         if case .downloaded = state { return false }
         return true
     }
@@ -163,8 +167,10 @@ final class AppUpdateCoordinator: ObservableObject {
     }
     var updateAvailable: Bool { release != nil }
     var installationNeedsAttention: Bool { state == .failed(.installationFailed) }
-    var canDownloadInstaller: Bool { !busy && canChangeChannel }
+    var canCheckAllUpdates: Bool { !isCheckingAll && (build.isDevelopment || canCheckForUpdates) }
+    var canDownloadInstaller: Bool { !build.isDevelopment && !busy && canChangeChannel }
     var canChangeChannel: Bool {
+        guard !build.isDevelopment else { return false }
         switch state { case .installing, .waitingToQuit: return false; default: break }
         guard token == nil else { return false }
         return recovery.load(current: build.version, channel: channel).map { $0.archive != nil } ?? true
@@ -191,7 +197,7 @@ final class AppUpdateCoordinator: ObservableObject {
     }
 
     func checkAll(using store: DownloadStore) async {
-        guard !isCheckingAll, canCheckForUpdates, store.canCheckEngineUpdates else { return }
+        guard canCheckAllUpdates, store.canCheckEngineUpdates else { return }
         isCheckingAll = true
         defer { isCheckingAll = false }
         store.startEngineUpdateCheck()
@@ -231,7 +237,7 @@ final class AppUpdateCoordinator: ObservableObject {
     }
 
     func download() {
-        guard case .available(let release) = state else { return }
+        guard !build.isDevelopment, case .available(let release) = state else { return }
         guard signingConfigured && release.supportsInstallation else { downloadInstaller(); return }
         let request = UUID(); generation = request
         let installer = makeInstaller()
@@ -372,7 +378,7 @@ final class AppUpdateCoordinator: ObservableObject {
     }
 
     func restoreIfNeeded() async {
-        guard !restored else { return }
+        guard !build.isDevelopment, !restored else { return }
         restored = true
         guard let pending = recovery.load(current: build.version, channel: channel) else { return }
         let request = UUID(); generation = request

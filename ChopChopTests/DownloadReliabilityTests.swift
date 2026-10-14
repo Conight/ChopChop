@@ -4,6 +4,48 @@ import XCTest
 @testable import ChopChop
 
 final class DownloadReliabilityTests: XCTestCase {
+    @MainActor
+    func testLegacyUnlimitedRetriesBecomeFiniteAcrossSettingsReload() throws {
+        let store = try PersistentSettingsStore(inMemory: true)
+        var settings = EngineSettings()
+        XCTAssertEqual(settings.engineOptions(includeStartupOnly: true)["max-tries"], "3")
+        settings.retryCount = 0
+        try store.saveEngineSettings(settings)
+        let loaded = try store.loadEngineSettings()
+        XCTAssertEqual(loaded.retryCount, 3)
+        XCTAssertEqual(loaded.hotReloadableEngineOptions()["max-tries"], "3")
+        XCTAssertEqual(settings.engineOptions(includeStartupOnly: true)["max-tries"], "3")
+        settings.retryCount = 7
+        try store.saveEngineSettings(settings)
+        XCTAssertEqual(try store.loadEngineSettings().retryCount, 7)
+    }
+
+    func testSavedUnlimitedTaskRetriesAreMigratedWithoutChangingPartialFilesOrCredentials() throws {
+        let support = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: support) }
+        let storage = EngineStorage(supportDirectory: support)
+        let original = "https://example.com/file?max-tries=0\r\n gid=existing\r\n max-tries=0\r\n header=Authorization: Bearer fixture\r\nhttps://example.com/second\r\n max-tries=7\r\n"
+        try original.write(to: storage.session, atomically: true, encoding: .utf8)
+        let partial = support.appendingPathComponent("partial.bin")
+        let bytes = Data([1, 2, 3, 4])
+        try bytes.write(to: partial)
+        let backup = try XCTUnwrap(EngineSessionMigration.boundRetryAttempts(supportDirectory: support, maximumAttempts: 3))
+        XCTAssertEqual(try String(contentsOf: backup, encoding: .utf8), original)
+        XCTAssertEqual(try String(contentsOf: storage.session, encoding: .utf8),
+            original.replacingOccurrences(of: " max-tries=0\r\n", with: " max-tries=3\r\n"))
+        XCTAssertEqual(try Data(contentsOf: partial), bytes)
+        XCTAssertNil(try EngineSessionMigration.boundRetryAttempts(supportDirectory: support, maximumAttempts: 3))
+    }
+
+    func testTLSFailureReportsAResultWithTheEngineReason() throws {
+        let value = try task(#"{"gid":"tls","status":"error","completedLength":"0","errorCode":"6","errorMessage":"TLS connect error: unexpected eof while reading"}"#)
+        XCTAssertEqual(value.status, .failed)
+        XCTAssertEqual(value.errorMessage, "TLS connect error: unexpected eof while reading")
+        XCTAssertEqual(value.recentLogs, ["TLS connect error: unexpected eof while reading"])
+        XCTAssertTrue(value.canEditAndAddAgain)
+    }
+
     private func task(_ json: String = #"{"gid":"stable","status":"active","totalLength":"100","completedLength":"40"}"#) throws -> DownloadTask {
         try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(json.utf8)).toTask()
     }
@@ -51,11 +93,31 @@ final class DownloadReliabilityTests: XCTestCase {
     func testNativeBitTorrentLifecycleMapsMetadataCheckingAndSelection() throws {
         let metadata = try task(#"{"gid":"native","status":"active","bittorrent":{"state":"downloadingMetadata"}}"#)
         XCTAssertEqual(metadata.phaseLabel, "Getting metadata")
-        let checking = try task(#"{"gid":"native","status":"active","bittorrent":{"state":"recovering"}}"#)
+        let checking = try task(#"{"gid":"native","status":"active","bittorrent":{"mode":"multi","state":"recovering"}}"#)
         XCTAssertEqual(checking.phaseLabel, "Checking files")
         let selection = try task(#"{"gid":"native","status":"paused","bittorrent":{"state":"paused","fileSelectionState":"awaiting"}}"#)
         XCTAssertTrue(selection.requiresFileSelection)
         XCTAssertEqual(selection.phaseLabel, "Choose torrent files")
+    }
+
+    func testV3NamedZeroBytePlaceholderIsNotAResolvedTorrentInAnyPhase() throws {
+        for state in ["adding", "queued", "checking", "paused", "downloadingMetadata"] {
+            let data = Data(#"{"gid":"native","status":"active","totalLength":"0","bittorrent":{"state":"\#(state)","fileSelectionState":"none","info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example","length":"0","selected":"true"}]}"#.utf8)
+            let snapshot = try JSONDecoder().decode(Aria2TaskDTO.self, from: data).toSnapshot()
+            XCTAssertTrue(snapshot.task.isFetchingMetadata, state)
+            XCTAssertNil(snapshot.task.progressState.fraction, state)
+            XCTAssertFalse(TorrentFileTree.isResolved(snapshot, source: "magnet:?xt=urn:btih:abc&dn=Example", followed: false), state)
+        }
+    }
+
+    func testV3ResolvedEmptyFileRemainsSelectable() throws {
+        for mode in ["single", "multi"] {
+            let data = Data(#"{"gid":"native","status":"paused","totalLength":"0","bittorrent":{"mode":"\#(mode)","state":"paused","fileSelectionState":"none","info":{"name":"Empty"}},"files":[{"index":"1","path":"/tmp/empty.txt","length":"0","selected":"true"}]}"#.utf8)
+            let snapshot = try JSONDecoder().decode(Aria2TaskDTO.self, from: data).toSnapshot()
+            XCTAssertFalse(snapshot.task.isFetchingMetadata)
+            XCTAssertTrue(TorrentFileTree.isResolved(snapshot, source: "magnet:?xt=urn:btih:abc", followed: false))
+            XCTAssertEqual(TorrentFileTree.contentFiles(snapshot.task.files).count, 1)
+        }
     }
 
     func testMediaErrorsAndNonFiniteProgressAreSafe() throws {
@@ -78,12 +140,12 @@ final class DownloadReliabilityTests: XCTestCase {
         XCTAssertEqual(try AddDownloadDraft(rawInput: "sftp://example.com/file").engineOptions(fallbackDirectory: nil, autoOrganize: false)["pause"], "false")
     }
 
-    func testCapabilitiesDistinguishUnknownFromUnsupported() throws {
-        let capabilities = try JSONDecoder().decode(EngineCapabilities.self, from: Data(#"{"product":"aria2-next","version":"2.8.6","rpcVersion":"1","enabledFeatures":["SFTP","BitTorrent"],"mediaFeatures":["structured-errors"]}"#.utf8))
+    func testCapabilitiesOnlyEnableAdvertisedFeatures() throws {
+        let capabilities = try JSONDecoder().decode(EngineCapabilities.self, from: Data(#"{"product":"aria2-next","version":"3.8.6","rpcVersion":"1","enabledFeatures":["SFTP","BitTorrent"],"mediaFeatures":["structured-errors"]}"#.utf8))
         XCTAssertTrue(capabilities.supports(.sftp))
         XCTAssertTrue(capabilities.supports(.magnet))
         XCTAssertFalse(capabilities.supports(.ed2k))
-        XCTAssertTrue(EngineCapabilities(version: "older").supports(.ed2k))
+        XCTAssertFalse(EngineCapabilities(version: "3.8.6").supports(.ed2k))
     }
 
     @MainActor

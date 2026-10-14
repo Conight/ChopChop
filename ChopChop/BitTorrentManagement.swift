@@ -52,12 +52,14 @@ nonisolated struct BitTorrentTaskOptions: Equatable, Sendable {
 
 nonisolated struct BitTorrentTrackerStatus: Decodable, Sendable {
     var url: String
+    var tier: String?
     var status: String?
     var failures: String?
     var seeders: String?
     var leechers: String?
     var nextAnnounce: String?
     var message: String?
+    var verified: String?
 
     var entry: TrackerEntry {
         var parts = [status?.capitalized ?? String(localized: "Unknown")]
@@ -82,12 +84,12 @@ nonisolated struct BitTorrentDiagnostics: Codable, Hashable, Sendable {
 
 nonisolated extension EngineCapabilities {
     var supportsTorrentManagement: Bool {
-        enabledFeatures?.contains("BitTorrent") == true && version.compare("2.8.6", options: .numeric) != .orderedAscending
+        enabledFeatures.contains("BitTorrent")
     }
 }
 
 struct BitTorrentManagementView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     let task: DownloadTask
     @State private var options: BitTorrentTaskOptions?
     @State private var appliedOptions: BitTorrentTaskOptions?
@@ -114,7 +116,8 @@ struct BitTorrentManagementView: View {
                 Text(String(localized: "Priority and sharing changes take effect when you apply them."))
                     .font(.caption).foregroundStyle(.secondary)
                 Button(String(localized: "Recheck Downloaded Pieces")) { Task { await store.recheckTorrent(task) } }
-                Text(String(localized: "Rechecking uses the torrent's piece hashes; no data is discarded unless the engine finds a mismatch."))
+                    .disabled(task.status != .active || task.torrentFileIssue != nil)
+                Text(String(localized: "Rechecking requires an active torrent and uses its piece hashes. Paused downloads stay paused until you resume them."))
                     .font(.caption).foregroundStyle(.secondary)
                 if saved { Label(String(localized: "Torrent settings saved"), systemImage: "checkmark.circle").foregroundStyle(.secondary) }
                 Text(String(localized: "Changes keep this torrent's progress. Aria2 Next may briefly restart its connections. Skipped files already on disk are kept."))

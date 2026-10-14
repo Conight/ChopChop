@@ -80,13 +80,32 @@ nonisolated struct EngineVersion: Comparable, Hashable, Codable, Sendable, Custo
         let text = value.hasPrefix("v") ? String(value.dropFirst()) : value
         let parts = text.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
-              let major = Int(parts[0]), let minor = Int(parts[1]), let patch = Int(parts[2]) else { return nil }
+              let major = Int(parts[0]), major >= 3, let minor = Int(parts[1]), let patch = Int(parts[2]) else { return nil }
         self.major = major
         self.minor = minor
         self.patch = patch
     }
 
     var description: String { "\(major).\(minor).\(patch)" }
+    // Validate persisted versions too: synthesized Codable would bypass the version floor.
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let major = try values.decode(Int.self, forKey: .major)
+        let minor = try values.decode(Int.self, forKey: .minor)
+        let patch = try values.decode(Int.self, forKey: .patch)
+        guard major >= 3, minor >= 0, patch >= 0 else {
+            throw EngineInstallationError.unsupportedVersion
+        }
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+
+    func matchesVersionOutput(_ output: String) -> Bool {
+        guard let header = output.split(whereSeparator: \.isNewline).first else { return false }
+        return header == "aria2-next version \(self)"
+    }
+
     static func < (lhs: Self, rhs: Self) -> Bool {
         (lhs.major, lhs.minor, lhs.patch) < (rhs.major, rhs.minor, rhs.patch)
     }
@@ -96,7 +115,6 @@ nonisolated struct EngineVersion: Comparable, Hashable, Codable, Sendable, Custo
 nonisolated enum EngineDistribution {
     static let repository = "AnInsomniacy/aria2-next"
     static let repositoryURL = URL(string: "https://github.com/\(repository)")!
-    static let latestAPI = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
     static let recentAPI = URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=100")!
     static let recentVersionLimit = 5
     static var latestPage: URL { repositoryURL.appendingPathComponent("releases/latest") }
@@ -118,12 +136,13 @@ nonisolated struct EngineRelease: Equatable, Sendable, Identifiable {
 }
 
 nonisolated enum EngineInstallationError: LocalizedError {
-    case invalidRelease, invalidChecksum, invalidExecutable, unexpectedResponse(Int), installationFailed(String)
+    case invalidRelease, invalidChecksum, invalidExecutable, unsupportedVersion, unexpectedResponse(Int), installationFailed(String)
     var errorDescription: String? {
         switch self {
         case .invalidRelease: String(localized: "This release does not contain a supported Apple Silicon engine.")
         case .invalidChecksum: String(localized: "The downloaded engine did not match its official SHA-256 checksum. Please retry.")
         case .invalidExecutable: String(localized: "The downloaded file is not a supported Apple Silicon Aria2 Next executable.")
+        case .unsupportedVersion: String(localized: "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates.")
         case .unexpectedResponse(let code): String(localized: "The download server returned HTTP \(code). Please try again later.")
         case .installationFailed(let message): String(localized: "Could not install Aria2 Next. \(message)")
         }

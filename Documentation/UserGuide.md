@@ -13,9 +13,9 @@
 
 未知大小的下载显示已下载量，媒体任务显示媒体进度；获取元数据、校验和整理文件不会显示虚假的百分比。视频功能接受直接 HLS／DASH 地址，并不解析任意视频网站网页。
 
-单击任务，在这一行下方展开保存位置和常用设置；一次只展开一个任务。点击系统展开三角可以收起摘要。Engine 在线时可修改任务的下载限速，BT 任务还可修改上传限速，点击“应用”保存；单位为 KiB/s，0 表示移除该任务的限速，全局限制仍然有效，不会停止做种，也不会自动继续暂停的任务。
+选择任务后，在“下载详情”的“概览”中查看保存位置和常用设置。Engine 在线时可修改任务的下载限速，BT 任务还可修改上传限速，点击“应用”保存；单位为 KiB/s，0 表示移除该任务的限速，全局限制仍然有效，不会停止做种，也不会自动继续暂停的任务。
 
-选中任务后按 **空格** 打开独立的“下载详情”面板，再按空格或 Esc 关闭。面板可调整大小，主窗口仍可操作；在列表中用上下方向键选择其他任务，面板跟随切换。也可用摘要中的“显示详情…”、工具栏按钮或 `⌥⌘I`。正在编辑输入框时，空格和方向键仍用于输入。详情包含概览、文件、网络和日志；已下载文件的“快速查看”使用 macOS 系统预览。
+选中任务后按 **空格** 打开独立的“下载详情”面板，再按空格或 Esc 关闭。面板可调整大小，主窗口仍可操作；在列表中用上下方向键选择其他任务，面板跟随切换。也可用任务行的详情按钮、工具栏按钮或 `⌥⌘I`。正在编辑输入框时，空格和方向键仍用于输入。详情包含概览、文件、网络和日志；已下载文件的“快速查看”使用 macOS 系统预览。
 
 详情面板在本次运行中记住大小、位置和标签页；切换任务时保留当前标签。使用 **⇧⌘P** 或“下载 → 搜索命令…”搜索操作，包括添加、暂停／继续、任务限速、计划下载、引擎设置和诊断预览。上下键选择、回车执行、Esc 关闭；当前不可用的操作会禁用。命令搜索不会上传诊断。
 
@@ -31,6 +31,8 @@
 
 新建的 Magnet／Torrent 任务使用独立文件夹，保留种子副本和种子原有的目录结构；已有任务不迁移文件。若 v2 磁力链只有元数据、还没有完整分片层，则保存可打开的磁力链快捷方式，避免生成无法重新添加的 `.torrent`。同名任务会创建不同文件夹。“移除下载”仍需明确选择是否将文件移到废纸篓，清除历史不会删除文件。
 
+磁力链接读取文件列表时，每约 3 秒刷新 Tracker 响应、失败和通告状态，以及当前任务的节点连接、握手和握手完成数量；DHT 节点数标注为整个引擎的数据。超过 60 秒会解释当前等待环节，并提供“重试连接”。重试保留原任务和已收到的元数据；排队中的任务不会插队，元数据已到达时直接进入文件选择，确认后才下载文件。Tracker 详情可展开查看，读取失败显示“不可用”，不会显示为 0。
+
 “已跳过”不会显示完成进度。BT v1 文件可能共用分片：引擎为所选文件缓存边界分片时，未选文件的字节计数也可能增加，甚至达到其大小；这不表示该文件已保存。已存在的旧文件不会因改为跳过而删除。详情中的优先级和做种选项需要点击“应用到此种子”后生效。
 
 ### Chrome 与 Edge
@@ -43,10 +45,14 @@
 
 设置使用通用、下载、网络、BitTorrent、ED2K、集成、引擎和更新八个一级分类。每个分类的选项在同一页面分组平铺，向下滚动即可查看；Tracker 来源和列表也直接在 BitTorrent 页面编辑，无需进入子页面。网络、BitTorrent 和 ED2K 的“应用设置”按钮固定在底部。
 
+Tracker 列表完整保存和下发，不会按长度截断。「同步 Trackers」会合并勾选的来源并去重，更新引擎的全局列表，同时把新地址合并到正在下载或做种的 BT 任务，保留任务原有的 Tracker 和分组。手动编辑列表后，点击「应用设置」也会更新活跃任务；暂停任务不会被自动恢复。
+
+开启自动同步后，应用保持运行时会按设置的频率在后台同步，无需打开设置页。睡眠期间错过的同步会在唤醒后补做；「每次启动」只在启动时触发。同步失败会保留缓存，并在五分钟后重试；部分失败会在 Tracker 设置中显示原因。退出应用后不会继续定时联网。
+
 - **ChopChop 应用**：应用菜单 → 检查全部更新…，或设置 → 更新。此处统一管理软件和引擎更新：顶部“检查全部更新”同时检查两者，ChopChop 和引擎分组各有独立的“检查更新”按钮。应用可选择稳定版或预发布版。“启动时检查更新”默认开启，每次启动检查一次；关闭后仍可手动检查。点击“下载更新”后，独立进度页显示百分比、已下载大小和速度；连接、校验和准备阶段显示对应状态。可取消下载，隐藏窗口则继续下载。支持签名更新时可“安装并重新启动”；旧版安装包下载完成后，选择“退出并打开安装程序”，应用保存任务并退出后，再将新 App 拖入“应用程序”。任务、设置和引擎存放于应用之外，会保留。
 - **Aria2 Next 引擎**：在设置 → 更新中选择 Latest 或最近五个兼容版本之一，也可点击主窗口左下角的“新版本”提示进入。启动检查和手动检查时，左下角显示“正在检查更新…”和加载动效，完成后恢复运行状态。安装时显示真实下载进度。
 
-开发构建没有发布标签，软件更新只提供手动检查，引擎仍支持启动检查；正式构建只提示正式版，测试构建同时接受更新的测试版和正式版。检查失败不会影响已有下载。
+ChopChop Dev 使用独立的数据和权限，禁用应用自身更新，引擎仍支持检查和更新。发布构建可选择稳定版或预发布版更新频道。引擎仅支持 Aria2 Next v3 及以上版本；仍使用 v2 时需先安装受支持版本。检查失败不会影响已有下载。
 
 ### 通知、失败与反馈
 
@@ -71,7 +77,7 @@ Download the Apple Silicon DMG from [GitHub Releases](https://github.com/Conight
 
 Unknown-size downloads show transferred bytes. Media uses duration progress; metadata, verification and finalization have distinct states. Video downloads accept direct HLS/DASH manifests, not arbitrary video-site pages.
 
-Click a task to expand its save location and common settings beneath the row. Only one summary opens at a time; use its native disclosure triangle to collapse it. While the engine is online, edit the task’s download limit and, for BitTorrent, upload limit, then choose **Apply**. Values use KiB/s. Zero removes the task limit; global limits still apply. Changing limits does not stop seeding or resume a paused task.
+Select a task and open **Download Details → Overview** for its save location and common settings. While the engine is online, edit the task’s download limit and, for BitTorrent, upload limit, then choose **Apply**. Values use KiB/s. Zero removes the task limit; global limits still apply. Changing limits does not stop seeding or resume a paused task.
 
 Select a task and press **Space** to open its separate, resizable **Download Details** panel; press Space again or Escape to close it. The main window remains available. Up/Down in the list selects another task and updates the panel. **Show Details…**, the toolbar button, and `⌥⌘I` are also available. Text fields keep their normal Space and arrow-key behavior. Details contains Overview, Files, Network, and Logs; **Quick Look** on a downloaded file uses the system file preview.
 
@@ -85,6 +91,8 @@ Right-click a task and choose **Show in Finder**, use the Downloads menu, or pre
 
 New Magnet/Torrent tasks get separate folders containing a torrent copy and the original content hierarchy. Existing tasks keep their paths. For v2 magnets without complete piece layers, a Finder magnet shortcut is saved instead of an unusable `.torrent`. Same-name tasks use separate folders. Clearing history keeps files; moving files to Trash remains an explicit removal choice.
 
+While a magnet waits for its file list, connection details refresh about every 3 seconds: Tracker responses, errors and announcements, plus this task’s connecting, handshaking and connected peers. DHT nodes are labeled as engine-wide. After 60 seconds, the sheet explains the current waiting stage and offers **Retry Connection**, preserving the same task and received metadata. Queued tasks keep their queue position; metadata arriving during a retry opens file selection without starting payload downloads. Expand **Tracker Details** for individual results. Unavailable diagnostics are never shown as zero.
+
 Skipped files have no completion bar. BT v1 files can share pieces, so downloading a selected file can cache bytes belonging to a skipped neighbor without creating that file. Previously saved files are retained when skipped. File priorities and sharing options in Details take effect after **Apply to This Torrent**.
 
 ### 传输详情 / Transfer details
@@ -94,7 +102,7 @@ Skipped files have no completion bar. BT v1 files can share pieces, so downloadi
 - BT 分片图包含整个种子的分片（也包括未选文件涉及的分片）。上方概览可点击定位，下方每页 256 片；悬停或键盘方向键查看编号、完成状态和大小。填充信息不完整的 v2/hybrid 种子显示单片大小上限。未上报和未完成使用不同样式；没有单片的部分完成百分比。
 - 节点列表显示客户端、连接阶段、对方完成率和双向速度，可按地址、下载速度或上传速度排序。展开查看 TCP/uTP、入站/出站、加密、来源、已传输字节及上传通道状态。暂停后隐藏引擎缓存的旧连接和旧速度。
 - **上传带宽**可即时设置当前 BT 任务的上传限速（KiB/s）。0 是不限速，不是关闭做种；全局和定时带宽限制仍然有效。做种比例／时间在“文件”的 BT 管理中配置。
-- 普通下载显示实际连接数、服务器地址、服务器报告的速度，以及配置的连接上限。Aria2 Next 2.8.6 的 HTTP 后端将多个连接合并为一个服务器记录，不能展示每条 HTTP 连接的独立速度、字节范围或进度。
+- 普通下载显示实际连接数、服务器地址，以及配置的连接上限。Aria2 Next v3 的 HTTP 服务器记录不会提供每条连接的独立速度、字节范围或进度；未提供的服务器速度显示为不可用，任务总速度仍正常更新。
 
 Live telemetry refreshes while the Network tab and window are active. The engine updates BT piece data about every five seconds, so the map may briefly lag file progress. Endpoint details stay in memory and are excluded from saved history and diagnostic exports; server paths, queries and credentials are not displayed. Media and ED2K retain their protocol-specific views.
 
@@ -109,6 +117,10 @@ Keep ChopChop running when sending links. If the extension cannot connect, open 
 ### Updates, notifications and feedback
 
 Settings has eight top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations, Engine and Updates. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Network, BitTorrent and ED2K keep Apply Settings at the bottom.
+
+Tracker lists are stored and sent in full without length truncation. Sync Trackers combines and deduplicates the selected sources, updates the engine's global list, and merges new addresses into downloading or seeding BT tasks while preserving their existing trackers and tiers. Apply Settings also updates active tasks after manual edits. Paused tasks are never resumed automatically for a tracker update.
+
+Automatic synchronization runs at the selected interval while the app remains open, including in the background, and checks overdue work after waking. Every Startup runs at startup. Failed syncs preserve cached entries and retry after five minutes; partial failures are shown in Tracker settings. Quitting the app stops scheduled network activity.
 
 **App updates:** use ChopChop → Check All Updates… or Settings → Updates. Use Check All Updates for both components, or Check for Updates in the ChopChop or Engine section to check just that component. The shared Check for updates at launch option controls app and Engine checks; manual checks remain available when it is off. Choose Download Update to download directly in ChopChop; the update window shows progress and installation options. Existing tasks, settings and the engine are kept outside the app bundle.
 

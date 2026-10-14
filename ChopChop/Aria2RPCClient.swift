@@ -49,8 +49,20 @@ nonisolated struct PartialDownloadSubmissionError: LocalizedError, Sendable {
     }
 }
 
-nonisolated struct Aria2RPCClient: Sendable {
-    private static let localSession: URLSession = {
+/// Owns the HTTP requests for one engine lifetime. Closing a client cancels its
+/// requests and prevents stale copies from sending commands after an engine restart.
+private actor Aria2HTTPTransport {
+    private let session: URLSession
+    private let ownsSession: Bool
+    private var closed = false
+    private var pending: [UUID: Task<(Data, URLResponse), any Error>] = [:]
+
+    init(session: URLSession?) {
+        ownsSession = session == nil
+        self.session = session ?? Self.makeSession()
+    }
+
+    private static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.connectionProxyDictionary = [:]
         configuration.httpShouldSetCookies = false
@@ -58,10 +70,53 @@ nonisolated struct Aria2RPCClient: Sendable {
         configuration.timeoutIntervalForRequest = 5
         configuration.timeoutIntervalForResource = 10
         return URLSession(configuration: configuration)
-    }()
+    }
+
+    func request(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        try Task.checkCancellation()
+        guard !closed else { throw CancellationError() }
+        let id = UUID()
+        let operation = Task { [session] in try await session.data(for: request) }
+        pending[id] = operation
+        defer { pending[id] = nil }
+        return try await withTaskCancellationHandler {
+            let response = try await operation.value
+            try Task.checkCancellation()
+            guard !closed else { throw CancellationError() }
+            return response
+        } onCancel: {
+            operation.cancel()
+        }
+    }
+
+    func close() {
+        guard !closed else { return }
+        closed = true
+        for operation in pending.values { operation.cancel() }
+        pending.removeAll()
+        if ownsSession { session.invalidateAndCancel() }
+    }
+
+    deinit {
+        for operation in pending.values { operation.cancel() }
+        if ownsSession { session.invalidateAndCancel() }
+    }
+}
+
+nonisolated struct Aria2RPCClient: Sendable {
     private let endpoint: URL
     private let token: String
-    private let session: URLSession
+    private let http: Aria2HTTPTransport
+    private let eventStream: Aria2WebSocketTransport?
+
+    var events: AsyncStream<EngineRPCEvent>? { eventStream?.events }
+
+    func startEvents() async { await eventStream?.start() }
+
+    func close() async {
+        await http.close()
+        await eventStream?.close()
+    }
 
     init(port: Int, token: String, session: URLSession? = nil) throws {
         guard (1...65535).contains(port) else {
@@ -75,13 +130,18 @@ nonisolated struct Aria2RPCClient: Sendable {
         guard let endpoint = components.url else {
             throw RPCError.invalidPort(port)
         }
-        self.init(endpoint: endpoint, token: token, session: session)
+        components.scheme = "ws"
+        let eventStream = session == nil ? Aria2WebSocketTransport(endpoint: components.url!, token: token) : nil
+        self.init(endpoint: endpoint, token: token, session: session, eventStream: eventStream)
     }
 
-    init(endpoint: URL, token: String, session: URLSession? = nil) {
+    /// All operations and queries use HTTP. The optional WebSocket only receives
+    /// notifications and checks its own connection health, independently of HTTP.
+    init(endpoint: URL, token: String, session: URLSession? = nil, eventStream: Aria2WebSocketTransport? = nil) {
         self.endpoint = endpoint
         self.token = token
-        self.session = session ?? Self.localSession
+        self.http = Aria2HTTPTransport(session: session)
+        self.eventStream = eventStream
     }
 
     @concurrent
@@ -377,13 +437,35 @@ nonisolated struct Aria2RPCClient: Sendable {
 
     @concurrent
     func getTorrentTrackers(_ gid: String) async throws -> [TrackerEntry] {
-        let trackers: [BitTorrentTrackerStatus] = try await call("aria2.getBtTrackers", params: [gid], as: [BitTorrentTrackerStatus].self)
+        let trackers = try await torrentTrackerStatus(gid)
         return trackers.map(\.entry)
     }
 
     @concurrent
-    func reannounceTorrent(_ gid: String) async throws {
-        let _: String = try await call("aria2.forceBtAnnounce", params: [gid], as: String.self)
+    func torrentTrackerStatus(_ gid: String) async throws -> [BitTorrentTrackerStatus] {
+        try await call("aria2.getBtTrackers", params: [gid], as: [BitTorrentTrackerStatus].self)
+    }
+
+    @concurrent
+    func torrentDiscovery(_ gid: String) async -> TorrentDiscovery {
+        async let trackers = torrentTrackerStatus(gid)
+        async let peers = peerTransfers(gid)
+        async let session: TorrentDiscoverySessionDTO = call("aria2.getBtSessionStatus", params: [], as: TorrentDiscoverySessionDTO.self)
+        let values = await (try? trackers, try? peers, try? session)
+        return TorrentDiscovery(trackers: values.0.map(TorrentDiscovery.Trackers.init),
+            peers: values.1.map(TorrentDiscovery.Peers.init),
+            dhtNodes: values.2?.dhtNodes.flatMap(Int.init).flatMap { $0 >= 0 ? $0 : nil })
+    }
+
+    @concurrent
+    func replaceTorrentTrackers(_ gid: String, trackers: [TorrentTrackerAddress]) async throws {
+        let values: [[String: Any]] = trackers.map { ["url": $0.url, "tier": $0.tier] }
+        let _: String = try await call("aria2.replaceBtTrackers", params: [gid, values], as: String.self)
+    }
+
+    @concurrent
+    func activeTorrentTasks() async throws -> [DownloadTask] {
+        try await tellActive().filter(\.isTorrentLike)
     }
 
     @concurrent
@@ -400,7 +482,7 @@ nonisolated struct Aria2RPCClient: Sendable {
     @concurrent
     func transferProgress(_ gid: String) async throws -> TransferProgressDTO {
         try await call("aria2.tellStatus", params: [gid, ["gid", "status", "bitfield", "pieceLength", "numPieces",
-            "connections", "downloadSpeed", "uploadSpeed", "uploadLength", "files", "bittorrent"]], as: TransferProgressDTO.self)
+            "uploadLength", "files", "bittorrent"]], as: TransferProgressDTO.self)
     }
 
     @concurrent
@@ -439,9 +521,12 @@ nonisolated struct Aria2RPCClient: Sendable {
         let live = state.status == "active"
         return TransferSnapshot(pieces: state.pieceMap,
             peers: live ? Dictionary(connections.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new }).values.sorted { $0.id < $1.id } : [],
-            servers: live ? streams : [], downloadSpeed: live ? max(0, Int64(state.downloadSpeed ?? "") ?? 0) : 0,
-            uploadSpeed: live ? max(0, Int64(state.uploadSpeed ?? "") ?? 0) : 0,
-            uploaded: Int64(state.uploadLength ?? ""), connections: live ? max(0, Int(state.connections ?? "") ?? 0) : 0)
+            servers: live ? streams : [], uploaded: Int64(state.uploadLength ?? ""))
+    }
+
+    @concurrent
+    func activeTransferProgress() async throws -> [ActiveTransferProgress] {
+        try await call("aria2.tellActive", params: [ActiveTransferProgress.fields], as: [ActiveTransferProgress].self)
     }
 
     @concurrent
@@ -473,7 +558,10 @@ nonisolated struct Aria2RPCClient: Sendable {
 
     @concurrent
     func getVersion() async throws -> EngineCapabilities {
-        try await call("aria2.getVersion", params: [], as: EngineCapabilities.self)
+        let capabilities = try await call("aria2.getVersion", params: [], as: EngineCapabilities.self)
+        guard capabilities.product == "aria2-next", let version = EngineVersion(capabilities.version),
+              version.description == capabilities.version else { throw EngineInstallationError.unsupportedVersion }
+        return capabilities
     }
 
     @concurrent
@@ -481,7 +569,7 @@ nonisolated struct Aria2RPCClient: Sendable {
         try await call("aria2.getGlobalStat", params: [], as: Aria2GlobalStat.self)
     }
 
-    func makeRequest(method: String, params: [Any]) throws -> URLRequest {
+    func makeRequest(method: String, params: [Any], id: String = UUID().uuidString) throws -> URLRequest {
         guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw RPCError.tokenMissing
         }
@@ -494,7 +582,7 @@ nonisolated struct Aria2RPCClient: Sendable {
         rpcParams.append(contentsOf: params)
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
-            "id": UUID().uuidString,
+            "id": id,
             "method": method,
             "params": rpcParams
         ]
@@ -548,19 +636,19 @@ nonisolated struct Aria2RPCClient: Sendable {
     }
 
     private func call<T: Decodable & Sendable>(_ method: String, params: [Any], as type: T.Type) async throws -> T {
-        let request = try makeRequest(method: method, params: params)
-        let (data, response) = try await session.data(for: request)
-        let body = sanitizedBody(from: data)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw RPCError.nonHTTPResponse
-        }
+        let id = UUID().uuidString
+        let request = try makeRequest(method: method, params: params, id: id)
+        // Never retry a command automatically: a lost reply can follow a successful mutation.
+        let (data, response) = try await http.request(request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw RPCError.nonHTTPResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             if let envelope = try? JSONDecoder().decode(RPCEnvelope<T>.self, from: data),
                let error = envelope.error {
                 throw RPCError.serverError(code: error.code, message: redactToken(error.message))
             }
-            throw RPCError.unexpectedHTTPStatus(code: httpResponse.statusCode, body: body)
+            throw RPCError.unexpectedHTTPStatus(code: httpResponse.statusCode, body: sanitizedBody(from: data))
         }
+        let body = sanitizedBody(from: data)
 
         let envelope: RPCEnvelope<T>
         do {
@@ -605,12 +693,12 @@ nonisolated struct Aria2GlobalStat: Decodable, Equatable, Sendable {
     var uploadBytesPerSecond: Int64 { Int64(uploadSpeed) ?? 0 }
 }
 
-private nonisolated struct RPCEnvelope<T: Decodable & Sendable>: Decodable, Sendable {
+nonisolated struct RPCEnvelope<T: Decodable & Sendable>: Decodable, Sendable {
     var result: T?
     var error: RPCServerError?
 }
 
-private nonisolated struct RPCServerError: Decodable, Sendable {
+nonisolated struct RPCServerError: Decodable, Sendable {
     var code: Int
     var message: String
 }

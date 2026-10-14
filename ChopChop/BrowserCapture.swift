@@ -61,7 +61,7 @@ nonisolated enum BrowserCaptureHTTP {
 
 @MainActor
 final class BrowserCaptureServer: ObservableObject {
-    nonisolated static let defaultPort: UInt16 = 29101
+    nonisolated static let defaultPort: UInt16 = UInt16(29101 + AppIdentity.portOffset)
     @Published private(set) var status = String(localized: "Browser integration is off.")
     @Published private(set) var isListening = false
     @Published private(set) var port: UInt16 = BrowserCaptureServer.defaultPort
@@ -160,7 +160,7 @@ final class BrowserCaptureServer: ObservableObject {
 }
 
 struct BrowserIntegrationView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @ObservedObject var server: BrowserCaptureServer
     @State private var exportMessage: String?
 

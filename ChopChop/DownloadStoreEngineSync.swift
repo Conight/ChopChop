@@ -6,10 +6,19 @@ extension DownloadStore {
     func refreshTasks(reportErrors: Bool = true) async -> Error? {
         let sessionID = engineSessionID
         guard !Task.isCancelled, !isShuttingDown, taskMutationDepth == 0 else { return nil }
+        fullRefreshesInFlight += 1
+        defer {
+            fullRefreshesInFlight -= 1
+            if fullRefreshesInFlight == 0, transferRefreshDeferred {
+                transferRefreshDeferred = false
+                pollWakeContinuation?.yield(())
+            }
+        }
         refreshSequence += 1
         let sequence = refreshSequence
         let revision = taskRevision
         if let exitStatus = engineController.clearTerminatedProcess() {
+            stopEngineEvents()
             let error = EngineError.processExited(exitStatus, String(localized: "Aria2 Next stopped unexpectedly."))
             pollTask?.cancel()
             refreshClockStarted = false
@@ -104,6 +113,9 @@ extension DownloadStore {
             }
             recordSpeed(download: stat.downloadBytesPerSecond, upload: stat.uploadBytesPerSecond)
             if historySaved { await notifications.observe(tasks, previous: previousTasks, history: historyStore) }
+            if engineSessionID == sessionID, revision == taskRevision, sequence == refreshSequence {
+                lastFullRefresh = .now
+            }
             return nil
         } catch {
             guard !Task.isCancelled, engineSessionID == sessionID,
@@ -112,6 +124,65 @@ extension DownloadStore {
             connectionIssue = String(localized: "Unable to refresh engine state. Showing saved downloads; retrying automatically. \(DownloadPrivacy.redact(error.localizedDescription))")
             updateRuntime(lastError: DownloadPrivacy.redact(error.localizedDescription))
             return error
+        }
+    }
+
+    /// Frequent scalar updates share the same task model as List and Details.
+    /// Full snapshots retain ownership of membership, file safety and persistence.
+    @discardableResult
+    func refreshTransferProgress() async -> Error? {
+        guard !Task.isCancelled, !isShuttingDown, taskMutationDepth == 0,
+              !transferRefreshInFlight else { return nil }
+        if fullRefreshesInFlight > 0 {
+            transferRefreshDeferred = true
+            return nil
+        }
+        guard engineController.isRunning else { return nil }
+        let needsFullSnapshot = lastFullRefresh.map {
+            $0.duration(to: .now) >= DownloadRefreshPolicy.reconciliationInterval
+        } ?? true
+        if needsFullSnapshot || connectionIssue != nil || tasks.contains(where: {
+            $0.status == .active && ($0.isChecking || $0.isFetchingMetadata || $0.media != nil)
+        }) {
+            return await refreshTasks(reportErrors: false)
+        }
+        transferRefreshInFlight = true
+        defer { transferRefreshInFlight = false }
+        let sessionID = engineSessionID
+        let revision = taskRevision
+        let sequence = refreshSequence
+        func isCurrent() -> Bool {
+            !Task.isCancelled && !isShuttingDown && engineController.isRunning &&
+                sessionID == engineSessionID && revision == taskRevision &&
+                taskMutationDepth == 0 && sequence == refreshSequence
+        }
+        do {
+            let client = try engineController.client()
+            async let progress = client.activeTransferProgress()
+            async let global = client.globalStat()
+            let (samples, stat) = try await (progress, global)
+            guard isCurrent() else { return nil }
+            let expected = Set(tasks.filter { $0.status == .active && $0.isAvailableInEngine }.map(\.id))
+            guard Set(samples.map(\.gid)) == expected, samples.count == expected.count else {
+                return await refreshTasks(reportErrors: false)
+            }
+            let byID = Dictionary(uniqueKeysWithValues: samples.map { ($0.gid, $0) })
+            var updated = tasks
+            for index in updated.indices {
+                guard let sample = byID[updated[index].id] else { continue }
+                guard let task = sample.updating(updated[index]) else {
+                    return await refreshTasks(reportErrors: false)
+                }
+                updated[index] = task
+            }
+            if tasks != updated { tasks = updated }
+            recordSpeed(download: stat.downloadBytesPerSecond, upload: stat.uploadBytesPerSecond)
+            return nil
+        } catch {
+            guard isCurrent() else { return nil }
+            // Use the normal reconciliation path to diagnose engine exit or RPC
+            // failure and publish its existing disconnected/retry presentation.
+            return await refreshTasks(reportErrors: false)
         }
     }
 
@@ -129,14 +200,26 @@ extension DownloadStore {
     }
     func startPolling() {
         pollTask?.cancel()
+        lastFullRefresh = nil
         refreshClockStarted = true
+        startEngineEvents()
         startPlanClock()
+        let (wakeups, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        pollWakeContinuation = continuation
         pollTask = Task { [weak self] in
+            defer { continuation.finish() }
+            var iterator = wakeups.makeAsyncIterator()
             var failures = 0
             while !Task.isCancelled {
                 guard let delay = self?.refreshInterval(failures: failures) else { return }
-                do { try await Task.sleep(for: delay) } catch { return }
-                guard !Task.isCancelled, let error = await self?.refreshTasks(reportErrors: false) else {
+                let timer = Task {
+                    do { try await Task.sleep(for: delay) } catch { return }
+                    continuation.yield(())
+                }
+                let wake: Void? = await iterator.next()
+                timer.cancel()
+                guard wake != nil, !Task.isCancelled else { return }
+                guard !Task.isCancelled, let error = await self?.refreshTransferProgress() else {
                     failures = 0
                     if self == nil { return }
                     continue
@@ -150,7 +233,58 @@ extension DownloadStore {
     func refreshInterval(failures: Int) -> Duration {
         let foreground = NSApp.isActive && NSApp.windows.contains { $0.isVisible && !$0.isMiniaturized && $0.occlusionState.contains(.visible) }
         return DownloadRefreshPolicy.interval(foreground: foreground,
-            hasTransfers: tasks.contains { $0.status == .active || $0.status == .waiting || $0.isSharing }, failures: failures)
+            hasTransfers: tasks.contains { $0.status == .active || $0.status == .waiting || $0.isSharing }, failures: failures,
+            receivesEvents: engineEventsConnected)
+    }
+
+    func startEngineEvents() {
+        stopEngineEvents()
+        guard let client = try? engineController.client(), let events = client.events else { return }
+        let sessionID = engineSessionID
+        engineEventTask = Task { [weak self] in
+            await client.startEvents()
+            for await event in events {
+                guard !Task.isCancelled, self?.engineSessionID == sessionID else { return }
+                self?.handleEngineEvent(event)
+            }
+        }
+    }
+
+    func stopEngineEvents() {
+        engineEventTask?.cancel()
+        engineEventTask = nil
+        engineEventRefreshTask?.cancel()
+        engineEventRefreshTask = nil
+        engineEventRefreshPending = false
+        engineEventsConnected = false
+    }
+
+    func handleEngineEvent(_ event: EngineRPCEvent) {
+        switch event {
+        case .connected: engineEventsConnected = true
+        case .disconnected:
+            engineEventsConnected = false
+            // Falling back to HTTP must also interrupt a notification-only idle wait.
+            pollWakeContinuation?.yield(())
+        case .download: break
+        }
+        // Coalesce bursts, and fetch authoritative state rather than patching a row
+        // from a notification that can race a pause/remove/file-selection operation.
+        engineEventRefreshPending = true
+        guard engineEventRefreshTask == nil else { return }
+        let sessionID = engineSessionID
+        engineEventRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
+                guard self?.engineSessionID == sessionID, self?.isShuttingDown == false else { return }
+                if self?.taskMutationDepth != 0 { continue }
+                self?.engineEventRefreshPending = false
+                await self?.refreshTasks(reportErrors: false)
+                guard !Task.isCancelled, self?.engineSessionID == sessionID else { return }
+                if self?.engineEventRefreshPending != true { break }
+            }
+            self?.engineEventRefreshTask = nil
+        }
     }
 
     func startPlanClock() {

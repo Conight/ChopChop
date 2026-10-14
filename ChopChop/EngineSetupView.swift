@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct EngineSetupView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
@@ -10,7 +10,7 @@ struct EngineSetupView: View {
                 .font(AppTypography.windowTitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(String(localized: "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically."))
+                    Text(String(localized: "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically."))
                         .fixedSize(horizontal: false, vertical: true)
                     if !store.engineSetupState.isInstalling {
                         EngineVersionPicker()
@@ -52,14 +52,14 @@ struct EngineSetupView: View {
 
 /// First installation and subsequent version changes share the same release selection.
 struct EngineVersionPicker: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     var showsRefreshButton = true
     var loadsAutomatically = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Picker(String(localized: "Version to install"), selection: $store.selectedEngineVersion) {
+                Picker(String(localized: "Version to install"), selection: Bindable(store).selectedEngineVersion) {
                     Text(latestTitle).tag(EngineVersion?.none)
                     ForEach(store.recentEngineReleases) { release in
                         Text(release.version == store.installedEngine?.version

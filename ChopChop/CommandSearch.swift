@@ -90,7 +90,7 @@ final class CommandSearchPresentation: NSObject, ObservableObject, NSWindowDeleg
 }
 
 private struct CommandSearchView: View {
-    @ObservedObject var store: DownloadStore
+    let store: DownloadStore
     let context: @MainActor () -> DownloadActionContext
     let execute: (DownloadAction) -> Void
     let dismiss: () -> Void

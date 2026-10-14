@@ -1,10 +1,72 @@
 import AppKit
 import Combine
+import Observation
+import Synchronization
 import SwiftUI
 import XCTest
 @testable import ChopChop
 
 final class NativeInteractionTests: XCTestCase {
+    @MainActor
+    func testTransferUpdatesAreIsolatedFromEditingNavigationAndOtherTaskDetails() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        store.tasks = [try fixture("selected"), try fixture("transferring")]
+        store.tasks[1].status = .active
+        store.selectedTaskID = "selected"
+        let editing = Mutex(0), navigation = Mutex(0), details = Mutex(0), live = Mutex(0)
+        withObservationTracking {
+            _ = store.engineSettings; _ = store.preferences; _ = store.addDraft
+        } onChange: { editing.withLock { $0 += 1 } }
+        withObservationTracking {
+            _ = store.selectedTaskRow?.id
+            _ = store.listPresentation.visibleRows(for: .all, query: store.searchQuery).map(\.id)
+            _ = store.count(for: .active)
+        } onChange: { navigation.withLock { $0 += 1 } }
+        withObservationTracking { _ = store.selectedTask } onChange: { details.withLock { $0 += 1 } }
+        withObservationTracking { _ = store.activeSpeed } onChange: { live.withLock { $0 += 1 } }
+        for tick in 1...20 {
+            store.tasks[1].downloadSpeed = Int64(tick * 1024)
+            store.tasks[1].completedLength += 1
+            store.recordSpeed(download: Int64(tick * 1024), upload: 0)
+            store.updateRuntime(lastError: nil)
+        }
+        XCTAssertEqual(editing.withLock { $0 }, 0, "Background transfers must not invalidate settings or unfinished input")
+        XCTAssertEqual(navigation.withLock { $0 }, 0, "Transfer values do not change list membership, count or selection")
+        XCTAssertEqual(details.withLock { $0 }, 0, "Another task's progress does not invalidate the inspected task")
+        XCTAssertEqual(live.withLock { $0 }, 1, "The visible speed must still receive its new sample")
+        XCTAssertEqual(store.activeSpeed, 20 * 1024)
+        store.addDraft.rawInput = "https://example.com/draft"
+        XCTAssertEqual(editing.withLock { $0 }, 1)
+        store.tasks[0].completedLength += 1
+        XCTAssertEqual(details.withLock { $0 }, 1)
+        store.tasks[1].status = .completed
+        XCTAssertEqual(navigation.withLock { $0 }, 1, "A real status change must update counts and filtered lists")
+    }
+
+    @MainActor
+    func testAppKitEventStreamsObserveCommittedStateAfterObservationMigration() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        var snapshots = 0, preferences = 0, navigation = 0
+        let taskEvents = store.taskSnapshots.dropFirst().sink { tasks in
+            snapshots += 1
+            XCTAssertEqual(tasks.map(\.id), store.listPresentation.orderedRows.map(\.id))
+        }
+        let preferenceEvents = store.preferenceChanges.sink { value in
+            preferences += 1
+            XCTAssertEqual(store.preferences, value)
+        }
+        let navigationEvents = store.notificationNavigationRequests.sink { navigation += 1 }
+        defer { taskEvents.cancel(); preferenceEvents.cancel(); navigationEvents.cancel() }
+        store.tasks = [try fixture("event")]
+        store.preferences.showMenuBar.toggle()
+        store.notifications.onOpenDownloads?(["event"])
+        XCTAssertEqual(snapshots, 1)
+        XCTAssertEqual(preferences, 1)
+        XCTAssertEqual(navigation, 1)
+    }
+
     @MainActor
     func testNativeListPrimaryActionOnlyTogglesOneResumableTask() throws {
         var task = try fixture("double-click")
@@ -275,20 +337,27 @@ final class NativeInteractionTests: XCTestCase {
         var tasks = try (0..<1000).map { try fixture("row-\($0)") }
         presentation.update(tasks)
         let unchanged = presentation.row(for: tasks[0]), changed = presentation.row(for: tasks[500])
-        var unchangedEvents = 0, changedEvents = 0
-        let first = unchanged.objectWillChange.sink { unchangedEvents += 1 }
-        let second = changed.objectWillChange.sink { changedEvents += 1 }
-        defer { first.cancel(); second.cancel() }
+        let unchangedEvents = Mutex(0), changedEvents = Mutex(0)
+        let presentationEvents = Mutex(0)
+        withObservationTracking { _ = unchanged.task } onChange: { unchangedEvents.withLock { $0 += 1 } }
+        withObservationTracking { _ = changed.task } onChange: { changedEvents.withLock { $0 += 1 } }
+        withObservationTracking { _ = changed.presentation } onChange: { presentationEvents.withLock { $0 += 1 } }
         let start = ContinuousClock.now
         for _ in 0..<20 { presentation.update(tasks) }
-        XCTAssertEqual(unchangedEvents, 0); XCTAssertEqual(changedEvents, 0)
+        XCTAssertEqual(unchangedEvents.withLock { $0 }, 0); XCTAssertEqual(changedEvents.withLock { $0 }, 0)
         tasks[500].completedLength += 1
         presentation.update(tasks)
-        XCTAssertEqual(unchangedEvents, 0); XCTAssertEqual(changedEvents, 1)
+        XCTAssertEqual(unchangedEvents.withLock { $0 }, 0); XCTAssertEqual(changedEvents.withLock { $0 }, 1)
+        XCTAssertEqual(presentationEvents.withLock { $0 }, 0,
+                       "A progress tick must not invalidate filename, status, tooltip or row controls")
         XCTAssertTrue(presentation.row(for: tasks[500]) === changed)
+        withObservationTracking { _ = changed.task } onChange: { changedEvents.withLock { $0 += 1 } }
         presentation.update(tasks.reversed())
         XCTAssertTrue(presentation.row(for: tasks[0]) === unchanged)
-        XCTAssertEqual(changedEvents, 1)
+        XCTAssertEqual(changedEvents.withLock { $0 }, 1)
+        tasks[500].status = .active
+        presentation.update(tasks)
+        XCTAssertEqual(presentationEvents.withLock { $0 }, 1, "A real phase change must update row controls")
         print("ROW_PROJECTION_1000_TASKS_22_UPDATES=\(start.duration(to: .now))")
         weak let removed = presentation.row(for: tasks[700])
         tasks.remove(at: 700); presentation.update(tasks)
@@ -303,7 +372,7 @@ final class NativeInteractionTests: XCTestCase {
         store.addDraft.rawInput = "https://example.com/unfinished-draft"
         store.selectedTaskID = "list-500"
         let details = TaskDetailsPresentation()
-        let host = NSHostingController(rootView: DownloadConsoleView(inputCoordinator: store.inputCoordinator, presentation: details).environmentObject(store))
+        let host = NSHostingController(rootView: DownloadConsoleView(inputCoordinator: store.inputCoordinator, presentation: details).environment(store))
         host.sizingOptions = [.minSize]
         host.view.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
         let window = NSWindow(contentRect: host.view.frame,

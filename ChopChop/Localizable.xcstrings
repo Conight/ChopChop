@@ -426,6 +426,23 @@
         }
       }
     },
+    "%lld announcing · %lld failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个通告中 · %lld 个失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld announcing · %lld failed"
+          }
+        }
+      }
+    },
     "%lld complete · %lld not reported": {
       "extractionState": "manual",
       "localizations": {
@@ -996,23 +1013,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "0 表示本任务不限速，全局限速仍然有效。此设置不会关闭做种。"
-          }
-        }
-      }
-    },
-    "0 retries indefinitely. Default: unlimited.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 retries indefinitely. Default: unlimited."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 表示持续重试，默认不限制次数。"
           }
         }
       }
@@ -1758,40 +1758,6 @@
         }
       }
     },
-    "Announce Failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announce Failed"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法向 Tracker 汇报"
-          }
-        }
-      }
-    },
-    "Announce Now": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Announce Now"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "立即汇报"
-          }
-        }
-      }
-    },
     "Announce in %llds": {
       "extractionState": "manual",
       "localizations": {
@@ -1805,6 +1771,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 秒后汇报"
+          }
+        }
+      }
+    },
+    "Announcing": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通告中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announcing"
           }
         }
       }
@@ -2077,23 +2060,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已安装 Aria2 Next %@。"
-          }
-        }
-      }
-    },
-    "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next 2.8.6 的全局带宽限制不涵盖局域网对等端。请同时设置单任务上传上限，让这些连接也受到限速。"
           }
         }
       }
@@ -2570,23 +2536,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待种子文件列表超时。"
-          }
-        }
-      }
-    },
-    "Async DNS": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Async DNS"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "异步 DNS"
           }
         }
       }
@@ -3288,6 +3237,23 @@
         }
       }
     },
+    "Checking connection status…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查连接状态…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking connection status…"
+          }
+        }
+      }
+    },
     "Checking engine": {
       "extractionState": "manual",
       "localizations": {
@@ -3403,6 +3369,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在检查版本"
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
           }
         }
       }
@@ -3883,19 +3866,36 @@
         }
       }
     },
-    "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically.": {
+    "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop needs Aria2 Next to download files. Download and install the engine to continue. It will start automatically."
+            "value": "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop 需要 Aria2 Next 来下载文件。请先下载安装引擎，它会自动启动。"
+            "value": "ChopChop 需要 Aria2 Next 3 或更高版本来下载文件。请先安装支持的引擎，它会自动启动。"
+          }
+        }
+      }
+    },
+    "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 需要 Aria2 Next 3 或更高版本。请在“设置 → 更新”中安装支持的引擎。"
           }
         }
       }
@@ -4375,6 +4375,23 @@
         }
       }
     },
+    "Connecting to peers…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接节点…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to peers…"
+          }
+        }
+      }
+    },
     "Connecting to the browser extension…": {
       "extractionState": "manual",
       "localizations": {
@@ -4409,6 +4426,23 @@
         }
       }
     },
+    "Connection attempts have not completed a BitTorrent handshake. The peers may be unreachable or the network path may be blocked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接尝试尚未完成 BitTorrent 握手。节点可能无法访问，或网络连接受阻。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection attempts have not completed a BitTorrent handshake. The peers may be unreachable or the network path may be blocked."
+          }
+        }
+      }
+    },
     "Connection details": {
       "extractionState": "manual",
       "localizations": {
@@ -4422,6 +4456,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接详情"
+          }
+        }
+      }
+    },
+    "Connection details are unavailable. The task is still being checked; this does not mean there are zero peers.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法获取连接详情，仍在检查任务状态；这并不代表没有节点。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection details are unavailable. The task is still being checked; this does not mean there are zero peers."
+          }
+        }
+      }
+    },
+    "Connection details may be out of date. Waiting for the engine to respond…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接详情可能已过时，正在等待引擎响应…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection details may be out of date. Waiting for the engine to respond…"
           }
         }
       }
@@ -4490,6 +4558,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续"
+          }
+        }
+      }
+    },
+    "Continuous seeding removes the default ratio and time limits. Tasks with individual limits keep them. Restored tasks remain paused until you resume them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuous seeding removes the default ratio and time limits. Tasks with individual limits keep them. Restored tasks remain paused until you resume them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "持续做种会取消默认分享率和时间限制。单独设置了限制的任务会保留其限制。恢复的任务会保持暂停，直到你手动继续。"
           }
         }
       }
@@ -4885,6 +4970,23 @@
         }
       }
     },
+    "Could not update trackers for %lld running torrents.\n%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not update trackers for %lld running torrents.\n%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能更新 %lld 个运行中种子任务的 Tracker。\n%@"
+          }
+        }
+      }
+    },
     "Couldn’t retrieve the file list": {
       "extractionState": "manual",
       "localizations": {
@@ -5038,19 +5140,36 @@
         }
       }
     },
-    "DHT listen port": {
+    "DHT nodes (engine)": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DHT 节点（整个引擎）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DHT nodes (engine)"
+          }
+        }
+      }
+    },
+    "DHT uses the BT listen port.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DHT listen port"
+            "value": "DHT uses the BT listen port."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DHT 监听端口"
+            "value": "DHT 与 BT 共用监听端口。"
           }
         }
       }
@@ -5221,6 +5340,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "检测系统代理"
+          }
+        }
+      }
+    },
+    "Dev checks Engine updates only. Rebuild locally to update ChopChop Dev.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dev checks Engine updates only. Rebuild locally to update ChopChop Dev."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dev 仅检查引擎更新。更新 ChopChop Dev 请在本地重新构建。"
           }
         }
       }
@@ -7456,6 +7592,23 @@
         }
       }
     },
+    "File downloads begin only after you confirm your selection. A local .torrent file can provide the file list without waiting for peers.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认所选文件后才会开始下载。打开本地 .torrent 文件可直接读取列表，无需等待节点。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File downloads begin only after you confirm your selection. A local .torrent file can provide the file list without waiting for peers."
+          }
+        }
+      }
+    },
     "File progress": {
       "extractionState": "manual",
       "localizations": {
@@ -8101,19 +8254,19 @@
         }
       }
     },
-    "HTTP entries are server summaries and can combine multiple connections. Individual connection speeds, byte ranges and progress are not exposed by this engine.": {
+    "Handshake complete": {
       "extractionState": "manual",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HTTP entries are server summaries and can combine multiple connections. Individual connection speeds, byte ranges and progress are not exposed by this engine."
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "HTTP 记录是服务器汇总，可能包含多个连接。当前引擎不提供逐条连接的速度、字节范围和进度。"
+            "value": "已完成握手的节点"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handshake complete"
           }
         }
       }
@@ -8131,6 +8284,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在握手"
+          }
+        }
+      }
+    },
+    "Handshaking peers": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在握手的节点"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handshaking peers"
           }
         }
       }
@@ -8369,6 +8539,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "包含未选文件涉及的分片。未完成的分片可能尚未接收或已部分接收；引擎不提供单片的百分比。"
+          }
+        }
+      }
+    },
+    "Includes the first connection attempt. Default: 3. Repeated failures stop the download and show an error.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Includes the first connection attempt. Default: 3. Repeated failures stop the download and show an error."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含首次连接尝试，默认 3 次。连续失败后停止下载并显示错误。"
           }
         }
       }
@@ -8746,6 +8933,23 @@
         }
       }
     },
+    "Keeps this task and received metadata.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留当前任务和已收到的元数据。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps this task and received metadata."
+          }
+        }
+      }
+    },
     "Keyword": {
       "extractionState": "manual",
       "localizations": {
@@ -8984,19 +9188,19 @@
         }
       }
     },
-    "Live snapshot · %@": {
+    "Last updated · %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live snapshot · %@"
+            "value": "Last updated · %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "实时快照 · %@"
+            "value": "最后更新 · %@"
           }
         }
       }
@@ -9341,6 +9545,23 @@
         }
       }
     },
+    "Maximum attempts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum attempts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多尝试次数"
+          }
+        }
+      }
+    },
     "Maximum parallel parts per task. Small files and servers without range support may use fewer.": {
       "extractionState": "manual",
       "localizations": {
@@ -9456,6 +9677,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "媒体下载使用独立的分段调度。请在“概览”中查看阶段和时长进度。"
+          }
+        }
+      }
+    },
+    "Metadata discovery is paused": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元数据获取已暂停"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadata discovery is paused"
           }
         }
       }
@@ -9681,6 +9919,23 @@
         }
       }
     },
+    "Network connections exist, but the peers have not completed their BitTorrent handshakes. The file list cannot be requested from them yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已建立网络连接，但节点尚未完成 BitTorrent 握手，还无法向其请求文件列表。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network connections exist, but the peers have not completed their BitTorrent handshakes. The file list cannot be requested from them yet."
+          }
+        }
+      }
+    },
     "Never": {
       "extractionState": "manual",
       "localizations": {
@@ -9864,6 +10119,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无结果"
+          }
+        }
+      }
+    },
+    "No Tracker response has been confirmed and no peer has completed a handshake. Check the Tracker errors below or try another source.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未确认 Tracker 响应，也没有节点完成握手。请查看 Tracker 错误详情，或更换来源。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Tracker response has been confirmed and no peer has completed a handshake. Check the Tracker errors below or try another source."
           }
         }
       }
@@ -10106,6 +10378,23 @@
         }
       }
     },
+    "No peer has completed a handshake yet. Tracker seed counts and DHT nodes do not guarantee a reachable metadata provider. Retry or try another source.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚无节点完成握手。Tracker 的种子数量和 DHT 节点数不能保证有人可提供元数据。可以重试或更换来源。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No peer has completed a handshake yet. Tracker seed counts and DHT nodes do not guarantee a reachable metadata provider. Retry or try another source."
+          }
+        }
+      }
+    },
     "No task logs reported.": {
       "extractionState": "manual",
       "localizations": {
@@ -10289,6 +10578,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "未完成"
+          }
+        }
+      }
+    },
+    "Not contacted": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未联系"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not contacted"
           }
         }
       }
@@ -10818,23 +11124,6 @@
         }
       }
     },
-    "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "其他运行时设置已应用。请重启 Aria2 Next，让新任务使用持续做种。已有任务仍保留各自的分享限制。"
-          }
-        }
-      }
-    },
     "Outgoing connection": {
       "extractionState": "manual",
       "localizations": {
@@ -11341,6 +11630,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "节点（%lld）"
+          }
+        }
+      }
+    },
+    "Peers have completed their handshakes but have not supplied the complete file list. They may not have or support the required metadata.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有节点完成握手，但尚未提供完整文件列表。节点可能没有所需元数据，或不支持提供元数据。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peers have completed their handshakes but have not supplied the complete file list. They may not have or support the required metadata."
+          }
+        }
+      }
+    },
+    "Peers with unknown state": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态未知的节点"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peers with unknown state"
           }
         }
       }
@@ -12314,19 +12637,19 @@
         }
       }
     },
-    "Rechecking uses the torrent's piece hashes; no data is discarded unless the engine finds a mismatch.": {
+    "Rechecking requires an active torrent and uses its piece hashes. Paused downloads stay paused until you resume them.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechecking uses the torrent's piece hashes; no data is discarded unless the engine finds a mismatch."
+            "value": "Rechecking requires an active torrent and uses its piece hashes. Paused downloads stay paused until you resume them."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用种子的分段哈希重新校验。只有发现不匹配时，引擎才会丢弃相应数据。"
+            "value": "重新校验仅适用于正在运行的种子，使用分块哈希验证文件。暂停的下载会保持暂停，直到你手动继续。"
           }
         }
       }
@@ -12858,6 +13181,23 @@
         }
       }
     },
+    "Responded": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已响应"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Responded"
+          }
+        }
+      }
+    },
     "Response is not valid UTF-8.": {
       "extractionState": "manual",
       "localizations": {
@@ -12888,23 +13228,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新启动"
-          }
-        }
-      }
-    },
-    "Restart Aria2 Next when switching to continuous seeding. This default applies to new tasks; existing tasks keep their own sharing limits. Restored tasks remain paused until you resume them.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restart Aria2 Next when switching to continuous seeding. This default applies to new tasks; existing tasks keep their own sharing limits. Restored tasks remain paused until you resume them."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "切换为持续做种后，请重启 Aria2 Next。此默认设置适用于新任务；已有任务保留各自的分享限制。重启恢复的任务会保持暂停，直到你手动继续。"
           }
         }
       }
@@ -12977,19 +13300,19 @@
         }
       }
     },
-    "Restore the files to their original location, then recheck downloaded pieces before resuming. To download again, remove this task and add it again.": {
+    "Restore the files, remove this task without deleting files, then add the torrent again to verify them. The engine cannot recheck a paused torrent.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restore the files to their original location, then recheck downloaded pieces before resuming. To download again, remove this task and add it again."
+            "value": "Restore the files, remove this task without deleting files, then add the torrent again to verify them. The engine cannot recheck a paused torrent."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请将文件恢复到原来的位置，重新校验下载分片后再继续。如需重新下载，请移除任务后重新添加。"
+            "value": "请恢复文件，然后仅移除此任务、保留文件，再重新添加种子进行校验。引擎无法直接重新校验暂停中的种子。"
           }
         }
       }
@@ -13164,6 +13487,23 @@
         }
       }
     },
+    "Retry Connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试连接"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry Connection"
+          }
+        }
+      }
+    },
     "Retry Download": {
       "extractionState": "manual",
       "localizations": {
@@ -13266,23 +13606,6 @@
         }
       }
     },
-    "Retry count": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retry count"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重试次数"
-          }
-        }
-      }
-    },
     "Retry wait": {
       "extractionState": "manual",
       "localizations": {
@@ -13330,6 +13653,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试、超时与磁盘…"
+          }
+        }
+      }
+    },
+    "Retrying…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重试…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retrying…"
           }
         }
       }
@@ -14456,23 +14796,6 @@
         }
       }
     },
-    "Set DHT listen port between 1 and 65535": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set DHT listen port between 1 and 65535"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将 DHT 监听端口设为 1 到 65535"
-          }
-        }
-      }
-    },
     "Set ED2K UDP listen port between 0 and 65535": {
       "extractionState": "manual",
       "localizations": {
@@ -14979,6 +15302,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已添加部分下载"
+          }
+        }
+      }
+    },
+    "Some connection details are unavailable. Retrying automatically; unavailable does not mean zero.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分连接详情暂不可用，正在自动重查；不可用不代表数量为零。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some connection details are unavailable. Retrying automatically; unavailable does not mean zero."
           }
         }
       }
@@ -16151,6 +16491,23 @@
         }
       }
     },
+    "The engine did not pause the task in time. Try again to check its current state.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎未能及时暂停任务。请重试以检查任务的当前状态。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine did not pause the task in time. Try again to check its current state."
+          }
+        }
+      }
+    },
     "The engine did not report a source address.": {
       "extractionState": "manual",
       "localizations": {
@@ -16215,6 +16572,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "引擎由 ChopChop 保存和管理，无需选择位置。恢复的下载会保持暂停，直到你手动继续。"
+          }
+        }
+      }
+    },
+    "The engine reports HTTP server addresses but no measured server speeds. Use the total download speed above; individual connection speeds, byte ranges and progress are unavailable.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine reports HTTP server addresses but no measured server speeds. Use the total download speed above; individual connection speeds, byte ranges and progress are unavailable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎会报告 HTTP 服务器地址，但不提供实测的服务器速率。请查看上方的总下载速度；单个连接的速度、字节范围和进度暂不可用。"
           }
         }
       }
@@ -16554,6 +16928,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选版本已不在最近发布的版本中，已改选 Latest（最新版）。"
+          }
+        }
+      }
+    },
+    "The source has not provided a usable torrent file yet. Retry or open a local .torrent file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源尚未提供可用的种子文件。请重试，或打开本地 .torrent 文件。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The source has not provided a usable torrent file yet. Retry or open a local .torrent file."
           }
         }
       }
@@ -17000,6 +17391,40 @@
         }
       }
     },
+    "This task is paused before its file list is available. Retry to resume metadata discovery.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务在获得文件列表之前已暂停。请重试以继续获取元数据。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This task is paused before its file list is available. Retry to resume metadata discovery."
+          }
+        }
+      }
+    },
+    "This task is waiting for a download slot. Pause another active task or increase the active download limit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务正在排队。可以暂停其他下载，或提高同时下载的任务数量上限。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This task is waiting for a download slot. Pause another active task or increase the active download limit."
+          }
+        }
+      }
+    },
     "This update requires a newer version of macOS.": {
       "extractionState": "manual",
       "localizations": {
@@ -17340,6 +17765,23 @@
         }
       }
     },
+    "Tracker Details": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker 详情"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker Details"
+          }
+        }
+      }
+    },
     "Tracker List": {
       "extractionState": "manual",
       "localizations": {
@@ -17540,6 +17982,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已自动同步 Tracker。"
+          }
+        }
+      }
+    },
+    "Trackers responded": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已响应的 Tracker"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trackers responded"
           }
         }
       }
@@ -18783,6 +19242,23 @@
         }
       }
     },
+    "Waiting for BitTorrent handshakes…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 BitTorrent 握手…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for BitTorrent handshakes…"
+          }
+        }
+      }
+    },
     "Waiting for ChopChop to quit…": {
       "extractionState": "manual",
       "localizations": {
@@ -18796,6 +19272,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在等待 ChopChop 退出…"
+          }
+        }
+      }
+    },
+    "Waiting for Tracker responses…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 Tracker 响应…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Tracker responses…"
           }
         }
       }

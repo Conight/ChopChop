@@ -154,7 +154,7 @@ final class TransferDetailsTests: XCTestCase {
         XCTAssertEqual(result[0].address, "[2001:db8::1]:8443")
         XCTAssertEqual(result[0].downloadSpeed, 42)
         XCTAssertEqual(result[1].transport, "SFTP")
-        XCTAssertEqual(result[1].downloadSpeed, 0)
+        XCTAssertNil(result[1].downloadSpeed)
         let display = String(describing: result)
         for secret in ["alice", "bob", "password", "secret", "private", "fragment", "auth="] { XCTAssertFalse(display.contains(secret)) }
     }
@@ -174,27 +174,71 @@ final class TransferDetailsTests: XCTestCase {
     func testMonitorDiscardsStaleResponsesAfterTaskSwitchAndCancellation() async throws {
         let monitor = TransferDetailMonitor()
         let gate = SnapshotGate()
-        let old = Task { await monitor.observe { await gate.fetch() } }
+        let old = Task { await monitor.observe(taskID: "old") { await gate.fetch() } }
         while !(await gate.started) { await Task.yield() }
-        let fresh = Task { await monitor.observe { TransferSnapshot(connections: 7) } }
+        let fresh = Task { await monitor.observe(taskID: "new") { TransferSnapshot(uploaded: 7) } }
         for _ in 0..<100 where monitor.snapshot == nil { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertEqual(monitor.snapshot?.connections, 7)
+        XCTAssertEqual(monitor.snapshot?.uploaded, 7)
         await gate.release()
         await old.value
-        XCTAssertEqual(monitor.snapshot?.connections, 7, "An older task's response must never replace the new selection")
+        XCTAssertEqual(monitor.snapshot?.uploaded, 7, "An older task's response must never replace the new selection")
         fresh.cancel(); await fresh.value
-        XCTAssertNil(monitor.snapshot)
+        XCTAssertEqual(monitor.snapshot?.uploaded, 7)
+        XCTAssertFalse(monitor.isObserving)
+    }
+
+    @MainActor
+    func testMonitorRetainsContentThroughFailureVisibilityAndRecovery() async throws {
+        let monitor = TransferDetailMonitor(pollInterval: .milliseconds(10), retryInterval: .milliseconds(10))
+        let source = RecoverableSnapshotSource()
+        let work = Task { await monitor.observe(taskID: "same") { try await source.fetch() } }
+        for _ in 0..<100 where monitor.issue == nil { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertNotNil(monitor.issue)
+        XCTAssertEqual(monitor.snapshot?.uploaded, 8, "A transient RPC failure must keep the last table and piece content")
+        XCTAssertTrue(monitor.isObserving)
+        await source.recover()
+        for _ in 0..<100 where monitor.issue != nil { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertNil(monitor.issue)
+        XCTAssertEqual(monitor.snapshot?.uploaded, 9)
+        work.cancel(); await work.value
+        XCTAssertFalse(monitor.isObserving)
+        XCTAssertEqual(monitor.snapshot?.uploaded, 9, "Hiding the window must not tear down its existing content")
+
+        let gate = SnapshotGate()
+        let resumed = Task { await monitor.observe(taskID: "same") { await gate.fetch() } }
+        while !(await gate.started) { await Task.yield() }
+        XCTAssertEqual(monitor.snapshot?.uploaded, 9, "Showing the same task retains content while awaiting a fresh result")
+        resumed.cancel(); await gate.release(); await resumed.value
+        XCTAssertEqual(monitor.snapshot?.uploaded, 9, "A cancelled fetch must not overwrite the retained data")
+
+        let replacementGate = SnapshotGate()
+        let replacement = Task { await monitor.observe(taskID: "another-session-or-task") { await replacementGate.fetch() } }
+        while !(await replacementGate.started) { await Task.yield() }
+        XCTAssertNil(monitor.snapshot, "A different task or engine session must clear the old data")
+        replacement.cancel(); await replacementGate.release(); await replacement.value
     }
 
     @MainActor
     func testMonitorShowsInlineFailureAndStopsOnCancellation() async throws {
         let monitor = TransferDetailMonitor()
-        let work = Task { await monitor.observe { throw URLError(.notConnectedToInternet) } }
+        let work = Task { await monitor.observe(taskID: "offline") { throw URLError(.notConnectedToInternet) } }
         for _ in 0..<100 where monitor.issue == nil { try await Task.sleep(for: .milliseconds(5)) }
         XCTAssertNotNil(monitor.issue)
         XCTAssertNil(monitor.snapshot)
         work.cancel(); await work.value
         XCTAssertNil(monitor.snapshot)
+    }
+}
+
+private actor RecoverableSnapshotSource {
+    private var calls = 0
+    private var recovered = false
+    func recover() { recovered = true }
+    func fetch() throws -> TransferSnapshot {
+        calls += 1
+        if calls == 1 { return TransferSnapshot(uploaded: 8) }
+        if recovered { return TransferSnapshot(uploaded: 9) }
+        throw URLError(.networkConnectionLost)
     }
 }
 
@@ -205,5 +249,5 @@ private actor SnapshotGate {
         started = true
         return await withCheckedContinuation { continuation = $0 }
     }
-    func release() { continuation?.resume(returning: TransferSnapshot(connections: 99)); continuation = nil }
+    func release() { continuation?.resume(returning: TransferSnapshot(uploaded: 99)); continuation = nil }
 }

@@ -8,6 +8,7 @@
 import Foundation
 import Darwin
 import Combine
+import CryptoKit
 import SystemConfiguration
 import AppKit
 import SwiftUI
@@ -129,10 +130,17 @@ final class ChopChopTests: XCTestCase {
         XCTAssertNoThrow(try settings.validateLaunchRequirements())
     }
 
-    func testDefaultDownloadDirectoryCanonicalizesSandboxAlias() throws {
-        let searchPathURL = try XCTUnwrap(
-            FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        )
+    func testDefaultDownloadDirectoryIsScopedToTheBuildIdentity() throws {
+        let searchPathURL: URL
+        if AppIdentity.isDevelopment {
+            searchPathURL = try XCTUnwrap(FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first)
+                .appendingPathComponent("ChopChop/Downloads", isDirectory: true)
+            XCTAssertTrue(searchPathURL.path.contains("/Library/Containers/\(ReleaseConfiguration.current.bundleIdentifier)/Data/"))
+            let productionDownloads = try XCTUnwrap(FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first)
+            XCTAssertNotEqual(searchPathURL.resolvingSymlinksInPath(), productionDownloads.resolvingSymlinksInPath())
+        } else {
+            searchPathURL = try XCTUnwrap(FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first)
+        }
         let canonicalPath = searchPathURL.resolvingSymlinksInPath().standardizedFileURL.path
 
         XCTAssertEqual(EngineSettings.defaultDownloadDirectoryPath, canonicalPath)
@@ -644,7 +652,7 @@ final class ChopChopTests: XCTestCase {
             case "aria2.tellActive":
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"active","result":[{"gid":"metadata-gid","status":"active","totalLength":"40582","completedLength":"0","downloadSpeed":"0","uploadSpeed":"0","connections":"0","dir":"/tmp","followedBy":["download-gid"],"files":[{"index":"1","path":"[METADATA]Example","length":"40582","completedLength":"0","selected":"true"}]},{"gid":"download-gid","status":"paused","totalLength":"100","completedLength":"0","downloadSpeed":"0","uploadSpeed":"0","connections":"0","dir":"/tmp","bittorrent":{"info":{"name":"Example"},"announceList":[["udp://tracker.example.com:1337/announce"]]},"files":[{"index":"1","path":"/tmp/Example.mp4","length":"100","completedLength":"0","selected":"true"}]}]}"#
+                    body: #"{"jsonrpc":"2.0","id":"active","result":[{"gid":"metadata-gid","status":"active","totalLength":"40582","completedLength":"0","downloadSpeed":"0","uploadSpeed":"0","connections":"0","dir":"/tmp","followedBy":["download-gid"],"files":[{"index":"1","path":"[METADATA]Example","length":"40582","completedLength":"0","selected":"true"}]},{"gid":"download-gid","status":"paused","totalLength":"100","completedLength":"0","downloadSpeed":"0","uploadSpeed":"0","connections":"0","dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Example"},"announceList":[["udp://tracker.example.com:1337/announce"]]},"files":[{"index":"1","path":"/tmp/Example.mp4","length":"100","completedLength":"0","selected":"true"}]}]}"#
                 )
             default:
                 return try Self.rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"empty","result":[]}"#)
@@ -691,14 +699,14 @@ final class ChopChopTests: XCTestCase {
             capturedGID.set(params[1] as? String)
             return try Self.rpcHTTPResponse(
                 for: request,
-                body: #"{"jsonrpc":"2.0","id":"peers","result":[{"ip":"203.0.113.10","port":"51413","seeder":"true","downloadSpeed":"2048"},{"ip":"198.51.100.7","port":"6881","seeder":"false","downloadSpeed":"512"}]}"#
+                body: #"{"jsonrpc":"2.0","id":"peers","result":[{"ip":"203.8.613.10","port":"51413","seeder":"true","downloadSpeed":"2048"},{"ip":"198.51.100.7","port":"6881","seeder":"false","downloadSpeed":"512"}]}"#
             )
         }
 
         let peers = try await client.getPeers("download-gid")
 
         XCTAssertEqual(capturedGID.value(), "download-gid")
-        XCTAssertEqual(peers.map(\.address), ["203.0.113.10:51413", "198.51.100.7:6881"])
+        XCTAssertEqual(peers.map(\.address), ["203.8.613.10:51413", "198.51.100.7:6881"])
         XCTAssertEqual(peers.map(\.client), ["Seeder", "Peer"])
         XCTAssertEqual(peers.map(\.downloadSpeed), [2048, 512])
     }
@@ -761,7 +769,7 @@ final class ChopChopTests: XCTestCase {
             case "aria2.tellActive":
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"active","result":[{"gid":"seed","status":"active","seeder":"true","totalLength":"100","completedLength":"100","downloadSpeed":"0","uploadSpeed":"10","connections":"1","dir":"/tmp","bittorrent":{"info":{"name":"Linux.iso"}},"files":[{"path":"/tmp/Linux.iso","length":"100","completedLength":"100","selected":"true"}]}]}"#
+                    body: #"{"jsonrpc":"2.0","id":"active","result":[{"gid":"seed","status":"active","seeder":"true","totalLength":"100","completedLength":"100","downloadSpeed":"0","uploadSpeed":"10","connections":"1","dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Linux.iso"}},"files":[{"path":"/tmp/Linux.iso","length":"100","completedLength":"100","selected":"true"}]}]}"#
                 )
             default:
                 return try Self.rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"empty","result":[]}"#)
@@ -891,7 +899,7 @@ final class ChopChopTests: XCTestCase {
             case "aria2.tellStatus":
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"status","result":{"gid":"metadata","status":"active","followedBy":["download"],"dir":"/tmp","bittorrent":{"info":{"name":"Ubuntu"}},"files":[]}}"#
+                    body: #"{"jsonrpc":"2.0","id":"status","result":{"gid":"metadata","status":"active","followedBy":["download"],"dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Ubuntu"}},"files":[]}}"#
                 )
             case "aria2.getFiles":
                 return try Self.rpcHTTPResponse(
@@ -1873,6 +1881,65 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testMagnetSelectionWaitsForLayoutBeforePausingOrShowingFiles() async throws {
+        let methods = LockedBox<[String]>([])
+        let polls = LockedBox(0)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: methods)
+            switch method {
+            case "aria2.addUri":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"same-gid"}"#)
+            case "aria2.tellStatus":
+                let count = polls.value()
+                polls.set(count + 1)
+                if count < 3 {
+                    let state = ["adding", "queued", "downloadingMetadata"][count]
+                    return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"same-gid","status":"active","dir":"/tmp","bittorrent":{"state":"\#(state)","fileSelectionState":"none","info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example","length":"0","selected":"true"}]}}"#)
+                }
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"same-gid","status":"paused","dir":"/tmp","bittorrent":{"mode":"multi","state":"paused","fileSelectionState":"awaiting","info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example/file.bin","length":"32768","selected":"true"},{"index":"2","path":"/tmp/Example/empty.txt","length":"0","selected":"true"}]}}"#)
+            default: return try Self.responseForStoreMutationPoll(method: method, request: request)
+            }
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.addDraft.rawInput = "magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17&dn=Example"
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        store.addDraft.savePath = directory.path
+        let discovery = Task { await store.prepareBitTorrentFileSelection() }
+        for _ in 0..<100 where polls.value() == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(store.bitTorrentSelectionSession?.phase, .loading)
+        XCTAssertTrue(store.bitTorrentSelectionSession?.files.isEmpty == true)
+        await discovery.value
+        XCTAssertEqual(polls.value(), 4)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.phase, .ready)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.files.map(\.length), [32768, 0])
+        XCTAssertFalse(methods.value().contains("aria2.forcePause"), "Do not interrupt metadata discovery")
+        XCTAssertFalse(methods.value().contains("aria2.unpause"), "Payload still needs user confirmation")
+    }
+
+    @MainActor
+    func testTorrentConfirmationRejectsStalePlaceholderBeforeAnyMutation() async throws {
+        let methods = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: methods)
+            if method == "aria2.tellStatus" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"same-gid","status":"active","bittorrent":{"state":"adding","fileSelectionState":"none","info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example","length":"0","selected":"true"}]}}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.bitTorrentSelectionSession = BitTorrentFileSelectionSession(source: "magnet:?xt=urn:btih:abc",
+            metadataTaskID: "same-gid", downloadTaskID: "same-gid", taskName: "Example",
+            files: [DownloadFile(index: 1, path: "/tmp/Example", length: 0, completedLength: 0, isSelected: true)],
+            selectedFileIndexes: [1], phase: .ready)
+        let confirmed = await store.confirmBitTorrentFileSelection()
+        XCTAssertFalse(confirmed)
+        XCTAssertEqual(methods.value(), ["aria2.tellStatus"])
+    }
+
+    @MainActor
     func testMagnetSelectionUsesSameGIDAndPreservesMetadataAcrossRetry() async throws {
         let methods = LockedBox<[String]>([])
         let fail = LockedBox(true)
@@ -1946,6 +2013,106 @@ final class ChopChopTests: XCTestCase {
         XCTAssertFalse(methods.value().contains("aria2.unpause"))
     }
 
+    @MainActor
+    func testMagnetDiscoveryShowsPartialDiagnosticsAndReconnectsSameTask() async throws {
+        try await verifyDiscoveryRetry(metadataDuringPause: false, cancelDuringPause: false)
+    }
+
+    @MainActor
+    func testMagnetDiscoveryRetryDoesNotResumeMetadataArrivingDuringPause() async throws {
+        try await verifyDiscoveryRetry(metadataDuringPause: true, cancelDuringPause: false)
+    }
+
+    @MainActor
+    func testMagnetDiscoveryCancelledRetryCannotResumeOrRestoreSheet() async throws {
+        try await verifyDiscoveryRetry(metadataDuringPause: false, cancelDuringPause: true)
+    }
+
+    @MainActor
+    private func verifyDiscoveryRetry(metadataDuringPause: Bool, cancelDuringPause: Bool) async throws {
+        let methods = LockedBox<[String]>([])
+        let state = LockedBox((status: "active", resolved: false))
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: methods)
+            switch method {
+            case "aria2.addUri":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"discovery-gid"}"#)
+            case "aria2.getPeers":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"state":"connecting"},{"state":"handshaking"}]}"#)
+            case "aria2.getBtTrackers":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"url":"udp://tracker.example:80","status":"error","message":"timed out"}]}"#)
+            case "aria2.getBtSessionStatus":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"Temporarily unavailable"}}"#)
+            case "aria2.tellStatus":
+                let current = state.value()
+                let bt = current.resolved
+                    ? #"{"mode":"multi","state":"paused","fileSelectionState":"awaiting","info":{"name":"Fixture"}}"#
+                    : #"{"state":"downloadingMetadata","numPeers":"2"}"#
+                let files = current.resolved ? #"[{"index":"1","path":"/tmp/Fixture/file.bin","length":"123","completedLength":"0","selected":"true"}]"# : "[]"
+                return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"discovery-gid\",\"status\":\"\(current.status)\",\"bittorrent\":\(bt),\"files\":\(files)}}")
+            case "aria2.forcePause":
+                if !cancelDuringPause { state.withValue { $0 = ("paused", metadataDuringPause) } }
+            case "aria2.unpause":
+                state.withValue { $0.status = "active" }
+            case "aria2.changeOption":
+                let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try Self.requestBodyData(from: request)) as? [String: Any])
+                let params = try XCTUnwrap(body["params"] as? [Any])
+                XCTAssertEqual(params.last as? [String: String], ["pause-metadata": "true"])
+            default: break
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        store.addDraft.rawInput = "magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17"
+        store.addDraft.savePath = directory.path
+        let waiting = Task { await store.prepareBitTorrentFileSelection() }
+        defer { waiting.cancel() }
+        let hasDiagnostics = await waitForMainActorCondition(timeout: 3) { store.bitTorrentSelectionSession?.discovery != nil }
+        XCTAssertTrue(hasDiagnostics)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.discovery?.peers?.connected, 0)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.discovery?.peers?.handshaking, 1)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.discovery?.trackers?.failed, 1)
+        XCTAssertNil(store.bitTorrentSelectionSession?.discovery?.dhtNodes)
+        XCTAssertEqual(store.bitTorrentSelectionSession?.discoveryStage, .handshaking)
+        store.bitTorrentSelectionSession?.startedAt = Date().addingTimeInterval(-120)
+        store.retryBitTorrentDiscovery()
+        store.retryBitTorrentDiscovery() // A double click must not enqueue another reconnect.
+        XCTAssertTrue(store.isRetryingBitTorrentDiscovery)
+        if cancelDuringPause {
+            let pausing = await waitForMainActorCondition(timeout: 3) { methods.value().contains("aria2.forcePause") }
+            XCTAssertTrue(pausing)
+            await store.cancelBitTorrentFileSelection()
+            await waiting.value
+            XCTAssertNil(store.bitTorrentSelectionSession)
+            XCTAssertFalse(store.isRetryingBitTorrentDiscovery)
+            XCTAssertFalse(methods.value().contains("aria2.unpause"))
+        } else if metadataDuringPause {
+            let ready = await waitForMainActorCondition(timeout: 3) { store.bitTorrentSelectionSession?.phase == .ready }
+            XCTAssertTrue(ready)
+            await waiting.value
+            XCTAssertEqual(store.bitTorrentSelectionSession?.files.first?.length, 123)
+            XCTAssertFalse(methods.value().contains("aria2.unpause"))
+            XCTAssertFalse(methods.value().contains("aria2.changeOption"))
+        } else {
+            let retried = await waitForMainActorCondition(timeout: 3) { !store.isRetryingBitTorrentDiscovery }
+            XCTAssertTrue(retried)
+            XCTAssertEqual(methods.value().filter { $0 == "aria2.unpause" }.count, 1)
+            XCTAssertEqual(store.bitTorrentSelectionSession?.phase, .loading)
+            XCTAssertFalse(store.bitTorrentSelectionSession?.isDiscoverySlow(at: Date()) ?? true)
+            XCTAssertEqual(store.bitTorrentSelectionSession?.metadataTaskID, "discovery-gid")
+        }
+        XCTAssertEqual(methods.value().filter { $0 == "aria2.addUri" }.count, 1)
+        XCTAssertEqual(methods.value().filter { $0 == "aria2.forcePause" }.count, 1)
+        if !cancelDuringPause {
+            XCTAssertFalse(methods.value().contains("aria2.forceRemove"))
+            await store.cancelBitTorrentFileSelection()
+            await waiting.value
+        }
+    }
+
     func testTorrentTreeKeepsIdentityGroupsAndSearchSelectionScope() throws {
         let files = [
             DownloadFile(index: 1, path: "/tmp/Bundle/Video/clip.mp4", length: 100, completedLength: 0, isSelected: true),
@@ -1976,6 +2143,17 @@ final class ChopChopTests: XCTestCase {
 
     @MainActor
     private func verifyMagnetConfirmation(startPaused: Bool) async throws {
+        let downloadGID = startPaused ? "00000000000000a1" : "00000000000000a2"
+        let info = Data("d6:lengthi110e4:name6:Ubuntu12:piece lengthi16384e6:pieces20:abcdefghijklmnopqrste".utf8)
+        let infoHash = Insecure.SHA1.hash(data: info).map { String(format: "%02x", $0) }.joined()
+        var resume = Data("d4:info".utf8); resume.append(info); resume.append(Data("e".utf8))
+        // Exercise the on-disk v3 path too; omitting infoHash used to skip copy saving entirely.
+        let state = EngineStorage(supportDirectory: try Aria2NextPaths.supportDirectory()).state
+        let resumeDirectory = state.appendingPathComponent("bittorrent/torrents")
+        try FileManager.default.createDirectory(at: resumeDirectory, withIntermediateDirectories: true)
+        let resumeURL = resumeDirectory.appendingPathComponent(downloadGID + ".fastresume")
+        try resume.write(to: resumeURL, options: .withoutOverwriting)
+        defer { try? FileManager.default.removeItem(at: resumeURL) }
         let capturedCalls = LockedBox<[(String, String?, [String: String]?)]>([])
         let client = try makeRPCClient { request in
             let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: try Self.requestBodyData(from: request)) as? [String: Any])
@@ -1994,15 +2172,15 @@ final class ChopChopTests: XCTestCase {
                 if gid == "metadata-gid" {
                     return try Self.rpcHTTPResponse(
                         for: request,
-                        body: #"{"jsonrpc":"2.0","id":"metadata","result":{"gid":"metadata-gid","status":"active","followedBy":["download-gid"],"dir":"/tmp","files":[]}}"#
+                        body: #"{"jsonrpc":"2.0","id":"metadata","result":{"gid":"metadata-gid","status":"active","followedBy":["\#(downloadGID)"],"dir":"/tmp","files":[]}}"#
                     )
                 }
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"download-gid","status":"paused","dir":"/tmp","bittorrent":{"info":{"name":"Ubuntu"}},"files":[{"index":"1","path":"/tmp/Ubuntu.iso","length":"100","completedLength":"0","selected":"true"},{"index":"2","path":"/tmp/Readme.txt","length":"10","completedLength":"0","selected":"true"}]}}"#
+                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"\#(downloadGID)","infoHash":"\#(infoHash)","status":"paused","dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Ubuntu"}},"files":[{"index":"1","path":"/tmp/Ubuntu.iso","length":"100","completedLength":"0","selected":"true"},{"index":"2","path":"/tmp/Readme.txt","length":"10","completedLength":"0","selected":"true"}]}}"#
                 )
             case "aria2.getFiles":
-                XCTAssertEqual(gid, "download-gid")
+                XCTAssertEqual(gid, downloadGID)
                 return try Self.rpcHTTPResponse(
                     for: request,
                     body: #"{"jsonrpc":"2.0","id":"files","result":[{"index":"1","path":"/tmp/Ubuntu.iso","length":"100","completedLength":"0","selected":"true"},{"index":"2","path":"/tmp/Readme.txt","length":"10","completedLength":"0","selected":"true"}]}"#
@@ -2012,8 +2190,9 @@ final class ChopChopTests: XCTestCase {
             }
         }
         let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
         store.addDraft.startPaused = startPaused
-        store.addDraft.rawInput = "magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17"
+        store.addDraft.rawInput = "magnet:?xt=urn:btih:\(infoHash)"
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         store.addDraft.savePath = directory.path
@@ -2024,21 +2203,24 @@ final class ChopChopTests: XCTestCase {
         let session = try XCTUnwrap(store.bitTorrentSelectionSession)
         XCTAssertEqual(session.phase, .ready)
         XCTAssertEqual(session.metadataTaskID, "metadata-gid")
-        XCTAssertEqual(session.downloadTaskID, "download-gid")
+        XCTAssertEqual(session.downloadTaskID, downloadGID)
         XCTAssertEqual(session.taskName, "Ubuntu")
         XCTAssertEqual(session.selectedFileIndexes, Set([1, 2]))
 
         store.setBitTorrentFile(session.files[1], isSelected: false)
         let didConfirm = await store.confirmBitTorrentFileSelection()
         XCTAssertTrue(didConfirm)
+        let torrentDirectory = try XCTUnwrap(session.torrentDirectory)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: torrentDirectory).appendingPathComponent("Ubuntu.torrent")), resume)
+        XCTAssertEqual(try Data(contentsOf: resumeURL), resume)
 
         XCTAssertFalse(store.addDraft.startPaused, "The next new task must get the normal default")
         XCTAssertNil(store.bitTorrentSelectionSession)
         let calls = capturedCalls.value()
         XCTAssertTrue(calls.contains { $0.0 == "aria2.addUri" && $0.2?["pause-metadata"] == "true" && $0.2?["pause"] == "false" })
         XCTAssertTrue(calls.contains { $0.0 == "aria2.saveSession" })
-        XCTAssertTrue(calls.contains { $0.0 == "aria2.changeOption" && $0.1 == "download-gid" && $0.2?["select-file"] == "1" })
-        XCTAssertEqual(calls.contains { $0.0 == "aria2.unpause" && $0.1 == "download-gid" }, !startPaused)
+        XCTAssertTrue(calls.contains { $0.0 == "aria2.changeOption" && $0.1 == downloadGID && $0.2?["select-file"] == "1" })
+        XCTAssertEqual(calls.contains { $0.0 == "aria2.unpause" && $0.1 == downloadGID }, !startPaused)
         XCTAssertTrue(calls.contains { $0.0 == "aria2.removeDownloadResult" && $0.1 == "metadata-gid" })
     }
 
@@ -2075,7 +2257,7 @@ final class ChopChopTests: XCTestCase {
                 }
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"download-gid","status":"paused","dir":"/tmp","bittorrent":{"info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example.mp4","length":"264963630","completedLength":"0","selected":"true"}]}}"#
+                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"download-gid","status":"paused","dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Example"}},"files":[{"index":"1","path":"/tmp/Example.mp4","length":"264963630","completedLength":"0","selected":"true"}]}}"#
                 )
             case "aria2.getFiles":
                 if gid == "metadata-gid" {
@@ -2120,7 +2302,7 @@ final class ChopChopTests: XCTestCase {
             case "aria2.getPeers":
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"peers","result":[{"ip":"203.0.113.10","port":"51413","seeder":"true","downloadSpeed":"2048"}]}"#
+                    body: #"{"jsonrpc":"2.0","id":"peers","result":[{"ip":"203.8.613.10","port":"51413","seeder":"true","downloadSpeed":"2048"}]}"#
                 )
             default:
                 return try Self.responseForStoreMutationPoll(method: method, request: request)
@@ -2135,7 +2317,7 @@ final class ChopChopTests: XCTestCase {
         await store.refreshDetails(for: "torrent-gid")
 
         let task = try XCTUnwrap(store.selectedTask)
-        XCTAssertEqual(task.peers.map(\.address), ["203.0.113.10:51413"])
+        XCTAssertEqual(task.peers.map(\.address), ["203.8.613.10:51413"])
         XCTAssertEqual(task.peers.map(\.client), ["Seeder"])
         XCTAssertTrue(capturedMethods.value().contains("aria2.getPeers"))
     }
@@ -2156,7 +2338,7 @@ final class ChopChopTests: XCTestCase {
             if method == "aria2.tellStatus" {
                 return try Self.rpcHTTPResponse(
                     for: request,
-                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"download-gid","status":"active","dir":"/tmp","bittorrent":{"info":{"name":"Ubuntu"}},"files":[{"index":"1","path":"/tmp/Ubuntu.iso","length":"100","completedLength":"0","selected":"true"},{"index":"2","path":"/tmp/Readme.txt","length":"10","completedLength":"0","selected":"true"}]}}"#
+                    body: #"{"jsonrpc":"2.0","id":"download","result":{"gid":"download-gid","status":"active","dir":"/tmp","bittorrent":{"mode":"multi","info":{"name":"Ubuntu"}},"files":[{"index":"1","path":"/tmp/Ubuntu.iso","length":"100","completedLength":"0","selected":"true"},{"index":"2","path":"/tmp/Readme.txt","length":"10","completedLength":"0","selected":"true"}]}}"#
                 )
             }
             return try Self.responseForStoreMutationPoll(method: method, request: request)
@@ -2253,8 +2435,13 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(startup["split"], "48")
         XCTAssertEqual(startup["max-overall-download-limit"], "1024K")
         XCTAssertEqual(startup["max-overall-upload-limit"], "512K")
-        XCTAssertEqual(startup["bt-force-encryption"], "true")
-        XCTAssertEqual(startup["bt-require-crypto"], "true")
+        XCTAssertEqual(startup["bt-encryption"], "required")
+        XCTAssertNil(startup["bt-require-crypto"])
+        XCTAssertNil(startup["bt-force-encryption"])
+        XCTAssertNil(startup["async-dns"])
+        XCTAssertNil(startup["dht-listen-port"])
+        XCTAssertNil(startup["content-disposition-default-utf8"])
+        XCTAssertEqual(startup["continue"], "false", "Resume must use owned task state, never an unrelated same-name file")
         XCTAssertEqual(startup["pause-metadata"], "false")
         XCTAssertEqual(startup["bt-tracker"], "udp://tracker-a:6969/announce,udp://tracker-b:6969/announce")
         XCTAssertEqual(startup["seed-ratio"], "0")
@@ -2269,11 +2456,11 @@ final class ChopChopTests: XCTestCase {
         if let caCertificatePath = EngineSettings.defaultCACertificatePath {
             XCTAssertEqual(startup["ca-certificate"], caCertificatePath)
         }
-        XCTAssertNil(startup["seed-time"])
+        XCTAssertEqual(startup["seed-time"], "")
 
         let runtime = settings.hotReloadableEngineOptions(downloadDirectoryPath: "/Downloads")
         XCTAssertNil(runtime["rpc-secret"])
-        XCTAssertNil(runtime["bt-force-encryption"])
+        XCTAssertNil(runtime["bt-encryption"])
         XCTAssertNil(runtime["bt-require-crypto"])
         XCTAssertNil(runtime["ed2k-listen-port"])
         XCTAssertNil(runtime["ed2k-udp-listen-port"])
@@ -2302,7 +2489,7 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(startup["ed2k-udp-listen-port"], "0")
     }
 
-    func testTrackerTextNormalizesDeduplicatesAndReducesForAria2() {
+    func testTrackerTextNormalizesDeduplicatesWithoutTruncation() {
         let text = """
         udp://tracker-a:6969/announce
         udp://tracker-b:6969/announce, udp://tracker-a:6969/announce
@@ -2318,10 +2505,12 @@ final class ChopChopTests: XCTestCase {
             TrackerText.commaSeparated(from: text),
             "udp://tracker-a:6969/announce,udp://tracker-b:6969/announce,https://tracker-c/announce"
         )
-        XCTAssertEqual(
-            TrackerText.reducedCommaSeparated(from: "udp://a,udp://b,udp://c", maxLength: 16),
-            "udp://a,udp://b"
-        )
+        let many = (0..<2_000).map { "https://tracker.example.com/\($0)/announce" }
+        XCTAssertEqual(TrackerText.commaSeparated(from: many.joined(separator: "\n")), many.joined(separator: ","))
+        var settings = EngineSettings()
+        settings.btTracker = many.joined(separator: "\n")
+        XCTAssertEqual(settings.engineOptions(includeStartupOnly: true)["bt-tracker"], many.joined(separator: ","))
+        XCTAssertEqual(settings.hotReloadableEngineOptions()["bt-tracker"], many.joined(separator: ","))
     }
 
     func testTrackerSourceURLValidatorOnlyAcceptsHTTPAndHTTPS() {
@@ -2415,7 +2604,7 @@ final class ChopChopTests: XCTestCase {
                let options = params.compactMap({ $0 as? [String: String] }).first {
                 capturedOptions.set(options)
             }
-            return try Self.rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"ok","result":"OK"}"#)
+            return try Self.responseForStoreMutationPoll(method: Self.captureRPCMethod(from: request), request: request)
         }
         let fetcher = MockTrackerFetcher(
             result: TrackerSourceFetchResult(
@@ -2468,6 +2657,201 @@ final class ChopChopTests: XCTestCase {
         await store.syncED2KBootstrapManually()
         XCTAssertEqual(store.bootstrapSyncFeedback, .idle)
         XCTAssertFalse(store.isSyncingED2KBootstrap)
+    }
+
+    func testTrackerScheduleHonorsIntervalsStartupDisableAndRetry() {
+        let now = Date(timeIntervalSince1970: 100_000)
+        var settings = EngineSettings()
+        settings.lastTrackerSyncAt = now
+        for hours in [6, 12, 24, 168] {
+            settings.btTrackerSyncIntervalHours = hours
+            XCTAssertEqual(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: false, retryAfter: nil),
+                           now.addingTimeInterval(Double(hours) * 3_600))
+        }
+        settings.btTrackerSyncIntervalHours = 0
+        XCTAssertNil(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: false, retryAfter: nil))
+        XCTAssertEqual(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: true, retryAfter: nil), now)
+        XCTAssertEqual(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: true, retryAfter: now.addingTimeInterval(300)), now.addingTimeInterval(300))
+        settings.btTrackerAutoSync = false
+        XCTAssertNil(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: true, retryAfter: nil))
+        settings.btTrackerAutoSync = true
+        settings.trackerSourceURLs = []
+        XCTAssertNil(TrackerSyncSchedule.nextDate(settings: settings, now: now, force: true, retryAfter: nil))
+    }
+
+    func testTrackerConfigurationPreservesListsLargerThanProcessArguments() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = EngineStorage(supportDirectory: directory)
+        let full = (0..<10_000).map { "https://trackers.example.com/\($0)/announce" }.joined(separator: ",")
+        XCTAssertGreaterThan(full.utf8.count, 262_144)
+        try storage.writeTrackerConfiguration(full)
+        XCTAssertEqual(try String(contentsOf: storage.trackerConfiguration, encoding: .utf8), "bt-tracker=\(full)\n")
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: storage.trackerConfiguration.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
+    @MainActor
+    func testTrackerClockSyncsWhileEngineStoppedAndReschedulesOnSettingsChange() async throws {
+        let client = try makeRPCClient { _ in XCTFail("Stopped engine must not receive RPC"); throw EngineError.notRunning }
+        let fetcher = MockTrackerFetcher(result: TrackerSourceFetchResult(data: ["udp://scheduled.example/announce"], failures: []))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client, isRunning: false), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        store.engineSettings.btTrackerSyncIntervalHours = 6
+        store.engineSettings.lastTrackerSyncAt = Date().addingTimeInterval(-6 * 3_600 + 0.15)
+        store.startTrackerSyncClock()
+        XCTAssertTrue(fetcher.requestedSources.value().isEmpty)
+        let synced = await waitForMainActorCondition(timeout: 2) { store.trackerSyncFeedback == .succeeded }
+        XCTAssertTrue(synced)
+        XCTAssertEqual(store.engineSettings.btTracker, "udp://scheduled.example/announce")
+        XCTAssertGreaterThan(try XCTUnwrap(store.nextTrackerSyncDate()).timeIntervalSinceNow, 21_590)
+        store.engineSettings.btTrackerAutoSync = false
+        XCTAssertNil(store.nextTrackerSyncDate())
+        fetcher.requestedSources.set([])
+        store.engineSettings.lastTrackerSyncAt = .distantPast
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(fetcher.requestedSources.value().isEmpty)
+        store.engineSettings.btTrackerAutoSync = true
+        let resynced = await waitForMainActorCondition(timeout: 2) { !fetcher.requestedSources.value().isEmpty }
+        XCTAssertTrue(resynced)
+    }
+
+    @MainActor
+    func testTrackerFetchFailureKeepsCacheAndSchedulesBoundedRetry() async throws {
+        let client = try makeRPCClient { _ in XCTFail("Nothing to apply after failed fetch"); throw EngineError.notRunning }
+        let fetcher = MockTrackerFetcher(result: TrackerSourceFetchResult(data: [], failures: [.init(url: "https://source.example/list", reason: "Offline")]))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client, isRunning: false), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        store.engineSettings.btTracker = "udp://cached.example/announce"
+        let previous = Date(timeIntervalSince1970: 100)
+        store.engineSettings.lastTrackerSyncAt = previous
+        await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(store.engineSettings.btTracker, "udp://cached.example/announce")
+        XCTAssertEqual(store.engineSettings.lastTrackerSyncAt, previous)
+        XCTAssertTrue(store.trackerSyncIssue?.contains("Offline") == true)
+        XCTAssertGreaterThan(try XCTUnwrap(store.nextTrackerSyncDate()).timeIntervalSinceNow, 290)
+        XCTAssertEqual(store.trackerSyncFeedback, .idle)
+    }
+
+    @MainActor
+    func testTrackerFetchCannotOverwriteEditsMadeWhileFetching() async throws {
+        let client = try makeRPCClient { _ in XCTFail("Stale source response must not apply"); throw EngineError.notRunning }
+        let fetcher = SuspendedTrackerFetcher()
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        let operation = Task { await store.syncBitTorrentTrackersManually() }
+        let fetching = await waitForMainActorCondition(timeout: 2) { store.isSyncingTrackers }
+        XCTAssertTrue(fetching)
+        store.engineSettings.btTracker = "udp://edited.example/announce"
+        store.engineSettings.trackerSourceURLs = ["https://new.example/list"]
+        await fetcher.finish(data: ["udp://stale.example/announce"])
+        await operation.value
+        XCTAssertEqual(store.engineSettings.btTracker, "udp://edited.example/announce")
+        XCTAssertNil(store.engineSettings.lastTrackerSyncAt)
+        XCTAssertFalse(store.isSyncingTrackers)
+    }
+
+    @MainActor
+    func testPartialTrackerFetchRetainsCachedAddressesAndRetries() async throws {
+        let client = try makeRPCClient { _ in throw EngineError.notRunning }
+        let fetcher = MockTrackerFetcher(result: .init(data: ["udp://new.example/announce"],
+            failures: [.init(url: "https://offline.example/list", reason: "Offline")]))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client, isRunning: false), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        store.engineSettings.btTracker = "udp://cached.example/announce"
+        await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(store.engineSettings.btTracker, "udp://cached.example/announce\nudp://new.example/announce")
+        XCTAssertNotNil(store.engineSettings.lastTrackerSyncAt)
+        XCTAssertTrue(store.trackerSyncIssue?.contains("Offline") == true)
+        XCTAssertGreaterThan(try XCTUnwrap(store.nextTrackerSyncDate()).timeIntervalSinceNow, 290)
+    }
+
+    @MainActor
+    func testBackgroundTrackerFetchDoesNotImmediatelyOverwriteConcurrentManualEdit() async throws {
+        let client = try makeRPCClient { _ in throw EngineError.notRunning }
+        let fetcher = SuspendedTrackerFetcher()
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client, isRunning: false), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        store.engineSettings.btTrackerSyncIntervalHours = 6
+        store.startTrackerSyncClock()
+        let fetching = await waitForMainActorCondition(timeout: 2) { store.isSyncingTrackers }
+        XCTAssertTrue(fetching)
+        store.engineSettings.btTracker = "udp://edited.example/announce"
+        await fetcher.finish(data: ["udp://stale.example/announce"])
+        let finished = await waitForMainActorCondition(timeout: 2) { !store.isSyncingTrackers }
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.engineSettings.btTracker, "udp://edited.example/announce")
+        XCTAssertGreaterThan(try XCTUnwrap(store.nextTrackerSyncDate()).timeIntervalSinceNow, 21_590)
+    }
+
+    @MainActor
+    func testTrackerSyncUpdatesActiveTorrentsInFullPreservingOriginalURLsAndTiers() async throws {
+        let replacements = LockedBox<[[String: Any]]>([])
+        let calls = LockedBox<[String]>([])
+        let many = (0..<500).map { "https://new.example.com/\($0)/announce" }
+        let original = "https://original.example/announce?passkey=private"
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: try Self.requestBodyData(from: request)) as? [String: Any])
+            let params = payload["params"] as? [Any] ?? []
+            switch method {
+            case "aria2.changeGlobalOption":
+                XCTAssertEqual((params[1] as? [String: String])?["bt-tracker"], (many + [original]).joined(separator: ","))
+            case "aria2.tellActive":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"bt","status":"active","bittorrent":{"mode":"multi","info":{"name":"BT"}}},{"gid":"http","status":"active","files":[{"path":"/tmp/a.zip"}]}]}"#)
+            case "aria2.getBtTrackers":
+                XCTAssertEqual(params[1] as? String, "bt")
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"url":"https://original.example/announce?passkey=private","tier":"7"}]}"#)
+            case "aria2.replaceBtTrackers":
+                XCTAssertEqual(params[1] as? String, "bt")
+                replacements.set(try XCTUnwrap(params[2] as? [[String: Any]]))
+            default: break
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let fetcher = MockTrackerFetcher(result: TrackerSourceFetchResult(data: [(many + [original]).joined(separator: "\n")], failures: []))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(store.trackerSyncFeedback, .succeeded)
+        XCTAssertEqual(replacements.value().compactMap { $0["url"] as? String }, [original] + many)
+        XCTAssertEqual(replacements.value().first?["tier"] as? Int, 7)
+        XCTAssertEqual(replacements.value().dropFirst().first?["tier"] as? Int, 8)
+        XCTAssertTrue(calls.value().contains("aria2.saveSession"))
+        XCTAssertFalse(calls.value().contains("aria2.unpause"))
+    }
+
+    @MainActor
+    func testTrackerSyncContinuesAfterTaskFailureAndIgnoresPauseRace() async throws {
+        let updated = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: try Self.requestBodyData(from: request)) as? [String: Any])
+            let params = payload["params"] as? [Any] ?? []
+            let gid = params.count > 1 ? params[1] as? String : nil
+            switch method {
+            case "aria2.tellActive":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"paused","status":"active","bittorrent":{"mode":"multi","info":{"name":"Paused"}}},{"gid":"failed","status":"active","bittorrent":{"mode":"multi","info":{"name":"Failed"}}},{"gid":"ok","status":"active","bittorrent":{"mode":"multi","info":{"name":"OK"}}}]}"#)
+            case "aria2.getBtTrackers":
+                if gid != "ok" { return try Self.rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"Cannot update torrent"}}"#) }
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[]}"#)
+            case "aria2.tellStatus":
+                let status = gid == "paused" ? "paused" : "active"
+                return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"\(gid!)\",\"status\":\"\(status)\"}}")
+            case "aria2.replaceBtTrackers": updated.withValue { $0.append(gid!) }
+            default: break
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let fetcher = MockTrackerFetcher(result: .init(data: ["udp://new.example/announce"], failures: []))
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client), trackerFetcher: fetcher)
+        defer { store.shutdown() }
+        await store.syncBitTorrentTrackersManually()
+        XCTAssertEqual(updated.value(), ["ok"])
+        XCTAssertTrue(store.trackerSyncIssue?.contains("1 running torrents") == true)
+        XCTAssertTrue(store.trackerSyncIssue?.contains("failed:") == true)
+        XCTAssertFalse(store.trackerSyncIssue?.contains("paused:") == true)
+        XCTAssertEqual(store.trackerSyncFeedback, .idle)
     }
 
     @MainActor
@@ -2827,6 +3211,37 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testQuitKeepsPendingTorrentWhenItsSheetDisappears() async throws {
+        let methods = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            try Self.responseForStoreMutationPoll(method: Self.captureRPCMethod(from: request, into: methods), request: request)
+        }
+        let settings = try PersistentSettingsStore(inMemory: true)
+        let history = try settings.makeHistoryStore()
+        let controller = MockEngineController(client: client)
+        let store = DownloadStore(settingsStore: settings, engineController: controller)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory); store.shutdown() }
+        var pending = makeTask(id: "pending-metadata", protocolKind: .bitTorrent, status: .active)
+        pending.isFetchingMetadata = true
+        pending.torrentDirectory = directory.path
+        store.tasks = [pending]
+        try history.save([pending])
+        store.bitTorrentSelectionSession = BitTorrentFileSelectionSession(source: "magnet:?xt=urn:btih:abc",
+            metadataTaskID: pending.id, taskName: "Example", files: [], selectedFileIndexes: [], phase: .loading,
+            torrentDirectory: directory.path)
+
+        await store.prepareForAppTermination()
+        await store.cancelBitTorrentFileSelection() // Sheet onDisappear during shutdown.
+
+        XCTAssertEqual(methods.value(), ["aria2.forcePause", "aria2.saveSession"])
+        XCTAssertEqual(try settings.makeHistoryStore().load().map(\.id), [pending.id])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertEqual(controller.stopCallCount, 1)
+    }
+
+    @MainActor
     func testPrepareForAppTerminationPausesCurrentTasksSavesSessionAndStopsEngine() async throws {
         let capturedCalls = LockedBox<[(String, String?)]>([])
         let client = try makeRPCClient { request in
@@ -2964,7 +3379,7 @@ final class ChopChopTests: XCTestCase {
             if method == "aria2.tellActive" {
                 let data = try JSONSerialization.data(withJSONObject: ["result": [[
                     "gid": "seed", "status": "active", "seeder": "true", "totalLength": "100", "completedLength": "100",
-                    "bittorrent": ["info": ["name": "Seed"]],
+                    "bittorrent": ["mode": "multi", "info": ["name": "Seed"]],
                     "files": [["index": "1", "path": missing.path, "length": "100", "completedLength": "100", "selected": "true"]]
                 ]]])
                 return try Self.rpcHTTPResponse(for: request, body: String(decoding: data, as: UTF8.self))
@@ -3046,7 +3461,7 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testMissingSeedPayloadPausesPersistsAndNeedsExplicitRecheck() async throws {
+    func testMissingSeedPayloadStaysPausedUntilReaddedForVerification() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -3063,7 +3478,7 @@ final class ChopChopTests: XCTestCase {
                 let data = try JSONSerialization.data(withJSONObject: ["result": [[
                     "gid": "seed", "status": active.value() ? "active" : "paused", "seeder": active.value() ? "true" : "false",
                     "dir": root.path, "totalLength": "100", "completedLength": "100", "uploadSpeed": active.value() ? "100" : "0",
-                    "bittorrent": ["info": ["name": "Seed"]],
+                    "bittorrent": ["mode": "multi", "info": ["name": "Seed"]],
                     "files": [["index": "1", "path": file.path, "length": "100", "completedLength": "100", "selected": "true"]]
                 ]]])
                 return try Self.rpcHTTPResponse(for: request, body: String(decoding: data, as: UTF8.self))
@@ -3072,7 +3487,7 @@ final class ChopChopTests: XCTestCase {
         }
         let settings = try PersistentSettingsStore(inMemory: true)
         let store = DownloadStore(settingsStore: settings, engineController: MockEngineController(client: client))
-        store.engineCapabilities = EngineCapabilities(product: "aria2-next", rpcVersion: "1.1.0", version: "2.8.6", enabledFeatures: ["BitTorrent"])
+        store.engineCapabilities = EngineCapabilities(product: "aria2-next", rpcVersion: "1.1.0", version: "3.8.6", enabledFeatures: ["BitTorrent"])
         var alerts: [UserFacingAlert] = []
         let observer = store.userAlerts.sink { alerts.append($0) }
         _ = await store.refreshTasks()
@@ -3111,12 +3526,12 @@ final class ChopChopTests: XCTestCase {
         XCTAssertFalse(calls.value().contains("aria2.unpause"), "Single, batch and scheduled resumes all respect the hold")
         XCTAssertFalse(calls.value().contains("aria2.forceBtRecheck"))
         await store.recheckTorrent(try XCTUnwrap(store.tasks.first))
-        XCTAssertTrue(calls.value().contains("aria2.forceBtRecheck"))
-        XCTAssertNil(store.tasks.first?.torrentFileIssue)
+        XCTAssertFalse(calls.value().contains("aria2.forceBtRecheck"), "V3 cannot recheck paused torrents")
+        XCTAssertNotNil(store.tasks.first?.torrentFileIssue)
         XCTAssertEqual(store.tasks.first?.status, .paused)
         XCTAssertFalse(calls.value().contains("aria2.unpause"), "Rechecking does not start transmission")
         await store.resume(try XCTUnwrap(store.tasks.first))
-        XCTAssertTrue(calls.value().contains("aria2.unpause"))
+        XCTAssertFalse(calls.value().contains("aria2.unpause"), "A restored file must not bypass the verification hold")
         _ = observer
     }
 
@@ -3286,13 +3701,13 @@ final class ChopChopTests: XCTestCase {
         let partial = base.appendingPathComponent("file.bin")
         try Data("unfinished content".utf8).write(to: partial)
 
-        let backup = try XCTUnwrap(EngineSessionMigration.prepare(supportDirectory: support, version: "2.8.6"))
+        let backup = try XCTUnwrap(EngineSessionMigration.prepare(supportDirectory: support, version: "3.8.6"))
         XCTAssertEqual(try Data(contentsOf: backup), original)
         XCTAssertEqual(try Data(contentsOf: session), original)
         XCTAssertEqual(try String(contentsOf: partial, encoding: .utf8), "unfinished content")
-        XCTAssertNil(try EngineSessionMigration.prepare(supportDirectory: support, version: "2.8.6"))
+        XCTAssertNil(try EngineSessionMigration.prepare(supportDirectory: support, version: "3.8.6"))
 
-        let nextBackup = try XCTUnwrap(EngineSessionMigration.prepare(supportDirectory: support, version: "2.8.7"))
+        let nextBackup = try XCTUnwrap(EngineSessionMigration.prepare(supportDirectory: support, version: "3.8.7"))
         XCTAssertNotEqual(nextBackup, backup)
         XCTAssertTrue(FileManager.default.fileExists(atPath: backup.path))
     }
@@ -3301,9 +3716,9 @@ final class ChopChopTests: XCTestCase {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: base) }
         let support = try Aria2NextPaths.supportDirectory(applicationSupportBase: base)
-        XCTAssertNil(try EngineSessionMigration.prepare(supportDirectory: support, version: "2.8.6"))
+        XCTAssertNil(try EngineSessionMigration.prepare(supportDirectory: support, version: "3.8.6"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: support.appendingPathComponent("Session Backups").path))
-        XCTAssertEqual(try String(contentsOf: support.appendingPathComponent("engine-version"), encoding: .utf8), "2.8.6")
+        XCTAssertEqual(try String(contentsOf: support.appendingPathComponent("engine-version"), encoding: .utf8), "3.8.6")
     }
 
     func testEngineUpgradeDoesNotMarkMigrationCompleteWhenBackupFails() throws {
@@ -3314,7 +3729,7 @@ final class ChopChopTests: XCTestCase {
         try Data("old session".utf8).write(to: session)
         try Data("not a directory".utf8).write(to: support.appendingPathComponent("Session Backups"))
 
-        XCTAssertThrowsError(try EngineSessionMigration.prepare(supportDirectory: support, version: "2.8.6"))
+        XCTAssertThrowsError(try EngineSessionMigration.prepare(supportDirectory: support, version: "3.8.6"))
         XCTAssertEqual(try String(contentsOf: session, encoding: .utf8), "old session")
         XCTAssertFalse(FileManager.default.fileExists(atPath: support.appendingPathComponent("engine-version").path))
     }
@@ -3345,6 +3760,199 @@ final class ChopChopTests: XCTestCase {
         let request = try client.makeRequest(method: "aria2.getGlobalStat", params: [])
         XCTAssertEqual(request.timeoutInterval, 5)
         XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
+    }
+
+    @MainActor
+    func testDownloadEventsCoalesceAndWaitForTaskMutationBeforeRefreshing() async throws {
+        let snapshots = LockedBox(0)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            if method == "aria2.getGlobalStat" { snapshots.withValue { $0 += 1 } }
+            if method == "aria2.tellStopped" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"pushed","status":"complete"}]}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.taskMutationDepth = 1
+        for _ in 0..<30 { store.handleEngineEvent(.download(method: "aria2.onDownloadComplete", gid: "pushed")) }
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(snapshots.value(), 0)
+        store.taskMutationDepth = 0
+        await store.engineEventRefreshTask?.value
+        XCTAssertEqual(snapshots.value(), 1)
+        XCTAssertEqual(store.tasks.first?.id, "pushed")
+        XCTAssertEqual(store.tasks.first?.status, .completed)
+        store.handleEngineEvent(.connected)
+        XCTAssertTrue(store.engineEventsConnected)
+        store.stopEngineEvents()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(snapshots.value(), 1, "Stopping must cancel queued event refreshes")
+        XCTAssertFalse(store.engineEventsConnected)
+    }
+
+    @MainActor
+    func testTransferSamplingKeepsMetadataAndAvoidsHistoryQueries() async throws {
+        let calls = LockedBox<[String]>([])
+        let keys = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            if method == "aria2.tellActive" {
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: try Self.requestBodyData(from: request)) as? [String: Any])
+                let params = try XCTUnwrap(payload["params"] as? [Any])
+                keys.withValue { $0 = params.last as? [String] ?? [] }
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"live","status":"active","totalLength":"4096","completedLength":"1024","downloadSpeed":"2048","uploadSpeed":"64","connections":"3"}]}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        var task = Aria2TaskDTO(gid: "live", status: "active", totalLength: "4096").toTask()
+        task.name = "Example download"
+        task.files = [DownloadFile(index: 1, path: "/tmp/example.zip", length: 4096, completedLength: 0, isSelected: true)]
+        store.tasks = [task]
+        store.selectedTaskID = task.id
+        let row = store.listPresentation.row(for: task)
+        store.lastFullRefresh = .now
+        for _ in 0..<4 {
+            let error = await store.refreshTransferProgress()
+            XCTAssertNil(error)
+        }
+        XCTAssertEqual(calls.value().filter { $0 == "aria2.tellActive" }.count, 4)
+        XCTAssertTrue(Set(calls.value()).isSubset(of: ["aria2.tellActive", "aria2.getGlobalStat"]))
+        XCTAssertTrue(Set(keys.value()).isDisjoint(with: ["files", "bittorrent", "uris", "bitfield"]))
+        XCTAssertEqual(row.task.downloadSpeed, 2048)
+        XCTAssertEqual(row.task.uploadSpeed, 64)
+        XCTAssertEqual(row.task.completedLength, 1024)
+        XCTAssertEqual(row.task.connections, 3)
+        XCTAssertEqual(row.task.files, task.files)
+        XCTAssertEqual(row.task.name, task.name)
+        XCTAssertEqual(store.selectedTaskID, task.id)
+        XCTAssertTrue(store.listPresentation.row(for: row.task) === row)
+
+        // Periodic reconciliation is required even when no WS notification arrives.
+        store.lastFullRefresh = .now.advanced(by: .seconds(-6))
+        await store.refreshTransferProgress()
+        XCTAssertTrue(calls.value().contains("aria2.tellWaiting"))
+        XCTAssertTrue(calls.value().contains("aria2.tellStopped"))
+    }
+
+    @MainActor
+    func testTransferSamplingReconcilesCompletionWithoutNotification() async throws {
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            if method == "aria2.tellStopped" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"live","status":"complete","totalLength":"4096","completedLength":"4096"}]}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.tasks = [Aria2TaskDTO(gid: "live", status: "active", totalLength: "4096").toTask()]
+        store.lastFullRefresh = .now
+        await store.refreshTransferProgress()
+        XCTAssertEqual(store.tasks.first?.status, .completed)
+        XCTAssertEqual(store.tasks.first?.completedLength, 4096)
+    }
+
+    @MainActor
+    func testTransferSamplingDiscardsResultAfterPauseAndSkipsOverlappingPoll() async throws {
+        let started = LockedBox(false)
+        let release = DispatchSemaphore(value: 0)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            if method == "aria2.tellActive" {
+                started.withValue { $0 = true }
+                _ = release.wait(timeout: .now() + 3)
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"live","status":"active","totalLength":"4096","completedLength":"1024","downloadSpeed":"2048","uploadSpeed":"0","connections":"3"}]}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown(); release.signal() }
+        store.tasks = [Aria2TaskDTO(gid: "live", status: "active", totalLength: "4096").toTask()]
+        store.lastFullRefresh = .now
+        let refresh = Task { await store.refreshTransferProgress() }
+        let didStart = await waitForMainActorCondition(timeout: 1) { started.value() }
+        XCTAssertTrue(didStart)
+        XCTAssertTrue(store.transferRefreshInFlight)
+        await store.refreshTransferProgress() // Must not issue a second request while one is suspended.
+        store.taskRevision += 1
+        store.tasks[0].status = .paused
+        release.signal()
+        _ = await refresh.value
+        XCTAssertEqual(store.tasks.first?.status, .paused)
+        XCTAssertEqual(store.tasks.first?.downloadSpeed, 0)
+        XCTAssertEqual(store.tasks.first?.completedLength, 0)
+    }
+
+    @MainActor
+    func testStartingTransferWakesIdlePollingAndRefreshesCheckingRow() async throws {
+        let polls = LockedBox(0)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            switch method {
+            case "aria2.tellActive":
+                polls.withValue { $0 += 1 }
+                let checking = polls.value() == 1
+                let body = checking
+                    ? #"{"gid":"starting","status":"active","totalLength":"4096","completedLength":"0","downloadSpeed":"0","bittorrent":{"mode":"multi","state":"checking"}}"#
+                    : #"{"gid":"starting","status":"active","totalLength":"4096","completedLength":"1024","downloadSpeed":"2048","bittorrent":{"mode":"multi","state":"downloading"}}"#
+                return try Self.rpcHTTPResponse(for: request, body: "{\"result\":[\(body)]}")
+            case "aria2.tellStatus":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"starting","status":"active","totalLength":"4096","completedLength":"1024","downloadSpeed":"2048","bittorrent":{"mode":"multi","state":"downloading"}}}"#)
+            default: return try Self.responseForStoreMutationPoll(method: method, request: request)
+            }
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.startPolling()
+        store.engineEventsConnected = true
+        try await Task.sleep(for: .milliseconds(100)) // Let the idle clock enter its 60-second sleep.
+        XCTAssertEqual(polls.value(), 0)
+        store.handleEngineEvent(.download(method: "aria2.onDownloadStart", gid: "starting"))
+        await store.engineEventRefreshTask?.value
+        let details = try await client.tellStatus("starting").task
+        XCTAssertEqual(details.downloadSpeed, 2048)
+        let fresh = await waitForMainActorCondition(timeout: 1.5) { store.tasks.first?.downloadSpeed == details.downloadSpeed }
+        XCTAssertTrue(fresh, "Starting a transfer must interrupt the idle wait; its checking snapshot cannot linger for 60 seconds")
+        let task = try XCTUnwrap(store.tasks.first)
+        XCTAssertFalse(task.isChecking)
+        XCTAssertEqual(store.listPresentation.row(for: task).task.downloadSpeed, details.downloadSpeed)
+        let pollCount = polls.value()
+        store.shutdown()
+        store.tasks = []
+        store.tasks = [task]
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(polls.value(), pollCount, "A stopped clock must not be revived by a row update")
+    }
+
+    @MainActor
+    func testNotificationDisconnectKeepsHTTPAvailableAndReconnectRecoversMissedState() async throws {
+        let snapshots = LockedBox(0)
+        let completedWhileOffline = LockedBox(false)
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            if method == "aria2.getGlobalStat" { snapshots.withValue { $0 += 1 } }
+            if method == "aria2.tellStopped", completedWhileOffline.value() {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"missed","status":"complete"}]}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.handleEngineEvent(.disconnected)
+        await store.engineEventRefreshTask?.value
+        XCTAssertFalse(store.engineEventsConnected)
+        XCTAssertNil(store.connectionIssue, "A notification outage is not an HTTP control outage")
+        XCTAssertEqual(snapshots.value(), 1)
+        completedWhileOffline.withValue { $0 = true }
+        store.handleEngineEvent(.connected)
+        await store.engineEventRefreshTask?.value
+        XCTAssertTrue(store.engineEventsConnected)
+        XCTAssertEqual(snapshots.value(), 2)
+        XCTAssertEqual(store.tasks.first { $0.id == "missed" }?.status, .completed)
     }
 
     func testRPCErrorsRedactTokenFromServerMessageAndInvalidBody() async throws {
@@ -3549,7 +4157,7 @@ final class ChopChopTests: XCTestCase {
         store.startEngineUpdateCheck()
         let notified = await waitForMainActorCondition(timeout: 2) { store.availableEngineUpdate != nil }
         XCTAssertTrue(notified)
-        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
+        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("3.10.0"))
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
     }
 
@@ -3590,13 +4198,13 @@ final class ChopChopTests: XCTestCase {
         defer { store.shutdown() }
         XCTAssertNil(store.selectedEngineVersion)
         XCTAssertEqual(store.recentEngineReleases.count, 5)
-        await manager.setLatest("2.11.0")
+        await manager.setLatest("3.11.0")
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.engineVersionDescription, "2.11.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.11.0")
         let requested = await manager.requestedVersions
-        XCTAssertEqual(requested, [EngineVersion("2.11.0")!])
+        XCTAssertEqual(requested, [EngineVersion("3.11.0")!])
     }
 
     @MainActor
@@ -3604,16 +4212,16 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        store.selectedEngineVersion = EngineVersion("2.9.0")
+        store.selectedEngineVersion = EngineVersion("3.9.0")
         XCTAssertFalse(store.canUpdateEngine, "The installed version must not be installed again")
-        store.selectedEngineVersion = EngineVersion("2.8.5")
+        store.selectedEngineVersion = EngineVersion("3.8.5")
         XCTAssertTrue(store.canUpdateEngine)
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
         XCTAssertNil(store.engineUpgradeError)
-        XCTAssertEqual(store.engineVersionDescription, "2.8.5")
-        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
+        XCTAssertEqual(store.engineVersionDescription, "3.8.5")
+        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("3.10.0"))
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
         XCTAssertEqual(controller.stopCallCount, 1)
         XCTAssertFalse(store.canUpdateEngine)
@@ -3628,13 +4236,13 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        controller.rejectedVersion = EngineVersion("2.8.5")
-        store.selectedEngineVersion = EngineVersion("2.8.5")
+        controller.rejectedVersion = EngineVersion("3.8.5")
+        store.selectedEngineVersion = EngineVersion("3.8.5")
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.installedEngine?.version, EngineVersion("2.9.0"))
-        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("2.9.0"))
+        XCTAssertEqual(store.installedEngine?.version, EngineVersion("3.9.0"))
+        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("3.9.0"))
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
         XCTAssertNotNil(store.engineUpgradeError)
         XCTAssertTrue(store.canUpdateEngine)
@@ -3656,17 +4264,17 @@ final class ChopChopTests: XCTestCase {
         store.startEngineUpdateCheck()
         let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
         XCTAssertTrue(loaded)
-        store.selectedEngineVersion = EngineVersion("1.0.0")
+        store.selectedEngineVersion = EngineVersion("3.1.0")
         XCTAssertFalse(store.canInstallRequiredEngine, "Versions outside the fetched list cannot be installed")
-        store.selectedEngineVersion = EngineVersion("2.8.4")
+        store.selectedEngineVersion = EngineVersion("3.8.4")
         XCTAssertTrue(store.canInstallRequiredEngine)
         store.installRequiredEngine()
         let ready = await waitForMainActorCondition(timeout: 3) { store.engineSetupState == .ready }
         XCTAssertTrue(ready)
-        XCTAssertEqual(store.installedEngine?.version, EngineVersion("2.8.4"))
-        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("2.10.0"))
+        XCTAssertEqual(store.installedEngine?.version, EngineVersion("3.8.4"))
+        XCTAssertEqual(store.availableEngineUpdate?.version, EngineVersion("3.10.0"))
         let requested = await manager.requestedVersions
-        XCTAssertEqual(requested, [EngineVersion("2.8.4")!])
+        XCTAssertEqual(requested, [EngineVersion("3.8.4")!])
     }
 
     @MainActor
@@ -3674,7 +4282,7 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, _) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        store.selectedEngineVersion = EngineVersion("2.8.5")
+        store.selectedEngineVersion = EngineVersion("3.8.5")
         XCTAssertTrue(store.hasEngineVersionChange)
         let status = store.engineUpdateStatus
         await manager.rejectListing()
@@ -3698,20 +4306,20 @@ final class ChopChopTests: XCTestCase {
         let (store, _) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
         let cached = store.recentEngineReleases
-        store.selectedEngineVersion = EngineVersion("2.8.5")
+        store.selectedEngineVersion = EngineVersion("3.8.5")
         await manager.rejectListing()
         store.startEngineUpdateCheck()
         let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
         XCTAssertTrue(loaded)
         XCTAssertNotNil(store.engineReleaseListError)
         XCTAssertEqual(store.recentEngineReleases, cached)
-        XCTAssertEqual(store.selectedEngineVersion, EngineVersion("2.8.5"))
+        XCTAssertEqual(store.selectedEngineVersion, EngineVersion("3.8.5"))
         store.selectedEngineVersion = nil
         XCTAssertTrue(store.canUpdateEngine)
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.engineVersionDescription, "2.10.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.10.0")
     }
 
     @MainActor
@@ -3719,8 +4327,8 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, _) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        store.selectedEngineVersion = EngineVersion("2.8.4")
-        await manager.setVersions(["2.11.0", "2.10.0", "2.9.0", "2.8.6", "2.8.5"])
+        store.selectedEngineVersion = EngineVersion("3.8.4")
+        await manager.setVersions(["3.11.0", "3.10.0", "3.9.0", "3.8.6", "3.8.5"])
         store.startEngineUpdateCheck()
         let loaded = await waitForMainActorCondition(timeout: 2) { !store.isCheckingEngineUpdate }
         XCTAssertTrue(loaded)
@@ -3736,11 +4344,11 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, _) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        await manager.setLatest("2.8.5")
+        await manager.setLatest("3.8.5")
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
         XCTAssertNil(store.engineUpgradeError)
         let requested = await manager.requestedVersions
         XCTAssertTrue(requested.isEmpty)
@@ -3762,7 +4370,7 @@ final class ChopChopTests: XCTestCase {
         XCTAssertTrue(finished)
         XCTAssertNil(store.engineUpgradeError)
         XCTAssertTrue(store.engineUpgradeResult?.contains("canceled") == true)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
         XCTAssertEqual(controller.stopCallCount, 0)
         XCTAssertTrue(controller.isRunning)
         XCTAssertTrue(store.canUpdateEngine)
@@ -3798,7 +4406,7 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        XCTAssertEqual(store.engineSidebarVersionDescription, "2.9.0")
+        XCTAssertEqual(store.engineSidebarVersionDescription, "3.9.0")
         store.updateEngine()
         store.updateEngine() // A repeated click must not start a second installation.
         XCTAssertFalse(store.canStartEngine)
@@ -3807,8 +4415,8 @@ final class ChopChopTests: XCTestCase {
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
         XCTAssertNil(store.engineUpgradeError)
-        XCTAssertEqual(store.engineVersionDescription, "2.10.0")
-        XCTAssertEqual(store.engineSidebarVersionDescription, "2.10.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.10.0")
+        XCTAssertEqual(store.engineSidebarVersionDescription, "3.10.0")
         XCTAssertNil(store.availableEngineUpdate)
         XCTAssertEqual(controller.stopCallCount, 1)
         XCTAssertEqual(controller.startCallCount, 2)
@@ -3826,7 +4434,7 @@ final class ChopChopTests: XCTestCase {
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
         XCTAssertNotNil(store.engineUpgradeError)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
         XCTAssertEqual(controller.stopCallCount, 0)
         XCTAssertEqual(controller.startCallCount, 1)
         XCTAssertTrue(store.canUpdateEngine)
@@ -3835,7 +4443,7 @@ final class ChopChopTests: XCTestCase {
         store.updateEngine()
         let retried = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(retried)
-        XCTAssertEqual(store.engineVersionDescription, "2.10.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.10.0")
         XCTAssertNil(store.engineUpgradeError)
     }
 
@@ -3844,15 +4452,15 @@ final class ChopChopTests: XCTestCase {
         let manager = StartupEngineManager()
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
-        controller.rejectedVersion = EngineVersion("2.10.0")
+        controller.rejectedVersion = EngineVersion("3.10.0")
         var alerts: [UserFacingAlert] = []
         let subscription = store.userAlerts.sink { alerts.append($0) }
         defer { subscription.cancel() }
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
-        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("2.9.0"))
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
+        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("3.9.0"))
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
         XCTAssertNotNil(store.engineUpgradeError)
         XCTAssertTrue(store.canUpdateEngine)
@@ -3871,8 +4479,8 @@ final class ChopChopTests: XCTestCase {
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
         XCTAssertNotNil(store.engineUpgradeError)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
-        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("2.9.0"))
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
+        XCTAssertEqual(controller.selectedInstallation?.version, EngineVersion("3.9.0"))
         XCTAssertEqual(store.runtime.phase, .running(pid: 1234))
         XCTAssertEqual(controller.startCallCount, 3)
         XCTAssertEqual(controller.stopCallCount, 2)
@@ -3889,7 +4497,7 @@ final class ChopChopTests: XCTestCase {
         store.updateEngine()
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
-        XCTAssertEqual(store.engineVersionDescription, "2.10.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.10.0")
         XCTAssertEqual(controller.startCallCount, 1)
         XCTAssertFalse(controller.isRunning)
     }
@@ -3903,7 +4511,7 @@ final class ChopChopTests: XCTestCase {
         store.updateEngine()
         await store.prepareForAppTermination()
         XCTAssertFalse(store.isUpdatingEngine)
-        XCTAssertEqual(store.engineVersionDescription, "2.9.0")
+        XCTAssertEqual(store.engineVersionDescription, "3.9.0")
         XCTAssertEqual(controller.startCallCount, 1)
         XCTAssertFalse(controller.isRunning)
         let activations = await manager.activationCount
@@ -4052,7 +4660,7 @@ final class ChopChopTests: XCTestCase {
         let client = try makeRPCClient { request in
             let method = try Self.captureRPCMethod(from: request, into: calls)
             if method == "aria2.tellStopped" {
-                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"seed-ended","status":"complete","bittorrent":{"info":{"name":"Seed"}},"totalLength":"100","completedLength":"100"}]}"#)
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"seed-ended","status":"complete","bittorrent":{"mode":"multi","info":{"name":"Seed"}},"totalLength":"100","completedLength":"100"}]}"#)
             }
             return try Self.responseForStoreMutationPoll(method: method, request: request)
         }
@@ -4098,7 +4706,7 @@ final class ChopChopTests: XCTestCase {
         let client = try makeRPCClient { request in
             let method = try Self.captureRPCMethod(from: request, into: calls)
             if method == "aria2.getVersion" {
-                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"2.8.6","rpcVersion":"1.1.0","enabledFeatures":["HTTPS"]}}"#)
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.8.6","rpcVersion":"1.1.0","enabledFeatures":["HTTPS"],"mediaFeatures":[]}}"#)
             }
             return try Self.responseForStoreMutationPoll(method: method, request: request)
         }
@@ -4107,7 +4715,7 @@ final class ChopChopTests: XCTestCase {
         store.engineSettings.rpcToken = "secret"
         store.engineSettings.btTrackerAutoSync = false
         await store.startEngine()
-        XCTAssertEqual(store.engineCapabilities?.version, "2.8.6")
+        XCTAssertEqual(store.engineCapabilities?.version, "3.8.6")
         store.addDraft.rawInput = "sftp://example.com/file.zip"
         let added = await store.submitDraft()
         XCTAssertFalse(added)
@@ -4120,7 +4728,7 @@ final class ChopChopTests: XCTestCase {
         let client = try makeRPCClient { request in
             let method = try Self.captureRPCMethod(from: request, into: calls)
             if method == "aria2.tellWaiting" {
-                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"archived","status":"paused","bittorrent":{"info":{"name":"Seed"}},"totalLength":"100","completedLength":"100"}]}"#)
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"archived","status":"paused","bittorrent":{"mode":"multi","info":{"name":"Seed"}},"totalLength":"100","completedLength":"100"}]}"#)
             }
             return try Self.responseForStoreMutationPoll(method: method, request: request)
         }
@@ -4334,6 +4942,11 @@ final class ChopChopTests: XCTestCase {
             let body: String
             switch method {
             case "aria2.tellStatus":
+                let requestBody = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+                let params = try XCTUnwrap(requestBody["params"] as? [Any])
+                let fields = try XCTUnwrap(params.last as? [String])
+                XCTAssertTrue(Set(fields).isDisjoint(with: ["downloadSpeed", "uploadSpeed", "connections"]),
+                              "Aggregate transfer values must come from the shared task poll")
                 body = "{\"result\":{\"gid\":\"live\",\"status\":\"\(phase.value())\",\"downloadSpeed\":\"1024\",\"uploadSpeed\":\"512\",\"uploadLength\":\"4096\",\"connections\":\"1\",\"bitfield\":\"80\",\"numPieces\":\"2\",\"pieceLength\":\"10\",\"bittorrent\":{}}}"
             case "aria2.getPeers": body = #"{"result":[{"ip":"127.0.0.1","port":"6881","state":"connected","downloadSpeed":"1024","uploadSpeed":"512","progress":"0.5"}]}"#
             case "aria2.getServers": body = #"{"result":[{"index":"1","servers":[{"uri":"https://example.org/file?token=hidden","downloadSpeed":"1024"}]}]}"#
@@ -4343,7 +4956,6 @@ final class ChopChopTests: XCTestCase {
         }
         let bt = try await client.transferSnapshot("live", isTorrent: true)
         XCTAssertEqual(bt.peers.count, 1)
-        XCTAssertEqual(bt.uploadSpeed, 512)
         XCTAssertEqual(bt.uploaded, 4096)
         XCTAssertEqual(calls.value(), ["aria2.tellStatus", "aria2.getPeers"])
         calls.set([])
@@ -4354,8 +4966,6 @@ final class ChopChopTests: XCTestCase {
             phase.set(status); calls.set([])
             let snapshot = try await client.transferSnapshot("live", isTorrent: true)
             XCTAssertEqual(snapshot.pieces?.completedCount, 1)
-            XCTAssertEqual(snapshot.downloadSpeed, 0)
-            XCTAssertEqual(snapshot.uploadSpeed, 0)
             XCTAssertTrue(snapshot.peers.isEmpty)
             XCTAssertEqual(calls.value(), ["aria2.tellStatus"])
         }
@@ -4372,8 +4982,6 @@ final class ChopChopTests: XCTestCase {
             return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"test\",\"status\":\"\(status.value())\"}}")
         }
         let snapshot = try await client.transferSnapshot("test", isTorrent: false)
-        XCTAssertEqual(snapshot.connections, 0)
-        XCTAssertEqual(snapshot.downloadSpeed, 0)
         XCTAssertTrue(snapshot.servers.isEmpty)
     }
 
@@ -4398,7 +5006,7 @@ final class ChopChopTests: XCTestCase {
         for width: CGFloat in [400, 600] {
             let host = NSHostingController(rootView: TaskBandwidthView(task: task)
                 .padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(Color(nsColor: .windowBackgroundColor)).environmentObject(store))
+                .background(Color(nsColor: .windowBackgroundColor)).environment(store))
             host.sizingOptions = []
             host.view.frame = NSRect(x: 0, y: 0, width: width, height: 280)
             let window = NSWindow(contentRect: host.view.frame,
@@ -4454,44 +5062,34 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testContinuousSeedingRuntimeDefaultsReportRestartAndPreserveEffectiveUploadCap() async throws {
-        for oldTime in [nil, "2880", "0", ""] as [String?] {
-            let changes = LockedBox<[String: String]>([:])
-            let calls = LockedBox<[String]>([])
-            let client = try makeRPCClient { request in
-                let method = try Self.captureRPCMethod(from: request, into: calls)
-                if method == "aria2.getGlobalOption" {
-                    let values = oldTime.map { ["seed-ratio": "2", "seed-time": $0] } ?? ["seed-ratio": "2"]
-                    let body = String(decoding: try JSONSerialization.data(withJSONObject: ["result": values]), as: UTF8.self)
-                    return try Self.rpcHTTPResponse(for: request, body: body)
-                }
-                XCTAssertEqual(method, "aria2.changeGlobalOption")
-                let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
-                let params = try XCTUnwrap(object["params"] as? [Any])
-                changes.set(try XCTUnwrap(params.last as? [String: String]))
-                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
-            }
-            let controller = MockEngineController(client: client)
-            let store = try makeInjectedStore(engineController: controller)
-            defer { store.shutdown() }
-            store.engineSettings.keepSharing = true
-            store.engineSettings.maxOverallUploadLimitKB = 512
-            store.preferences.bandwidthSchedule.enabled = true
-            store.preferences.bandwidthSchedule.startMinute = 0
-            store.preferences.bandwidthSchedule.endMinute = 0
-            store.preferences.bandwidthSchedule.uploadKB = 64
-            await store.applyRuntimeEngineOptions()
-            XCTAssertEqual(store.runtimeSettingsFeedback, .succeeded)
-            XCTAssertEqual(calls.value(), ["aria2.getGlobalOption", "aria2.changeGlobalOption"])
-            XCTAssertEqual(changes.value()["max-overall-upload-limit"], "64K")
-            XCTAssertNil(changes.value()["seed-time"], "Empty or zero would stop sharing, not clear the deadline")
-            XCTAssertEqual(changes.value()["seed-ratio"], oldTime == nil ? "0" : nil)
-            XCTAssertNil(changes.value()["max-upload-limit"], "Do not overwrite individual torrent caps")
-            if oldTime != nil {
-                XCTAssertEqual(store.activityMessage, String(localized: "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."))
-            }
-            XCTAssertEqual(controller.stopCallCount, 0, "Applying settings must not interrupt transfers")
+    func testContinuousSeedingRuntimeDefaultsClearTimeLimitAndPreserveEffectiveUploadCap() async throws {
+        let changes = LockedBox<[String: String]>([:])
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            XCTAssertEqual(method, "aria2.changeGlobalOption")
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            let params = try XCTUnwrap(object["params"] as? [Any])
+            changes.set(try XCTUnwrap(params.last as? [String: String]))
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
         }
+        let controller = MockEngineController(client: client)
+        let store = try makeInjectedStore(engineController: controller)
+        defer { store.shutdown() }
+        store.engineSettings.keepSharing = true
+        store.engineSettings.maxOverallUploadLimitKB = 512
+        store.preferences.bandwidthSchedule.enabled = true
+        store.preferences.bandwidthSchedule.startMinute = 0
+        store.preferences.bandwidthSchedule.endMinute = 0
+        store.preferences.bandwidthSchedule.uploadKB = 64
+        await store.applyRuntimeEngineOptions()
+        XCTAssertEqual(store.runtimeSettingsFeedback, .succeeded)
+        XCTAssertEqual(calls.value(), ["aria2.changeGlobalOption"])
+        XCTAssertEqual(changes.value()["max-overall-upload-limit"], "64K")
+        XCTAssertEqual(changes.value()["seed-time"], "", "V3 clears the seeding deadline with an empty value")
+        XCTAssertEqual(changes.value()["seed-ratio"], "0")
+        XCTAssertNil(changes.value()["max-upload-limit"], "Do not overwrite individual torrent caps")
+        XCTAssertEqual(controller.stopCallCount, 0, "Applying settings must not interrupt transfers")
     }
 
     @MainActor
@@ -4635,11 +5233,33 @@ final class ChopChopTests: XCTestCase {
         return (response, Data(body.utf8))
     }
 
+    @MainActor
+    func testStartupRejectsV2RPCAndStopsTheProcess() async throws {
+        let client = try makeRPCClient { request in
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            let method = try XCTUnwrap(object["method"] as? String)
+            if method == "aria2.getVersion" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"2.8.6","rpcVersion":"1.1.0","enabledFeatures":["HTTPS"],"mediaFeatures":[]}}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let controller = MockEngineController(client: client, isRunning: false, hasLaunchedProcess: false)
+        let store = try makeInjectedStore(engineController: controller, engineInstallationManager: StartupEngineManager())
+        defer { store.shutdown() }
+        await store.prepareEngineOnLaunch()
+        guard case .failed = store.runtime.phase else { return XCTFail("An unsupported RPC engine must fail startup") }
+        XCTAssertNil(store.engineCapabilities)
+        XCTAssertGreaterThan(controller.stopCallCount, 0)
+        XCTAssertEqual(store.runtime.lastError, EngineInstallationError.unsupportedVersion.localizedDescription)
+    }
+
     private static func responseForStoreMutationPoll(
         method: String,
         request: URLRequest
     ) throws -> (HTTPURLResponse, Data) {
         switch method {
+        case "aria2.getVersion":
+            return try rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.0.1","rpcVersion":"1.1.0","enabledFeatures":["HTTPS","BitTorrent"],"mediaFeatures":[]}}"#)
         case "aria2.tellActive", "aria2.tellWaiting", "aria2.tellStopped":
             return try rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"tasks","result":[]}"#)
         case "aria2.getGlobalStat":
@@ -4680,9 +5300,7 @@ final class ChopChopTests: XCTestCase {
 
     private static func captureRPCMethod(from request: URLRequest, into box: LockedBox<[String]>) throws -> String {
         let method = try captureRPCMethod(from: request)
-        var captured = box.value()
-        captured.append(method)
-        box.set(captured)
+        box.withValue { $0.append(method) }
         return method
     }
 
@@ -4813,9 +5431,9 @@ private actor SuspendedTrackerFetcher: BitTorrentTrackerSourceFetching {
         return await withCheckedContinuation { continuation = $0 }
     }
 
-    func finish() {
+    func finish(data: [String] = []) {
         finished = true
-        continuation?.resume(returning: TrackerSourceFetchResult(data: [], failures: []))
+        continuation?.resume(returning: TrackerSourceFetchResult(data: data, failures: []))
         continuation = nil
     }
 }
@@ -4899,8 +5517,8 @@ private actor StartupEngineManager: EngineInstallationManaging {
     var activationCount = 0
     var failActivation = false
     var failListing = false
-    var latestVersion = EngineVersion("2.10.0")!
-    var versions = ["2.10.0", "2.9.0", "2.8.6", "2.8.5", "2.8.4"]
+    var latestVersion = EngineVersion("3.10.0")!
+    var versions = ["3.10.0", "3.9.0", "3.8.6", "3.8.5", "3.8.4"]
     var requestedVersions: [EngineVersion] = []
     func setLatest(_ version: String) { latestVersion = EngineVersion(version)! }
     func setVersions(_ versions: [String]) { self.versions = versions }
@@ -4918,7 +5536,7 @@ private actor StartupEngineManager: EngineInstallationManaging {
     }
     func allowInstall() { failInstall = false }
     func localInstallation() async -> EngineInstallation? {
-        missing ? nil : EngineInstallation(executableURL: URL(fileURLWithPath: "/fake/aria2-next"), version: EngineVersion("2.9.0")!)
+        missing ? nil : EngineInstallation(executableURL: URL(fileURLWithPath: "/fake/aria2-next"), version: EngineVersion("3.9.0")!)
     }
     func latestRelease() async throws -> EngineRelease {
         releaseChecks += 1

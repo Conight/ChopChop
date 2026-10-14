@@ -5,6 +5,7 @@ Requires ffmpeg/ffprobe only for test fixtures and validation. They are not app 
 """
 import base64
 import functools
+import http.client
 import http.server
 import json
 import pathlib
@@ -19,6 +20,8 @@ import urllib.request
 import uuid
 
 from engine_fixture import download_engine
+from local_signing import signing_identity
+from release_config import load
 
 
 
@@ -105,7 +108,8 @@ def main():
         download_engine(engine)
         entitlements = root / 'empty.plist'
         entitlements.write_bytes(plistlib.dumps({}))
-        run('codesign', '--force', '--sign', '-', '--timestamp=none', '--entitlements', str(entitlements), str(engine))
+        run('codesign', '--force', '--sign', signing_identity(), '--timestamp=none',
+            '--identifier', load()['CHOPCHOP_APP_IDENTIFIER'] + '.dev.MediaSmoke', '--entitlements', str(entitlements), str(engine))
         rpc_port, token = port(), uuid.uuid4().hex
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         session = root / 'aria2.session'
@@ -136,10 +140,15 @@ def main():
                 except OSError: return False
             wait(ready)
 
-        def stop():
+        def stop(expected_status=0):
             rpc('saveSession')
-            rpc('shutdown')
-            assert process.wait(timeout=15) == 0
+            try:
+                rpc('shutdown')
+            except http.client.RemoteDisconnected:
+                # V3 can close RPC before its shutdown reply; require a clean process exit below.
+                pass
+            exit_status = process.wait(timeout=15)
+            assert exit_status == expected_status, (exit_status, process.stderr.read().decode())
             process.stderr.close()
 
         def status(gid): return rpc('tellStatus', gid)
@@ -219,11 +228,13 @@ def main():
             rpc('changeOption', retry, {'media-pause-after-probe': 'false'})
             rpc('unpause', retry)
             wait(lambda: status(retry)['status'] == 'error')
+            failure_code = int(status(retry)['errorCode'])
+            assert failure_code != 0
             assert isinstance(rpc('getOption', retry), dict)
             assert rpc('retryMedia', retry, {'header': 'Authorization: Bearer updated'}) == retry
             verify_output(complete(retry), 360)
             print('PASS media retry: original GID retained after a controlled HTTP failure')
-            stop()
+            stop(expected_status=failure_code)
         finally:
             if process and process.poll() is None:
                 process.terminate()

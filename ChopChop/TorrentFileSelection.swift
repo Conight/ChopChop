@@ -41,7 +41,7 @@ nonisolated enum TorrentFileKind: String, CaseIterable, Identifiable {
     }
 }
 
-/// Presentation and readiness are independent of the engine's legacy followedBy chain.
+/// Presentation and readiness are independent of fetched torrent documents’ followedBy chain.
 nonisolated enum TorrentFileTree {
     static func sourceName(_ source: String) -> String {
         if let components = URLComponents(string: source), components.scheme?.lowercased() == "magnet" {
@@ -59,8 +59,8 @@ nonisolated enum TorrentFileTree {
     }
 
     static func isResolved(_ snapshot: Aria2TaskSnapshot, source: String, followed: Bool) -> Bool {
-        if snapshot.task.requiresFileSelection { return true }
         guard !snapshot.task.isFetchingMetadata else { return false }
+        if snapshot.task.requiresFileSelection { return true }
         return followed || AddDownloadDraft.localTorrentFileURL(source) != nil ||
             (source.lowercased().hasPrefix("magnet:") && snapshot.task.torrentDiagnostics != nil &&
              !contentFiles(snapshot.task.files).isEmpty)
@@ -138,7 +138,7 @@ nonisolated struct TorrentFileNode: Identifiable, Equatable, Sendable {
 }
 
 struct BitTorrentFileSelectionView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     var session: BitTorrentFileSelectionSession
     @State private var query = ""
     @State private var nodes: [TorrentFileNode] = []
@@ -240,49 +240,121 @@ struct BitTorrentFileSelectionView: View {
     }
 
     private var discovery: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if session.phase == .failed {
-                    Label(String(localized: "Couldn’t retrieve the file list"), systemImage: "exclamationmark.triangle")
-                        .fontWeight(.medium)
-                    Text(session.issue ?? "").textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(String(localized: "Try again to check the same task, or change the source. Any metadata already received is kept until you cancel."))
-                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                } else {
-                    ProgressView().progressViewStyle(.linear)
-                    Text(discoveryTitle).fontWeight(.medium)
-                    Text(session.source.lowercased().hasPrefix("magnet:")
-                         ? String(localized: "A magnet link needs a reachable peer to provide its file list. File downloads begin only after you confirm your selection.")
-                         : String(localized: "Reading the torrent’s file list. File downloads begin only after you confirm your selection."))
-                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 10) {
-                            LabeledContent(String(localized: "Elapsed"), value: ByteFormat.duration(Int(context.date.timeIntervalSince(session.startedAt))))
-                            if let peers = session.diagnostics?.peers {
-                                LabeledContent(String(localized: "Connected peers"), value: peers.formatted())
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            VStack(alignment: .leading, spacing: 12) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if session.phase == .failed {
+                            Label(String(localized: "Couldn’t retrieve the file list"), systemImage: "exclamationmark.triangle")
+                                .fontWeight(.medium)
+                            Text(session.issue ?? "").textSelection(.enabled)
+                            Text(String(localized: "Try again to check the same task, or change the source. Any metadata already received is kept until you cancel."))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            if session.isDiscoverySlow(at: context.date) {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Label(session.discoveryStage.title, systemImage: "clock.badge.exclamationmark")
+                                        .fontWeight(.medium)
+                                    Spacer(minLength: 0)
+                                    Text(ByteFormat.duration(max(0, Int(context.date.timeIntervalSince(session.startedAt)))))
+                                        .monospacedDigit().foregroundStyle(.secondary).fixedSize()
+                                        .accessibilityLabel(String(localized: "Elapsed"))
+                                        .accessibilityValue(ByteFormat.duration(max(0, Int(context.date.timeIntervalSince(session.startedAt)))))
+                                }
+                            } else {
+                                ProgressView().progressViewStyle(.linear)
+                                Text(session.discoveryStage.title).fontWeight(.medium)
+                                connectionRow(String(localized: "Elapsed"),
+                                    ByteFormat.duration(max(0, Int(context.date.timeIntervalSince(session.startedAt)))))
                             }
-                            if let connecting = session.diagnostics?.connecting {
-                                LabeledContent(String(localized: "Connecting peers"), value: connecting.formatted())
-                            }
-                            if context.date.timeIntervalSince(session.startedAt) >= 20 {
-                                Label(String(localized: "Still waiting? A local .torrent file can show the file list without peer discovery. You can change the source below."), systemImage: "info.circle")
-                                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }.monospacedDigit()
+                        }
+                        if session.isDiscoverySlow(at: context.date) || session.isPaused {
+                            Text(session.discoveryStage.waitingReason).foregroundStyle(.secondary)
+                        }
+                        if session.source.lowercased().hasPrefix("magnet:") || session.discovery?.trackers != nil {
+                            connectionDetails
+                        }
+                        if session.phase == .loading && !session.isDiscoverySlow(at: context.date) {
+                            Text(String(localized: "File downloads begin only after you confirm your selection. A local .torrent file can provide the file list without waiting for peers."))
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                }.accessibilityIdentifier("bt-file-selection-loading")
+                if session.phase == .loading && (session.isDiscoverySlow(at: context.date) || session.isPaused || store.isRetryingBitTorrentDiscovery) {
+                    HStack(spacing: 10) {
+                        Button(store.isRetryingBitTorrentDiscovery
+                               ? String(localized: "Retrying…") : String(localized: "Retry Connection")) {
+                            store.retryBitTorrentDiscovery()
+                        }
+                        .disabled(store.isRetryingBitTorrentDiscovery || session.isQueued)
+                        .accessibilityIdentifier("bt-discovery-retry")
+                        Text(String(localized: "Keeps this task and received metadata."))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-        }.accessibilityIdentifier("bt-file-selection-loading")
+            }
+        }
     }
 
-    private var discoveryTitle: String {
-        if session.isQueued { return String(localized: "Waiting for an available download slot…") }
-        if (session.diagnostics?.peers ?? 0) > 0 { return String(localized: "Requesting the file list from connected peers…") }
-        return session.source.lowercased().hasPrefix("magnet:")
-            ? String(localized: "Finding peers for this magnet link…")
-            : String(localized: "Reading the torrent file list…")
+    private var connectionDetails: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let trackers = session.discovery?.trackers {
+                connectionRow(String(localized: "Trackers responded"), "\(trackers.responded) / \(trackers.total)")
+                Text(String(localized: "\(trackers.announcing) announcing · \(trackers.failed) failed"))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                connectionRow(String(localized: "Trackers responded"), unavailableDetail)
+            }
+            connectionRow(String(localized: "Connecting peers"), session.discovery?.peers?.connecting.formatted() ?? unavailableDetail)
+            connectionRow(String(localized: "Handshaking peers"), session.discovery?.peers?.handshaking.formatted() ?? unavailableDetail)
+            connectionRow(String(localized: "Handshake complete"), session.discovery?.peers?.connected.formatted() ?? unavailableDetail)
+            if let unknown = session.discovery?.peers?.unknown, unknown > 0 {
+                connectionRow(String(localized: "Peers with unknown state"), unknown.formatted())
+            }
+            connectionRow(String(localized: "DHT nodes (engine)"), session.discovery?.dhtNodes?.formatted() ?? unavailableDetail)
+            if let observation = session.discovery, observation.hasUnavailableDetails {
+                Text(String(localized: "Some connection details are unavailable. Retrying automatically; unavailable does not mean zero."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let observation = session.discovery, Date().timeIntervalSince(observation.updatedAt) > 10 {
+                Text(String(localized: "Connection details may be out of date. Waiting for the engine to respond…"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let trackers = session.discovery?.trackers, !trackers.entries.isEmpty {
+                DisclosureGroup(String(localized: "Tracker Details")) {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(trackers.entries.enumerated()), id: \.offset) { _, entry in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(entry.address).textSelection(.enabled)
+                                    Spacer(minLength: 8)
+                                    Text(entry.statusTitle).foregroundStyle(.secondary).fixedSize()
+                                }
+                                if let message = entry.message {
+                                    Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }.padding(.top, 6)
+                }
+            }
+        }.monospacedDigit()
     }
+
+    private var unavailableDetail: String {
+        session.discovery == nil ? String(localized: "Checking…") : String(localized: "Unavailable")
+    }
+
+    private func connectionRow(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value).monospacedDigit()
+        }.accessibilityElement(children: .combine)
+    }
+
 }
 
 /// NSButton supplies the standard mixed-state checkbox, keyboard focus and VoiceOver value.
@@ -300,8 +372,9 @@ private struct TorrentSelectionCheckbox: NSViewRepresentable {
     }
     func updateNSView(_ button: NSButton, context: Context) {
         let count = indexes.intersection(selected).count
-        button.state = count == 0 ? .off : count == indexes.count ? .on : .mixed
-        button.setAccessibilityLabel(title)
+        let state: NSControl.StateValue = count == 0 ? .off : count == indexes.count ? .on : .mixed
+        if button.state != state { button.state = state }
+        if button.accessibilityLabel() != title { button.setAccessibilityLabel(title) }
         context.coordinator.action = { onChange(count != indexes.count) }
     }
     final class Coordinator: NSObject {

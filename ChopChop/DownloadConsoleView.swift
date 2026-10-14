@@ -9,7 +9,7 @@ struct DownloadConsoleView: View {
     @Environment(\.openWindow) private var openWindow
     @StateObject private var commandSearch = CommandSearchPresentation()
     @ObservedObject var inputCoordinator: DownloadInputCoordinator
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @Environment(\.controlActiveState) private var controlActiveState
     @State private var presentedAlert: UserFacingAlert?
     @State private var sidebarSelection: SidebarDestination?
@@ -105,17 +105,17 @@ struct DownloadConsoleView: View {
                         Label(String(localized: "Details"), systemImage: "info.circle")
                     }
                     .toggleStyle(.button)
-                    .disabled(store.selectedTask == nil)
+                    .disabled(store.selectedTaskRow == nil)
                     .help(detailsPresentation.isPresented ? String(localized: "Hide Details") : String(localized: "Show Details"))
                     .accessibilityIdentifier("toolbar-inspector-button")
                 }
             }
-            .searchable(text: $store.searchQuery, placement: .toolbar, prompt: String(localized: "Search downloads"))
+            .searchable(text: Bindable(store).searchQuery, placement: .toolbar, prompt: String(localized: "Search downloads"))
         }
         .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $isAddPanelPresented, onDismiss: finishAddDownloadPanel) {
             AddDownloadPanel(mediaCoordinator: store.mediaDownloads, onDismiss: dismissAddDownloadPanel)
-                .environmentObject(store)
+                .environment(store)
         }
         .onDrop(of: [.fileURL, .url, .plainText], isTargeted: $isDropTargeted) { providers in
             store.importDroppedItems(providers)
@@ -131,7 +131,7 @@ struct DownloadConsoleView: View {
         .background(TaskDetailsWindowAnchor(presentation: detailsPresentation))
         .frame(minWidth: 900, minHeight: 600)
         .focusedSceneValue(\.downloadWindowActions, windowActions)
-        .onChange(of: store.selectedTask?.id, initial: true) { _, id in
+        .onChange(of: store.selectedTaskRow?.id, initial: true) { _, id in
             detailsPresentation.selectionChanged(to: id)
         }
         .onAppear {
@@ -236,7 +236,7 @@ struct DownloadConsoleView: View {
         DownloadWindowActions(newDownload: scheduleAddDownloadPanelPresentation,
             pasteDownload: pasteClipboardIntoDraft, openDownloadFile: openDownloadFile,
             toggleDetails: toggleDetails, detailsPresented: detailsPresentation.isPresented,
-            hasSelection: store.selectedTask != nil,
+            hasSelection: store.selectedTaskRow != nil,
             canPresentDownload: inputCoordinator.owner == nil && !store.engineSetupState.requiresInstallation,
             showDetails: { section in
                 detailsPresentation.selectionChanged(to: store.selectedTaskID)
@@ -357,7 +357,7 @@ struct DownloadConsoleView: View {
 }
 
 private struct DownloadSidebar: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @Binding var selection: SidebarDestination?
     var updates: AppUpdateCoordinator?
 
@@ -420,7 +420,7 @@ private struct SidebarRow: View {
 }
 
 struct UpdateActivityFooter: View {
-    @ObservedObject var updates: AppUpdateCoordinator
+    let updates: AppUpdateCoordinator
 
     var body: some View {
         SidebarActivityFooter(isCheckingAppUpdate: updates.state == .checking,
@@ -431,41 +431,49 @@ struct UpdateActivityFooter: View {
 struct SidebarActivityFooter: View {
     var isCheckingAppUpdate = false
     var appUpdateAvailable = false
-    @EnvironmentObject private var store: DownloadStore
-    @Environment(\.openSettings) private var openSettings
-
-    private var uploadSpeed: Int64 {
-        store.tasks.filter { $0.status == .active }.reduce(0) { total, task in
-            let result = total.addingReportingOverflow(max(0, task.uploadSpeed))
-            return result.overflow ? .max : result.partialValue
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            SidebarTransferActivity()
+            Divider()
+            SidebarEngineButton(isCheckingAppUpdate: isCheckingAppUpdate, appUpdateAvailable: appUpdateAvailable)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sidebar-quick-stats-card")
+    }
+}
+
+private struct SidebarTransferActivity: View {
+    @Environment(DownloadStore.self) private var store
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(ByteFormat.speed(store.activeSpeed), systemImage: "arrow.down")
+                TransferSpeedLabel(speed: store.activeSpeed, uploading: false)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(String(localized: "Download speed"))
                     .accessibilityValue(ByteFormat.speed(store.activeSpeed))
                     .accessibilityIdentifier("sidebar-quick-stats-network-row")
                 Spacer(minLength: 8)
-                Label(ByteFormat.speed(uploadSpeed), systemImage: "arrow.up")
+                TransferSpeedLabel(speed: store.uploadSpeed, uploading: true)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(String(localized: "Upload speed"))
-                    .accessibilityValue(ByteFormat.speed(uploadSpeed))
+                    .accessibilityValue(ByteFormat.speed(store.uploadSpeed))
             }
             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             .accessibilityElement(children: .contain)
             SpeedSparkline(samples: store.recentSpeedSamples, height: 22)
                 .help(String(localized: "10 min"))
                 .accessibilityIdentifier("sidebar-speed-curve")
-            Divider()
-            engineSettingsButton
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("sidebar-quick-stats-card")
     }
+}
+
+private struct SidebarEngineButton: View {
+    var isCheckingAppUpdate: Bool
+    var appUpdateAvailable: Bool
+    @Environment(DownloadStore.self) private var store
+    @Environment(\.openSettings) private var openSettings
+    var body: some View { engineSettingsButton }
 
     private var isCheckingUpdates: Bool { isCheckingAppUpdate || store.isCheckingEngineUpdate }
     private var hasUpdate: Bool { appUpdateAvailable || store.availableEngineUpdate != nil }
@@ -593,16 +601,18 @@ struct SidebarActivityFooter: View {
 }
 
 struct DownloadCanvas: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @EnvironmentObject private var detailsPresentation: TaskDetailsPresentation
+    @Environment(\.controlActiveState) private var controlActiveState
+    @FocusState private var taskListFocused: Bool
     var destination: SidebarDestination
     var onPaste: () -> Void
     var onOpenFile: () -> Void
     var showDetails: () -> Void
     var toggleDetails: () -> Void
 
-    private var visibleTasks: [DownloadTask] {
-        store.visibleTasks(for: destination)
+    private var visibleRows: [DownloadRowState] {
+        store.listPresentation.visibleRows(for: destination, query: store.searchQuery)
     }
 
     var body: some View {
@@ -633,24 +643,28 @@ struct DownloadCanvas: View {
                         }.padding(.horizontal, AppLayout.pageInset).padding(.vertical, 8)
                     }
                     GeometryReader { geometry in
-                        List(selection: $store.selectedTaskIDs) {
+                        List(selection: Bindable(store).selectedTaskIDs) {
                             if #available(macOS 27.0, *), destination == .waiting {
-                                ForEach(visibleTasks.filter(\.canReorderInQueue)) { task in
-                                    taskRow(task, compact: geometry.size.width < 720)
+                                ForEach(visibleRows.filter { $0.presentation.canReorderInQueue }) { row in
+                                    taskRow(row, compact: geometry.size.width < 720)
                                 }.reorderable()
-                                ForEach(visibleTasks.filter { !$0.canReorderInQueue }) { task in
-                                    taskRow(task, compact: geometry.size.width < 720)
+                                ForEach(visibleRows.filter { !$0.presentation.canReorderInQueue }) { row in
+                                    taskRow(row, compact: geometry.size.width < 720)
                                 }
                             } else {
-                                ForEach(visibleTasks) { task in
-                                    taskRow(task, compact: geometry.size.width < 720)
-                                        .modifier(QueueReordering(store: store, task: task))
+                                // Stable references keep polling changes inside each row;
+                                // List only reconciles membership, order and selection.
+                                ForEach(visibleRows) { row in
+                                    taskRow(row, compact: geometry.size.width < 720)
                                 }
                             }
                         }
                         .listStyle(.inset)
-                        .modifier(NativeQueueContainer(store: store, enabled: destination == .waiting))
-                        .stateChangeMotion(visibleTasks.map(\.id), enabled: store.searchQuery.isEmpty)
+                        .focused($taskListFocused)
+                        .scrollContentBackground(.hidden)
+                        .modifier(NativeQueueContainer(store: store, enabled: usesNativeReordering &&
+                            !store.isReorderingQueue && !store.isUpdatingEngine && !store.isPerformingBatchOperation && store.engineController.isRunning))
+                        .stateChangeMotion(visibleRows.map(\.id), enabled: store.searchQuery.isEmpty)
                         .contextMenu(forSelectionType: String.self) { ids in
                             if let task = store.tasks.first(where: { ids.contains($0.id) }) {
                                 DownloadTaskContextMenu(task: task, context: context(for: task, ids: ids))
@@ -662,7 +676,7 @@ struct DownloadCanvas: View {
                             }
                         }
                         .onKeyPress(.space, phases: .down) { key in
-                            guard key.modifiers.intersection([.command, .control, .option, .shift]).isEmpty, store.selectedTask != nil,
+                            guard key.modifiers.intersection([.command, .control, .option, .shift]).isEmpty, store.selectedTaskRow != nil,
                                   TaskDetailsKeyboard.permitsPreviewShortcut(in: detailsPresentation.owner) else { return .ignored }
                             toggleDetails()
                             return .handled
@@ -675,9 +689,9 @@ struct DownloadCanvas: View {
                         }
                         .accessibilityIdentifier("download-task-list")
                         .overlay {
-                            if visibleTasks.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()).transition(.opacity) }
+                            if visibleRows.isEmpty { emptyState.frame(maxWidth: .infinity, maxHeight: .infinity).background(DownloadWorkspaceBackdrop()).transition(.opacity) }
                         }
-                        .stateChangeMotion(visibleTasks.isEmpty)
+                        .stateChangeMotion(visibleRows.isEmpty)
                     }
                 }
             }
@@ -693,13 +707,21 @@ struct DownloadCanvas: View {
         store.connectionIssue ?? store.historyIssue ?? store.downloadPlanIssue ?? store.bandwidthPlanIssue ?? store.batchOperationIssue
     }
 
-    private func taskRow(_ task: DownloadTask, compact: Bool) -> some View {
-        DownloadTaskRow(context: context(for: task), row: store.listPresentation.row(for: task),
-            isSelected: store.selectedTaskIDs.contains(task.id),
+    private var usesNativeReordering: Bool {
+        if #available(macOS 27.0, *) { return destination == .waiting }
+        return false
+    }
+
+    private func taskRow(_ row: DownloadRowState, compact: Bool) -> some View {
+        DownloadTaskRow(context: .listTask(store: store, taskID: row.id, selection: nil,
+            detailsPresentation: detailsPresentation, showDetails: showDetails), row: row,
+            isSelected: store.selectedTaskIDs.contains(row.id),
+            isEmphasized: taskListFocused && controlActiveState == .key,
             actionsEnabled: DownloadAction.engineReady(in: store) && !store.isPerformingBatchOperation,
             removalEnabled: !store.isUpdatingEngine && !store.isPerformingBatchOperation,
-            scheduleArmed: store.armedScheduledTaskIDs.contains(task.id), compact: compact)
-            .equatable().tag(task.id)
+            scheduleArmed: store.armedScheduledTaskIDs.contains(row.id), compact: compact,
+            usesNativeReordering: usesNativeReordering)
+            .equatable().tag(row.id)
     }
 
     private func context(for task: DownloadTask, ids: Set<String>? = nil) -> DownloadActionContext {
@@ -762,18 +784,18 @@ struct DownloadCanvas: View {
     }
 
     private func clearHiddenSelection() {
-        store.selectedTaskIDs.formIntersection(visibleTasks.map(\.id))
+        store.selectedTaskIDs.formIntersection(visibleRows.map(\.id))
     }
 }
 
 /// Secondary, read-only status below the task list. Its row spans the
 /// entire detail area, while the navigation sidebar keeps its full height.
 struct DownloadStatusBar: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
 
     private var totalSize: Int64 {
-        store.tasks.reduce(0) { total, task in
-            let sum = total.addingReportingOverflow(max(0, task.totalLength))
+        store.listPresentation.orderedRows.reduce(0) { total, row in
+            let sum = total.addingReportingOverflow(max(0, row.presentation.totalLength))
             return sum.overflow ? .max : sum.partialValue
         }
     }
@@ -790,7 +812,7 @@ struct DownloadStatusBar: View {
                         .accessibilityIdentifier("download-status-completed")
                     Text("·").accessibilityHidden(true)
                     Text(String(localized: "Total Size: \(ByteFormat.size(totalSize))"))
-                        .help(String(localized: "\(store.tasks.count) items"))
+                        .help(String(localized: "\(store.listPresentation.orderedRows.count) items"))
                         .accessibilityIdentifier("download-status-size")
                 }.fixedSize()
                 HStack(spacing: 16) {
@@ -818,7 +840,7 @@ struct DownloadStatusBar: View {
 }
 
 private struct BrowserCaptureView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
 
     var body: some View {
         Form {

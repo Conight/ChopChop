@@ -64,7 +64,7 @@ final class DesignPreviewTests: XCTestCase {
         defer { store.shutdown(); Task { await probe.finishApp(); await probe.finishEngine() } }
         store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 1234))
         let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.1"), client: probe, defaults: defaults)
-        let host = NSHostingController(rootView: UpdateActivityFooter(updates: updates).environmentObject(store).desktopControls().frame(width: 188))
+        let host = NSHostingController(rootView: UpdateActivityFooter(updates: updates).environment(store).desktopControls().frame(width: 188))
         host.sizingOptions = []
         let window = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 188, height: 180),
                                          styleMask: [.titled], backing: .buffered, defer: false)
@@ -114,7 +114,7 @@ final class DesignPreviewTests: XCTestCase {
         let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let host = NSHostingController(rootView: Color.clear.sheet(isPresented: .constant(true)) {
-            AddDownloadPanel(onDismiss: {}).environmentObject(store).background(InvisibleSheetWindow())
+            AddDownloadPanel(onDismiss: {}).environment(store).background(InvisibleSheetWindow())
         })
         host.sizingOptions = []
         let owner = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
@@ -151,7 +151,7 @@ final class DesignPreviewTests: XCTestCase {
                 TaskScheduleView(task: task, initiallyExpanded: true)
                 FileVerificationView(file: task.files[0], initiallyExpanded: true)
             }.padding(16)
-        }.environmentObject(store)
+        }.environment(store)
         let host = NSHostingController(rootView: root)
         host.sizingOptions = []
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 560),
@@ -183,7 +183,7 @@ final class DesignPreviewTests: XCTestCase {
             taskName: String(repeating: "Long torrent title ", count: 12), files: (1...200).map {
                 DownloadFile(index: $0, path: "/tmp/Example/Folder/File \($0).bin", length: 100, completedLength: 0, isSelected: true)
             }, selectedFileIndexes: [1], phase: .ready, destination: "/tmp")
-        let host = NSHostingController(rootView: AddDownloadPanel(onDismiss: {}).environmentObject(store))
+        let host = NSHostingController(rootView: AddDownloadPanel(onDismiss: {}).environment(store))
         host.sizingOptions = []
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 480),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -205,6 +205,26 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
+    func testTorrentDiscoveryShowsConnectionsAndKeepsRetryVisibleInCompactSheet() async throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for (state, appearance) in [("handshaking", NSAppearance.Name.aqua), ("connected", .darkAqua), ("unknown", .aqua)] {
+            store.bitTorrentSelectionSession = BitTorrentFileSelectionSession(source: "magnet:?xt=urn:btih:test",
+                taskName: "Example torrent", files: [], selectedFileIndexes: [], phase: .loading,
+                startedAt: Date().addingTimeInterval(-125),
+                discovery: TorrentDiscovery(trackers: .init([
+                    BitTorrentTrackerStatus(url: "https://tracker.example/announce", status: "working", verified: "true"),
+                    BitTorrentTrackerStatus(url: "udp://tracker.example:80", status: "error", message: "Connection timed out")]),
+                    peers: state == "unknown" ? nil : .init([PeerTransfer(state: state), PeerTransfer(state: "connecting")]), dhtNodes: 251))
+            let view = AddDownloadPanel(onDismiss: {}).environment(store)
+            try await render(view, name: "torrent-discovery-" + state, size: NSSize(width: 740, height: 520), appearance: appearance, output: output)
+            try await render(view, name: "torrent-discovery-compact-" + state, size: NSSize(width: 660, height: 480), appearance: appearance, output: output)
+        }
+    }
+
+    @MainActor
     func testResizedTorrentSheetFillsWindowAcrossSourceChanges() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
@@ -212,7 +232,7 @@ final class DesignPreviewTests: XCTestCase {
         let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let controller = NSHostingController(rootView: Color.clear.sheet(isPresented: .constant(true)) {
-            AddDownloadPanel(onDismiss: {}).environmentObject(store).background(InvisibleSheetWindow())
+            AddDownloadPanel(onDismiss: {}).environment(store).background(InvisibleSheetWindow())
         })
         controller.sizingOptions = []
         let owner = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 900),
@@ -304,7 +324,7 @@ final class DesignPreviewTests: XCTestCase {
         store.addDraft.customHeaders = "X-Example: " + String(repeating: "long-value", count: 30)
         let controller = NSHostingController(rootView: Color.clear
             .sheet(isPresented: .constant(true)) {
-                AddDownloadPanel(initiallyShowsAdvanced: true, mediaCoordinator: store.mediaDownloads, onDismiss: {}).environmentObject(store)
+                AddDownloadPanel(initiallyShowsAdvanced: true, mediaCoordinator: store.mediaDownloads, onDismiss: {}).environment(store)
                     .frame(width: width, height: height)
                     .background(InvisibleSheetWindow())
             })
@@ -385,14 +405,16 @@ final class DesignPreviewTests: XCTestCase {
         let map = try XCTUnwrap(PieceMap(count: 3500, pieceLength: 2_097_152,
             bitfield: String(repeating: "bce08012ff", count: 88), totalSpan: 7_340_031_003))
         let peers = try JSONDecoder().decode([PeerTransfer].self, from: Data(#"[{"ip":"2001:db8:1234:1234:abcd:0123:ef12:1234","port":"6881","state":"connected","peerClientName":"A long peer client identification string","transport":"utp","downloadSpeed":"1048576","uploadSpeed":"32768","progress":"0.73","incoming":"true","encryption":"rc4","sources":["dht","pex"]}]"#.utf8))
-        let snapshot = TransferSnapshot(pieces: map, peers: peers, downloadSpeed: 12_000_000, uploadSpeed: 1_240_000, uploaded: 4_123_456, connections: 8)
+        var task = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"preview","status":"active","totalLength":"7340031003","completedLength":"1234567","bittorrent":{}}"#.utf8)).toTask()
+        task.protocolKind = .bitTorrent; task.status = .active
+        task.downloadSpeed = 12_000_000; task.uploadSpeed = 1_240_000; task.connections = 8
         let servers = [ServerTransfer(id: "1:0", fileIndex: 1, address: "downloads.long-example-hostname.example.org:443", transport: "HTTPS", downloadSpeed: 1234567)]
         let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for appearance: NSAppearance.Name in [.aqua, .darkAqua, .accessibilityHighContrastAqua] {
             let root = ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    TransferRateSummary(snapshot: snapshot, isTorrent: true)
+                    TransferRateSummary(task: task, uploaded: 4_123_456)
                     PieceMapView(map: map)
                     PeerTransfersView(peers: peers)
                     ServerTransfersView(servers: servers)
@@ -444,7 +466,7 @@ final class DesignPreviewTests: XCTestCase {
         store.tasks[4].totalLength = 0
         store.tasks[5].totalLength = 0
         store.tasks[6].errorMessage = "The connection was interrupted. 可以检查网络后继续此任务。"
-        let bar = NSHostingController(rootView: DownloadStatusBar().environmentObject(store))
+        let bar = NSHostingController(rootView: DownloadStatusBar().environment(store))
         for width: CGFloat in [280, 900] {
             let size = bar.sizeThatFits(in: NSSize(width: width, height: 100))
             XCTAssertGreaterThanOrEqual(size.height, 28)
@@ -455,14 +477,14 @@ final class DesignPreviewTests: XCTestCase {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for appearance: NSAppearance.Name in [.aqua, .darkAqua, .accessibilityHighContrastAqua] {
             store.selectedTaskID = nil
-            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store),
+            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store),
                              name: "chrome-window-\(appearance.rawValue)", size: NSSize(width: 1100, height: 600),
                              appearance: appearance, output: output)
             store.selectedTaskID = store.tasks[0].id
-            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store),
+            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store),
                              name: "chrome-selected-\(appearance.rawValue)", size: NSSize(width: 900, height: 600),
                              appearance: appearance, output: output)
-            try await render(TaskInspectorView(task: store.tasks[0]).environmentObject(store),
+            try await render(TaskInspectorView(task: store.tasks[0]).environment(store),
                              name: "chrome-details-\(appearance.rawValue)", size: NSSize(width: 520, height: 480),
                              appearance: appearance, output: output)
         }
@@ -478,7 +500,7 @@ final class DesignPreviewTests: XCTestCase {
             try await render(VStack(spacing: 0) {
                 DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
                 DownloadStatusBar()
-            }.environmentObject(store).environmentObject(presentation),
+            }.environment(store).environmentObject(presentation),
                 name: "downloads-list-\(name)", size: NSSize(width: width, height: 520),
                 appearance: appearance, output: output)
         }
@@ -506,7 +528,7 @@ final class DesignPreviewTests: XCTestCase {
         try await render(VStack(spacing: 0) {
             DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
             DownloadStatusBar()
-        }.environmentObject(store).environmentObject(presentation),
+        }.environment(store).environmentObject(presentation),
             name: "downloads-list-states", size: NSSize(width: 579, height: 520),
             appearance: .aqua, output: output)
         print("CHROME_PREVIEW_OUTPUT=\(output.path)")
@@ -522,7 +544,7 @@ final class DesignPreviewTests: XCTestCase {
         file.sourceURL = "https://developer.apple.com/downloads/example.dmg?token=private"
         file.addedAtIsFirstSeen = false
         for appearance: NSAppearance.Name in [.aqua, .darkAqua, .accessibilityHighContrastAqua] {
-            try await render(TaskInspectorView(task: file).environmentObject(store),
+            try await render(TaskInspectorView(task: file).environment(store),
                              name: "details-layout-default-\(appearance.rawValue)", size: NSSize(width: 600, height: 680),
                              appearance: appearance, output: output)
             var long = file
@@ -530,7 +552,7 @@ final class DesignPreviewTests: XCTestCase {
             long.destination = "/tmp/" + String(repeating: "Long folder name/", count: 20)
             long.status = .failed
             long.errorMessage = String(repeating: "The server disconnected. 请检查网络后重试。 ", count: 20)
-            try await render(TaskInspectorView(task: long).environmentObject(store),
+            try await render(TaskInspectorView(task: long).environment(store),
                              name: "details-layout-long-\(appearance.rawValue)", size: NSSize(width: 520, height: 480),
                              appearance: appearance, output: output)
         }
@@ -540,13 +562,13 @@ final class DesignPreviewTests: XCTestCase {
         file.files = [DownloadFile(index: 1, path: "/tmp/Example/Archive.zip", length: 100, completedLength: 42, isSelected: true)]
         file.recentLogs = [String(repeating: "An example task event. ", count: 20)]
         for tab in InspectorTab.allCases {
-            try await render(TaskInspectorView(task: file, initialTab: tab).environmentObject(store),
+            try await render(TaskInspectorView(task: file, initialTab: tab).environment(store),
                              name: "details-layout-tab-\(tab.rawValue)", size: NSSize(width: 520, height: 480),
                              appearance: .aqua, output: output)
         }
         file.status = .active
         file.isFetchingMetadata = true
-        try await render(TaskInspectorView(task: file).environmentObject(store),
+        try await render(TaskInspectorView(task: file).environment(store),
                          name: "details-layout-metadata", size: NSSize(width: 520, height: 480),
                          appearance: .aqua, output: output)
         print("DETAILS_LAYOUT_PREVIEW_OUTPUT=\(output.path)")
@@ -560,7 +582,7 @@ final class DesignPreviewTests: XCTestCase {
         store.tasks = [task("edge-layout", "Example archive.zip", .paused, .http, 0.45)]
         let presentation = TaskDetailsPresentation()
         let host = NSHostingController(rootView: DownloadConsoleView(inputCoordinator: store.inputCoordinator, presentation: presentation)
-            .environmentObject(store))
+            .environment(store))
         host.sizingOptions = [.minSize]
         host.view.frame = NSRect(x: 0, y: 0, width: 1100, height: 600)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 600),
@@ -637,14 +659,14 @@ final class DesignPreviewTests: XCTestCase {
         store.startEngineUpdateCheck()
         for _ in 0..<100 where store.isCheckingEngineUpdate { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertFalse(store.isCheckingEngineUpdate)
-        let host = NSHostingController(rootView: EngineVersionPicker().environmentObject(store).desktopControls().fixedSize())
+        let host = NSHostingController(rootView: EngineVersionPicker().environment(store).desktopControls().fixedSize())
         host.sizingOptions = []
         let window = LayoutPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 100),
                                          styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentViewController = host
         defer { window.close() }
-        for selection in [EngineVersion?.none, EngineVersion("2.8.2")] {
+        for selection in [EngineVersion?.none, EngineVersion("3.8.2")] {
             store.selectedEngineVersion = selection
             try await Task.sleep(for: .milliseconds(200))
             let proposal = NSSize(width: 500, height: 100)
@@ -686,15 +708,15 @@ final class DesignPreviewTests: XCTestCase {
         let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.1"), client: DesignReleaseClient(), defaults: defaults)
         for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
             store.selectedEngineVersion = nil
-            try await render(EngineSetupView().environmentObject(store), name: "engine-setup-latest-\(appearance.rawValue)",
+            try await render(EngineSetupView().environment(store), name: "engine-setup-latest-\(appearance.rawValue)",
                              size: NSSize(width: 400, height: 340), appearance: appearance, output: output)
-            store.selectedEngineVersion = EngineVersion("2.8.2")
-            try await render(EngineSetupView().environmentObject(store), name: "engine-setup-version-\(appearance.rawValue)",
+            store.selectedEngineVersion = EngineVersion("3.8.2")
+            try await render(EngineSetupView().environment(store), name: "engine-setup-version-\(appearance.rawValue)",
                              size: NSSize(width: 400, height: 340), appearance: appearance, output: output)
-            try await render(SettingsView(initialPane: .updates).environmentObject(store).environmentObject(updates),
+            try await render(SettingsView(initialPane: .updates).environment(store).environment(updates),
                              name: "settings-engine-versions-\(appearance.rawValue)", size: NSSize(width: 860, height: 560),
                              appearance: appearance, output: output)
-            XCTAssertEqual(store.selectedEngineVersion, EngineVersion("2.8.2"))
+            XCTAssertEqual(store.selectedEngineVersion, EngineVersion("3.8.2"))
         }
         print("ENGINE_VERSION_PREVIEW_OUTPUT=\(output.path)")
     }
@@ -714,7 +736,7 @@ final class DesignPreviewTests: XCTestCase {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for appearance: NSAppearance.Name in [.aqua, .darkAqua, .accessibilityHighContrastAqua] {
             for pane in SettingsPane.allCases {
-                let view = SettingsView(initialPane: pane).environmentObject(store).environmentObject(updates)
+                let view = SettingsView(initialPane: pane).environment(store).environment(updates)
                 try await render(view, name: "settings-flat-\(pane.rawValue)-\(appearance.rawValue)",
                                  size: NSSize(width: 860, height: 560), appearance: appearance, output: output)
                 if [.network, .bitTorrent, .ed2k, .engine, .integrations, .downloads, .general, .updates].contains(pane) {
@@ -775,22 +797,22 @@ final class DesignPreviewTests: XCTestCase {
             }.padding(24)
             try await render(progressExamples, name: "engine-progress-\(name)",
                              size: NSSize(width: 510, height: 370), appearance: appearance, output: output)
-            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store), name: "main-\(name)",
+            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store), name: "main-\(name)",
                              size: NSSize(width: 1100, height: 740), appearance: appearance, output: output)
-            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store), name: "compact-\(name)",
+            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store), name: "compact-\(name)",
                              size: NSSize(width: 1100, height: 600), appearance: appearance, output: output)
             for pane in SettingsPane.allCases {
-                try await render(SettingsView(initialPane: pane).environmentObject(store).environmentObject(updates),
+                try await render(SettingsView(initialPane: pane).environment(store).environment(updates),
                                  name: "settings-\(pane.rawValue)-\(name)", size: NSSize(width: 940, height: 640),
                                  appearance: appearance, output: output)
             }
-            try await render(ScrollView { BrowserIntegrationView(server: store.browserCapture).padding(20) }.environmentObject(store), name: "browser-\(name)",
+            try await render(ScrollView { BrowserIntegrationView(server: store.browserCapture).padding(20) }.environment(store), name: "browser-\(name)",
                              size: NSSize(width: 620, height: 720), appearance: appearance, output: output)
-            try await render(EngineSetupView().environmentObject(store), name: "setup-\(name)",
+            try await render(EngineSetupView().environment(store), name: "setup-\(name)",
                              size: NSSize(width: 500, height: 400), appearance: appearance, output: output)
-            try await render(AppSupportView(initialReport: try DiagnosticReport(store: store).json()).environmentObject(store), name: "help-\(name)",
+            try await render(AppSupportView(initialReport: try DiagnosticReport(store: store).json()).environment(store), name: "help-\(name)",
                              size: NSSize(width: 600, height: 600), appearance: appearance, output: output)
-            try await render(TaskInspectorView(task: store.tasks[0]).environmentObject(store), name: "details-\(name)",
+            try await render(TaskInspectorView(task: store.tasks[0]).environment(store), name: "details-\(name)",
                              size: NSSize(width: 520, height: 560), appearance: appearance, output: output)
             var fileTask = store.tasks[1]
             fileTask.files = [DownloadFile(index: 1, path: "/nonexistent/Design assets.zip", length: 2_000_000_000,
@@ -798,25 +820,25 @@ final class DesignPreviewTests: XCTestCase {
             fileTask.trackers = [TrackerEntry(url: "https://tracker.example.org/announce", status: "Waiting")]
             fileTask.recentLogs = ["Connection interrupted. The task can be resumed after checking the network."]
             for tab in [InspectorTab.files, .network, .logs] {
-                try await render(TaskInspectorView(task: fileTask, initialTab: tab).environmentObject(store),
+                try await render(TaskInspectorView(task: fileTask, initialTab: tab).environment(store),
                     name: "details-\(tab.rawValue)-\(name)", size: NSSize(width: 520, height: 480), appearance: appearance, output: output)
             }
-            try await render(MenuBarPanel().environmentObject(store), name: "menubar-\(name)",
+            try await render(MenuBarPanel().environment(store), name: "menubar-\(name)",
                              size: NSSize(width: 360, height: 440), appearance: appearance, output: output, fitContent: true)
             store.addDraft.rawInput = "https://example.com/download.zip"
-            try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-\(name)",
+            try await render(AddDownloadPanel(onDismiss: {}).environment(store), name: "add-\(name)",
                              size: NSSize(width: 740, height: 400), appearance: appearance, output: output, fitContent: true)
-            try await render(AddDownloadPanel(initiallyShowsAdvanced: true, onDismiss: {}).environmentObject(store), name: "add-options-\(name)",
+            try await render(AddDownloadPanel(initiallyShowsAdvanced: true, onDismiss: {}).environment(store), name: "add-options-\(name)",
                              size: NSSize(width: 740, height: 600), appearance: appearance, output: output, fitContent: true)
-            try await render(AddDownloadPanel(initiallyShowsAdvanced: true, onDismiss: {}).environmentObject(store), name: "add-options-bottom-\(name)",
+            try await render(AddDownloadPanel(initiallyShowsAdvanced: true, onDismiss: {}).environment(store), name: "add-options-bottom-\(name)",
                              size: NSSize(width: 740, height: 600), appearance: appearance, output: output,
                              fitContent: true, scrollToBottom: true)
         }
         store.addDraft.rawInput = ""
-        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-empty",
+        try await render(AddDownloadPanel(onDismiss: {}).environment(store), name: "add-empty",
                          size: NSSize(width: 740, height: 400), appearance: .aqua, output: output, fitContent: true)
         store.addDraft.rawInput = "https://example.com/file1.zip\nhttps://example.com/file2.zip\nhttps://example.com/file3.zip"
-        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-batch",
+        try await render(AddDownloadPanel(onDismiss: {}).environment(store), name: "add-batch",
                          size: NSSize(width: 740, height: 400), appearance: .aqua, output: output, fitContent: true)
         store.addDraft.rawInput = "magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17"
         store.bitTorrentSelectionSession = BitTorrentFileSelectionSession(
@@ -826,20 +848,20 @@ final class DesignPreviewTests: XCTestCase {
                 DownloadFile(index: 3, path: "Design Resources/Examples/Example.zip", length: 32_000_000, completedLength: 0, isSelected: true),
                 DownloadFile(index: 4, path: "Design Resources/Examples/Notes.txt", length: 100, completedLength: 0, isSelected: true)
             ], selectedFileIndexes: [1, 2], phase: .ready)
-        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "add-torrent",
+        try await render(AddDownloadPanel(onDismiss: {}).environment(store), name: "add-torrent",
                          size: NSSize(width: 740, height: 560), appearance: .aqua, output: output, fitContent: true)
         store.bitTorrentSelectionSession?.phase = .loading
         store.bitTorrentSelectionSession?.startedAt = Date().addingTimeInterval(-35)
         store.bitTorrentSelectionSession?.diagnostics = BitTorrentDiagnostics(peers: 0, connecting: 3)
-        try await render(AddDownloadPanel(onDismiss: {}).environmentObject(store), name: "torrent-discovery",
+        try await render(AddDownloadPanel(onDismiss: {}).environment(store), name: "torrent-discovery",
                          size: NSSize(width: 740, height: 560), appearance: .darkAqua, output: output, fitContent: true)
         store.bitTorrentSelectionSession = nil
         store.selectedTaskID = store.tasks.first?.id
-        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store), name: "selected-details",
+        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store), name: "selected-details",
                          size: NSSize(width: 1100, height: 740), appearance: .aqua, output: output)
         store.selectedTaskID = nil
         store.searchQuery = "nothing matches this search"
-        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store), name: "search-empty",
+        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store), name: "search-empty",
                          size: NSSize(width: 1100, height: 600), appearance: .aqua, output: output)
         store.searchQuery = ""
         store.tasks = [task("paused", "Paused download.zip", .paused, .http, 0.4)]
@@ -848,13 +870,13 @@ final class DesignPreviewTests: XCTestCase {
         XCTAssertEqual(store.visibleTasks(for: .all).count, 1)
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua),
                                    ("contrast", .accessibilityHighContrastAqua)] {
-            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store),
+            try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store),
                              name: "main-filter-empty-\(name)", size: NSSize(width: 900, height: 600),
                              appearance: appearance, output: output)
         }
         store.tasks = []
         store.selectedDestination = .all
-        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environmentObject(store),
+        try await render(DownloadConsoleView(inputCoordinator: store.inputCoordinator).environment(store),
                          name: "main-first-use", size: NSSize(width: 900, height: 600),
                          appearance: .aqua, output: output)
         print("DESIGN_PREVIEWS: \(output.path)")
@@ -1147,10 +1169,10 @@ private actor EngineVersionPreviewManager: EngineInstallationManaging {
     func localInstallation() async -> EngineInstallation? { nil }
     func latestRelease() async throws -> EngineRelease {
         if checksSuspended { await withCheckedContinuation { checks.append($0) } }
-        return EngineDistribution.release(version: EngineVersion("2.8.6")!)
+        return EngineDistribution.release(version: EngineVersion("3.8.6")!)
     }
     func recentReleases() async throws -> [EngineRelease] {
-        (2...6).reversed().map { EngineDistribution.release(version: EngineVersion("2.8.\($0)")!) }
+        (2...6).reversed().map { EngineDistribution.release(version: EngineVersion("3.8.\($0)")!) }
     }
     func activate(_ installation: EngineInstallation) async throws { throw CancellationError() }
     func backupRuntimeState() async throws -> EngineRuntimeBackup? { nil }

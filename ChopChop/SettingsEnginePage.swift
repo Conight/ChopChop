@@ -9,8 +9,8 @@ extension SettingsView {
             KeyValueLine(title: String(localized: "Installed version"), value: store.engineVersionDescription).settingsAnchor("engine.version")
             if let capabilities = store.engineCapabilities {
                 KeyValueLine(title: String(localized: "Running version"), value: capabilities.version)
-                if let features = capabilities.enabledFeatures {
-                    KeyValueLine(title: String(localized: "Available features"), value: features.joined(separator: ", "))
+                if !capabilities.enabledFeatures.isEmpty {
+                    KeyValueLine(title: String(localized: "Available features"), value: capabilities.enabledFeatures.joined(separator: ", "))
                 }
             }
             Text(String(localized: "Aria2 Next starts automatically when ChopChop opens. Restored downloads stay paused until you resume them."))
@@ -93,7 +93,7 @@ extension SettingsView {
     @ViewBuilder
     var engineAdvanced: some View {
         SettingsSection(title: "RPC") {
-            SecureField(String(localized: "RPC token"), text: $store.engineSettings.rpcToken)
+            SecureField(String(localized: "RPC token"), text: Bindable(store).engineSettings.rpcToken)
                 .settingsAnchor("engine.rpc-token")
                 .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
@@ -105,7 +105,7 @@ extension SettingsView {
                 }
                 .buttonStyle(.bordered)
 
-                TextField(String(localized: "Port"), value: $store.engineSettings.rpcPort, format: .number.grouping(.never))
+                TextField(String(localized: "Port"), value: Bindable(store).engineSettings.rpcPort, format: .number.grouping(.never))
                     .nativeTextFieldStyle()
                     .frame(width: 112)
                 }

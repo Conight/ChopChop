@@ -7,7 +7,7 @@ enum AppBrand {
         guard let image = NSImage(named: "MenuBarIcon")?.copy() as? NSImage else { return nil }
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
-        image.accessibilityDescription = "ChopChop"
+        image.accessibilityDescription = AppIdentity.displayName
         return image
     }
 }

@@ -4,15 +4,17 @@ extension SettingsView {
     @ViewBuilder
     var updateSettings: some View {
         SettingsSection(title: String(localized: "Update Checks")) {
-            Toggle(String(localized: "Check for updates at launch"), isOn: $updates.automaticallyChecks)
+            Toggle(String(localized: "Check for updates at launch"), isOn: Bindable(updates).automaticallyChecks)
                 .settingsAnchor("updates.at-launch")
                 .accessibilityIdentifier("settings-check-updates-at-launch")
-            Text(String(localized: "Check ChopChop and Engine versions when the app opens. You choose when to download and install updates."))
+            Text(updates.build.isDevelopment
+                 ? String(localized: "Dev checks Engine updates only. Rebuild locally to update ChopChop Dev.")
+                 : String(localized: "Check ChopChop and Engine versions when the app opens. You choose when to download and install updates."))
                 .font(.callout).foregroundStyle(.secondary)
-            UpdateCheckRow(status: String(localized: "ChopChop and Engine"),
+            UpdateCheckRow(status: updates.build.isDevelopment ? String(localized: "Engine") : String(localized: "ChopChop and Engine"),
                            title: String(localized: "Check All Updates"),
                            isChecking: updates.isCheckingAll,
-                           canCheck: updates.canCheckForUpdates && store.canCheckEngineUpdates,
+                           canCheck: updates.canCheckAllUpdates && store.canCheckEngineUpdates,
                            identifier: "settings-check-updates-button") {
                 Task { await updates.checkAll(using: store) }
             }

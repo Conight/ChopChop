@@ -1,0 +1,4 @@
+// Only the packaging scheme selects this production configuration.
+#include "Release.xcconfig"
+CHOPCHOP_PRODUCT_NAME = ChopChop
+CHOPCHOP_INFO_PLIST = ChopChop/Info.plist

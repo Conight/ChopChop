@@ -91,7 +91,7 @@ nonisolated struct EngineInstallationManager: EngineInstallationManaging {
         }
         // Verify it actually executes under the parent app's sandbox before returning the staged installation.
         let output = try await EngineDownload.runTool(executable.path, arguments: ["--version"])
-        guard output.contains("Aria2 Next version \(release.version)\n") else { throw EngineInstallationError.invalidExecutable }
+        guard release.version.matchesVersionOutput(output) else { throw EngineInstallationError.invalidExecutable }
         try Task.checkCancellation()
         verified = true
         return EngineInstallation(executableURL: executable, version: release.version)

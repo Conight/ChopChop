@@ -1,5 +1,6 @@
 """Release configuration validation, including fork destinations and unsafe input."""
 import base64
+import plistlib
 from pathlib import Path
 import subprocess
 import sys
@@ -10,6 +11,16 @@ from release_config import DEFAULT, info, load
 
 
 class ReleaseConfigurationTests(unittest.TestCase):
+    def test_dev_metadata_only_changes_identity_and_omits_system_handlers(self):
+        root = DEFAULT.parent.parent
+        production = plistlib.loads((root / "ChopChop/Info.plist").read_bytes())
+        development = plistlib.loads((root / "ChopChop/Dev-Info.plist").read_bytes())
+        self.assertTrue(development.pop("ChopChopDevelopmentBuild"))
+        for field in ("CFBundleURLTypes", "CFBundleDocumentTypes"):
+            self.assertTrue(production.pop(field))
+            self.assertNotIn(field, development)
+        self.assertEqual(production, development)
+
     def test_fork_configuration_and_release_destination(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "Release.xcconfig"

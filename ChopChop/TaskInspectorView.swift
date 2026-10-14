@@ -35,9 +35,12 @@ struct TaskInspectorTabs: NSViewRepresentable {
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
         context.coordinator.selection = $selection
         for (index, tab) in InspectorTab.allCases.enumerated() {
-            control.setLabel(tab.localizedTitle, forSegment: index)
+            if control.label(forSegment: index) != tab.localizedTitle {
+                control.setLabel(tab.localizedTitle, forSegment: index)
+            }
         }
-        control.selectedSegment = InspectorTab.allCases.firstIndex(of: selection) ?? 0
+        let index = InspectorTab.allCases.firstIndex(of: selection) ?? 0
+        if control.selectedSegment != index { control.selectedSegment = index }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
@@ -59,7 +62,7 @@ struct TaskInspectorTabs: NSViewRepresentable {
 }
 
 struct TaskInspectorView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @State private var showsSpeedLimits = false
     @State private var localTab: InspectorTab
     private var tabSelection: Binding<InspectorTab>?
@@ -155,16 +158,20 @@ struct TaskInspectorView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         HStack(spacing: 12) {
                             TaskProgressIndicator(task: task)
-                            Text(task.progressLabel)
+                            TaskProgressValue(task: task)
                                 .font(.callout.weight(.semibold)).monospacedDigit()
                                 .fixedSize()
                         }
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: 8) {
-                                Text(task.transferSizeLabel)
+                                if task.totalLength > 0, task.media == nil {
+                                    TransferSizeValue(completed: task.completedLength, total: task.totalLength)
+                                } else {
+                                    Text(task.transferSizeLabel)
+                                }
                                 if task.status == .active {
                                     Text("·")
-                                    Text(ByteFormat.speed(task.downloadSpeed))
+                                    TransferByteValue(bytes: task.downloadSpeed, perSecond: true)
                                 }
                             }.fixedSize()
                             Text(task.transferSizeLabel)
@@ -193,12 +200,6 @@ struct TaskInspectorView: View {
                     Label(issue.explanation, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.red).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    if task.isAvailableInEngine, store.engineCapabilities?.supportsTorrentManagement == true {
-                        Button(String(localized: "Recheck Downloaded Pieces")) {
-                            Task { await store.recheckTorrent(task) }
-                        }
-                        .disabled(store.isUpdatingEngine)
-                    }
                 }.contentPanel()
             }
             if let error = task.errorMessage, task.status == .failed {
@@ -324,12 +325,8 @@ struct TaskInspectorView: View {
     private var network: some View {
         VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
             if task.isTorrentLike {
-                HStack {
-                    Button(String(localized: "Refresh Details")) { Task { await store.refreshDetails(for: task.id) } }
-                    if store.engineCapabilities?.supportsTorrentManagement == true, task.isAvailableInEngine {
-                        Button(String(localized: "Announce Now")) { Task { await store.reannounceTorrent(task) } }.disabled(task.status != .active)
-                    }
-                }.controlSize(.small)
+                Button(String(localized: "Refresh Details")) { Task { await store.refreshDetails(for: task.id) } }
+                    .controlSize(.small)
                 if let diagnostics = task.torrentDiagnostics { BitTorrentDiagnosticsView(diagnostics: diagnostics) }
                 TransferDetailsView(task: task).id(task.id)
                 networkSection(title: String(localized: "Trackers"), emptyMessage: String(localized: "No tracker state reported yet."), rows: task.trackers.map { "\($0.status) · \($0.url)" })

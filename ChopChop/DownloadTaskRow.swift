@@ -6,20 +6,30 @@ struct DownloadTaskRow: View, Equatable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var completionCount = 0
     let context: DownloadActionContext
-    @ObservedObject var row: DownloadRowState
+    let row: DownloadRowState
     let isSelected: Bool
+    let isEmphasized: Bool
     let actionsEnabled: Bool
     let removalEnabled: Bool
     let scheduleArmed: Bool
     let compact: Bool
+    let usesNativeReordering: Bool
     private var store: DownloadStore { context.store }
-    private var task: DownloadTask { row.task }
-    private var display: DownloadListTaskDisplay { DownloadListTaskDisplay(task: task) }
+    private var task: DownloadRowPresentation { row.presentation }
+    private var highlighted: Bool { isSelected && isEmphasized }
+    private var primaryColor: Color {
+        Color(nsColor: highlighted ? .alternateSelectedControlTextColor : .labelColor)
+    }
+    private var secondaryColor: Color {
+        highlighted ? primaryColor.opacity(0.80) : Color(nsColor: .secondaryLabelColor)
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.row === rhs.row && lhs.isSelected == rhs.isSelected &&
+        lhs.isEmphasized == rhs.isEmphasized &&
         lhs.actionsEnabled == rhs.actionsEnabled && lhs.removalEnabled == rhs.removalEnabled &&
         lhs.scheduleArmed == rhs.scheduleArmed && lhs.compact == rhs.compact &&
+        lhs.usesNativeReordering == rhs.usesNativeReordering &&
         lhs.context.window?.detailsPresented == rhs.context.window?.detailsPresented
     }
 
@@ -27,9 +37,9 @@ struct DownloadTaskRow: View, Equatable {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 16) {
                 identity.frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-                progress.frame(width: 180)
+                DownloadTaskLiveProgress(row: row, compact: compact).frame(width: 180)
                 if !compact {
-                    DownloadTaskTransferSummary(task: task, compact: false)
+                    DownloadTaskLiveRates(row: row, compact: false)
                         .frame(width: 188, alignment: .trailing)
                 }
                 HStack(spacing: 4) {
@@ -38,16 +48,21 @@ struct DownloadTaskRow: View, Equatable {
                     rowAction(.remove).disabled(!removalEnabled)
                 }
             }
-            if compact, display.showsTransferRates {
-                DownloadTaskTransferSummary(task: task, compact: true)
+            if compact, task.showsTransferRates {
+                DownloadTaskLiveRates(row: row, compact: true)
                     .padding(.leading, 44)
             }
         }
+        // Keep content contrast tied to real selection/focus, independently of
+        // transient native hosting updates while live values are redrawn.
+        .foregroundStyle(primaryColor, secondaryColor)
         .frame(maxWidth: .infinity, minHeight: compact ? 48 : 44)
         .padding(.vertical, 7)
         .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + 44 }
         .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
         .contentShape(Rectangle())
+        .modifier(QueueReordering(store: store, taskID: task.id,
+            canReorder: task.canReorderInQueue, enabled: !usesNativeReordering))
         .help(taskHelp)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("task-row-\(task.id)")
@@ -58,7 +73,7 @@ struct DownloadTaskRow: View, Equatable {
 
     private var identity: some View {
         HStack(spacing: 12) {
-            DownloadTaskIcon(task: task, size: 32)
+            DownloadTaskIcon(name: task.name, isTorrentLike: task.isTorrentLike, size: 32)
             VStack(alignment: .leading, spacing: compact ? 3 : 5) {
                 Text(task.name).font(.body.weight(.medium))
                     .lineLimit(1).truncationMode(.middle)
@@ -67,12 +82,12 @@ struct DownloadTaskRow: View, Equatable {
                     Label {
                         Text(task.phaseLabel).contentTransition(.opacity)
                     } icon: {
-                        Image(systemName: display.statusSymbol)
+                        Image(systemName: task.statusSymbol)
                             .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                             .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? 0 : completionCount)
                     }
                         .stateChangeMotion(task.phaseLabel)
-                        .foregroundStyle((task.status == .failed || task.torrentFileIssue != nil) && !isSelected ? Color.red : .secondary)
+                        .foregroundStyle((task.status == .failed || task.torrentFileIssue != nil) && !highlighted ? Color.red : secondaryColor)
                         .lineLimit(1).truncationMode(.tail)
                         .accessibilityIdentifier("task-\(task.id)-status")
                     if let error = task.errorMessage, task.status == .failed {
@@ -90,26 +105,6 @@ struct DownloadTaskRow: View, Equatable {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private var progress: some View {
-        VStack(alignment: .leading, spacing: compact ? 2 : 6) {
-            HStack(spacing: 6) {
-                Text(display.sizeLabel).lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 0)
-                if task.progressLabel != "—" {
-                    Text(task.progressLabel).foregroundStyle(.secondary).fixedSize()
-                }
-            }
-            .font(.caption).monospacedDigit()
-            TaskProgressIndicator(task: task)
-                .frame(maxWidth: .infinity)
-                .controlSize(.small).accessibilityHidden(true)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Progress"))
-        .accessibilityValue("\(task.phaseLabel), \(task.progressLabel), \(task.transferSizeLabel)")
-        .accessibilityIdentifier("task-\(task.id)-progress")
     }
 
     private func rowAction(_ action: DownloadAction) -> some View {
@@ -143,10 +138,10 @@ struct DownloadTaskRow: View, Equatable {
             .disabled(!actionsEnabled).help(action.helpTitle)
             .accessibilityIdentifier("task-\(task.id)-\(action.accessibilityName)-button")
         } else if task.status == .completed {
-            Button(String(localized: "Show in Finder"), systemImage: "magnifyingglass") { store.showInFinder(task) }
+            Button(String(localized: "Show in Finder"), systemImage: "magnifyingglass") { store.showInFinder(row.task) }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
                 .help(String(localized: "Show in Finder"))
-                .disabled(DownloadFileLocation.revealURL(for: task) == nil)
+                .disabled(!task.canRevealInFinder)
         } else if task.canEditAndAddAgain {
             DownloadActionButton(action: .editAgain, context: context)
                 .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
@@ -159,15 +154,52 @@ struct DownloadTaskRow: View, Equatable {
     }
 
     private var taskHelp: String {
-        var lines = [task.name, "\(task.phaseLabel) · \(task.progressLabel)", task.transferSizeLabel]
-        if let remaining = TaskInspectorDisplay(task: task).remainingTime {
-            lines.append(String(localized: "ETA \(remaining)"))
-        }
+        // Tooltips describe the item. Live counters already have visible and
+        // accessible fields; replacing the whole row's tooltip each second
+        // needlessly invalidates native hover/selection content.
+        var lines = [task.name, task.phaseLabel]
         if let error = task.errorMessage, task.status == .failed { lines.append(error) }
         if let issue = task.torrentFileIssue { lines.append(issue.explanation) }
         if let date = task.scheduledStart { lines.append(scheduleDescription(date)) }
         return lines.joined(separator: "\n")
     }
+}
+
+private struct DownloadTaskLiveProgress: View {
+    let row: DownloadRowState
+    let compact: Bool
+    private var task: DownloadTask { row.task }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 2 : 6) {
+            HStack(spacing: 6) {
+                Group {
+                    if task.totalLength > 0, task.media == nil, task.status != .completed, !task.isSharing {
+                        TransferSizeValue(completed: task.completedLength, total: task.totalLength)
+                    } else {
+                        Text(DownloadListTaskDisplay(task: task).sizeLabel).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+                Spacer(minLength: 0)
+                TaskProgressValue(task: task).foregroundStyle(.secondary)
+                    .opacity(task.progressLabel == "—" ? 0 : 1)
+            }
+            .font(.caption).monospacedDigit()
+            TaskProgressIndicator(task: task)
+                .frame(maxWidth: .infinity)
+                .controlSize(.small).accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "Progress"))
+        .accessibilityValue("\(task.phaseLabel), \(task.progressLabel), \(task.transferSizeLabel)")
+        .accessibilityIdentifier("task-\(task.id)-progress")
+    }
+}
+
+private struct DownloadTaskLiveRates: View {
+    let row: DownloadRowState
+    let compact: Bool
+    var body: some View { DownloadTaskTransferSummary(task: row.task, compact: compact) }
 }
 
 /// Rates and ETA have independent positions, including when torrent upload
@@ -221,20 +253,21 @@ struct DownloadTaskTransferSummary: View {
     private func rate(_ speed: Int64, uploading: Bool) -> some View {
         let title = uploading ? String(localized: "Upload speed") : String(localized: "Download speed")
         let value = ByteFormat.speed(speed)
-        return Label(value, systemImage: uploading ? "arrow.up" : "arrow.down")
+        return TransferSpeedLabel(speed: speed, uploading: uploading)
             .foregroundStyle(uploading && !task.isSharing ? .secondary : .primary)
             .accessibilityLabel(title)
             .accessibilityValue(value)
             .accessibilityIdentifier("task-\(task.id)-\(uploading ? "upload" : "download")-speed")
     }
 
-    @ViewBuilder private var remainingTime: some View {
-        if let remaining = TaskInspectorDisplay(task: task).remainingTime {
-            Text(String(localized: "ETA \(remaining)"))
-                .foregroundStyle(.secondary)
-                .accessibilityLabel(String(localized: "ETA \(remaining)"))
-                .accessibilityIdentifier("task-\(task.id)-eta")
-        }
+    private var remainingTime: some View {
+        let remaining = TaskInspectorDisplay(task: task).remainingTime
+        let value = remaining.map { String(localized: "ETA \($0)") } ?? ""
+        return StableMetricText(value: value,
+            reference: String(localized: "ETA \(ByteFormat.duration(999 * 3_600 + 59 * 60))"))
+            .foregroundStyle(.secondary)
+            .opacity(remaining == nil ? 0 : 1).accessibilityHidden(remaining == nil)
+            .accessibilityIdentifier("task-\(task.id)-eta")
     }
 }
 

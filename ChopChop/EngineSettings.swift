@@ -55,12 +55,12 @@ nonisolated struct BitTorrentClientIdentity: Equatable, Sendable {
 }
 
 nonisolated struct EngineSettings: Equatable, Sendable {
-    static let defaultRPCPort = 29100
+    static let defaultRPCPort = 29100 + AppIdentity.portOffset
     static let defaultSplitCount = 64
-    static let defaultBTListenPort = 29120
-    static let defaultDHTListenPort = 29130
-    static let defaultED2KListenPort = 29140
-    static let defaultED2KUDPListenPort = 29150
+    static let defaultRetryCount = 3
+    static let defaultBTListenPort = 29120 + AppIdentity.portOffset
+    static let defaultED2KListenPort = 29140 + AppIdentity.portOffset
+    static let defaultED2KUDPListenPort = 29150 + AppIdentity.portOffset
     static let validED2KListenPortRange = 0...65_535
     static let defaultED2KServerMetURL = "https://upd.emule-security.org/server.met"
     static let defaultED2KNodesDatURL = "https://upd.emule-security.org/nodes.dat"
@@ -68,7 +68,12 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     static let systemCACertificatePath = "/etc/ssl/cert.pem"
 
     static var defaultDownloadDirectoryPath: String? {
-        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
+        if AppIdentity.isDevelopment {
+            // Keep unattended development downloads inside the Dev sandbox.
+            return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("ChopChop/Downloads", isDirectory: true).path
+        }
+        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
@@ -93,12 +98,11 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     var splitCount = EngineSettings.defaultSplitCount
     var maxOverallDownloadLimitKB = 0
     var maxOverallUploadLimitKB = 0
-    var retryCount = 0
+    var retryCount = EngineSettings.defaultRetryCount
     var retryWaitSeconds = 10
     var connectTimeoutSeconds = 10
     var timeoutSeconds = 10
     var fileAllocation: FileAllocationMode = .trunc
-    var asyncDNS = false
     var userAgent = EngineSettings.defaultUserAgent
     var proxyURL = ""
     var proxyBypass = ""
@@ -112,7 +116,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     var shareRatio = 2
     var shareTimeMinutes = 2_880
     var listenPort = EngineSettings.defaultBTListenPort
-    var dhtListenPort = EngineSettings.defaultDHTListenPort
     var btTracker = ""
     var btTrackerAutoSync = true
     var btTrackerSyncIntervalHours = TrackerSyncInterval.daily.rawValue
@@ -154,9 +157,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
         if !(1...65535).contains(listenPort) {
             requirements.append(String(localized: "Set BT listen port between 1 and 65535"))
         }
-        if !(1...65535).contains(dhtListenPort) {
-            requirements.append(String(localized: "Set DHT listen port between 1 and 65535"))
-        }
         if !Self.validED2KListenPortRange.contains(ed2kListenPort) {
             requirements.append(String(localized: "Set ED2K listen port between 0 and 65535"))
         }
@@ -175,6 +175,10 @@ nonisolated struct EngineSettings: Equatable, Sendable {
         return requirements
     }
 
+    // Older releases persisted zero (unlimited). Never send that value back
+    // to the engine: a failing connection must eventually become a result.
+    var maximumAttempts: Int { retryCount > 0 ? min(retryCount, 99) : Self.defaultRetryCount }
+
     var canLaunch: Bool {
         missingLaunchRequirements.isEmpty
     }
@@ -188,9 +192,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
         }
         guard (1...65535).contains(listenPort) else {
             throw EngineError.invalidListenPort(label: String(localized: "BT listen port"), port: listenPort)
-        }
-        guard (1...65535).contains(dhtListenPort) else {
-            throw EngineError.invalidListenPort(label: String(localized: "DHT listen port"), port: dhtListenPort)
         }
         guard Self.validED2KListenPortRange.contains(ed2kListenPort) else {
             throw EngineError.invalidNumericSetting(
@@ -220,29 +221,26 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     func engineOptions(downloadDirectoryPath: String? = nil, includeStartupOnly: Bool) -> [String: String] {
         var options: [String: String] = [
             "dir": downloadDirectoryPath ?? self.downloadDirectoryPath ?? "",
-            "continue": "true",
-            "content-disposition-default-utf8": "true",
+            // V3 resumes owned tasks from its state database. Never adopt unrelated files as a prefix.
+            "continue": "false",
             "max-concurrent-downloads": "\(maxActiveDownloads)",
             "max-connection-per-server": "\(maxConnectionsPerTask)",
             "split": "\(splitCount)",
             "max-overall-download-limit": speedLimit(maxOverallDownloadLimitKB),
             "max-overall-upload-limit": speedLimit(maxOverallUploadLimitKB),
-            "max-tries": "\(retryCount)",
+            "max-tries": "\(maximumAttempts)",
             "retry-wait": "\(retryWaitSeconds)",
             "connect-timeout": "\(connectTimeoutSeconds)",
             "timeout": "\(timeoutSeconds)",
             "file-allocation": fileAllocation.rawValue,
-            "async-dns": asyncDNS.description,
             "user-agent": userAgent,
             "bt-user-agent": BitTorrentClientIdentity.current.userAgent,
             "bt-peer-id-prefix": BitTorrentClientIdentity.current.peerIDPrefix,
             "seed-ratio": keepSharing ? "0" : "\(shareRatio)",
             "pause-metadata": pauseMetadata.description,
-            "bt-tracker": TrackerText.reducedCommaSeparated(from: btTracker)
+            "bt-tracker": TrackerText.commaSeparated(from: btTracker)
         ]
-        if !keepSharing {
-            options["seed-time"] = "\(shareTimeMinutes)"
-        }
+        options["seed-time"] = keepSharing ? "" : "\(shareTimeMinutes)"
         if !proxyURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             options["all-proxy"] = proxyURL.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -253,7 +251,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             options["rpc-listen-port"] = "\(rpcPort)"
             options["rpc-secret"] = rpcToken
             options["listen-port"] = "\(listenPort)"
-            options["dht-listen-port"] = "\(dhtListenPort)"
             options["ed2k-listen-port"] = "\(ed2kListenPort)"
             options["ed2k-udp-listen-port"] = "\(ed2kUDPListenPort)"
             options["ed2k-upload-slots"] = "\(ed2kUploadSlots)"
@@ -262,14 +259,13 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             options["enable-dht"] = btDHTEnabled.description
             options["enable-peer-exchange"] = btPeerExchangeEnabled.description
             options["bt-enable-lpd"] = btLocalPeerDiscoveryEnabled.description
-            options["bt-force-encryption"] = btForceEncryption.description
-            options["bt-require-crypto"] = btForceEncryption.description
+            options["bt-encryption"] = btForceEncryption ? "required" : "preferred"
             options["check-certificate"] = "true"
             if let caCertificatePath = Self.defaultCACertificatePath {
                 options["ca-certificate"] = caCertificatePath
             }
         }
-        return options.filter { !$0.value.isEmpty }
+        return options.filter { !$0.value.isEmpty || $0.key == "seed-time" || $0.key == "bt-tracker" }
     }
 
     func hotReloadableEngineOptions(downloadDirectoryPath: String? = nil) -> [String: String] {

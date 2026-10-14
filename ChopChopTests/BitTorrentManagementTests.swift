@@ -86,7 +86,7 @@ final class BitTorrentManagementTests: XCTestCase {
     }
 
     func testNativeDiagnosticsAreMappedWithoutInventingTrackerSuccess() throws {
-        let task = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"torrent","status":"active","bittorrent":{"state":"downloading","numPeers":"4","numSeeds":"2","availability":"0.75","handshakingPeers":"1","seedingTime":"60","announceList":[["https://tracker.example.com/announce"]]}}"#.utf8)).toTask()
+        let task = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"torrent","status":"active","bittorrent":{"mode":"multi","state":"downloading","numPeers":"4","numSeeds":"2","availability":"0.75","handshakingPeers":"1","seedingTime":"60","announceList":[["https://tracker.example.com/announce"]]}}"#.utf8)).toTask()
         XCTAssertEqual(task.torrentDiagnostics?.peers, 4)
         XCTAssertEqual(task.torrentDiagnostics?.availability, 0.75)
         XCTAssertEqual(task.torrentDiagnostics?.seedingSeconds, 60)

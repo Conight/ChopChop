@@ -93,30 +93,14 @@ extension DownloadStore {
     }
 
     func recheckTorrent(_ task: DownloadTask) async {
-        guard task.isTorrentLike, task.isAvailableInEngine, task.primaryControlAction != nil,
+        guard let current = tasks.first(where: { $0.id == task.id }),
+              current.isTorrentLike, current.isAvailableInEngine, current.status == .active,
+              current.torrentFileIssue == nil,
               engineCapabilities?.supportsTorrentManagement == true, !isUpdatingEngine else { return }
         cancelSchedule(task.id)
         await performTaskMutation(alertTitle: String(localized: "Recheck Files Failed")) { client in
-            let current = tasks.first { $0.id == task.id } ?? task
-            if current.torrentFileIssue != nil {
-                let issues = await TorrentFileSafety.issues(in: [current])
-                if let issue = issues[task.id] { throw issue }
-                // An explicit recheck releases the hold; it never resumes a held task.
-                try await client.forcePause(task.id)
-            }
             try await client.recheckTorrent(task.id)
-            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                tasks[index].torrentFileIssue = nil
-                persistTaskHistory()
-            }
         }
-    }
-
-    func reannounceTorrent(_ task: DownloadTask) async {
-        guard task.isTorrentLike, task.isAvailableInEngine, task.status == .active,
-              engineCapabilities?.supportsTorrentManagement == true, !isUpdatingEngine else { return }
-        await performTaskMutation(alertTitle: String(localized: "Announce Failed")) { client in try await client.reannounceTorrent(task.id) }
-        await refreshDetails(for: task.id)
     }
 
     func taskOptions(_ id: String) async throws -> [String: String] {

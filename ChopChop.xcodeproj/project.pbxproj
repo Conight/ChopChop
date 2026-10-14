@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		63D000000000000000000001 /* TorrentDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D000000000000000000002 /* TorrentDiscovery.swift */; };
 		7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */; };
 		7BB000000000000000000001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000001 /* AppIcon.icon */; };
 		7BB000000000000000000002 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000002 /* AppBrand.swift */; };
@@ -30,6 +31,7 @@
 		60B00000000000000000001D /* AddDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A00000000000000000001D /* AddDownloadView.swift */; };
 		60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000001 /* Aria2NextEngineController.swift */; };
 		60B000000000000000000002 /* Aria2RPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000002 /* Aria2RPCClient.swift */; };
+		73FADC8FA254BCDE727332AA /* Aria2WebSocketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FADC8FA254BCDE727332AA /* Aria2WebSocketTransport.swift */; };
 		60B000000000000000000003 /* ChopChopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000003 /* ChopChopApp.swift */; };
 		60B000000000000000000004 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000004 /* ContentView.swift */; };
 		60B000000000000000000005 /* DownloadConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A000000000000000000005 /* DownloadConsoleView.swift */; };
@@ -149,6 +151,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		63D000000000000000000002 /* TorrentDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDiscovery.swift; sourceTree = "<group>"; };
 		15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUpdatesPage.swift; sourceTree = "<group>"; };
 		7BA000000000000000000001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		7BA000000000000000000002 /* AppBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBrand.swift; sourceTree = "<group>"; };
@@ -175,6 +178,7 @@
 		59DBECB62FCFE0DA005075E1 /* ChopChopUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChopChopUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		60A000000000000000000001 /* Aria2NextEngineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2NextEngineController.swift; sourceTree = "<group>"; };
 		60A000000000000000000002 /* Aria2RPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2RPCClient.swift; sourceTree = "<group>"; };
+		63FADC8FA254BCDE727332AA /* Aria2WebSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2WebSocketTransport.swift; sourceTree = "<group>"; };
 		60A000000000000000000003 /* ChopChopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChopChopApp.swift; sourceTree = "<group>"; };
 		60A000000000000000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		60A000000000000000000005 /* DownloadConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadConsoleView.swift; sourceTree = "<group>"; };
@@ -257,6 +261,9 @@
 		EC35ABCB1CAD112C27004C69 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
 		C2F6500A5A99BD2AA287504D /* SystemProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProxy.swift; sourceTree = "<group>"; };
 		8C5702EAC90E093CBBBB510A /* TrackerSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerSources.swift; sourceTree = "<group>"; };
+		7D1000000000000000000001 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Development.xcconfig; sourceTree = SOURCE_ROOT; };
+		7D1000000000000000000002 /* Distribution.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Distribution.xcconfig; sourceTree = SOURCE_ROOT; };
+		7D1000000000000000000003 /* Dev-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Dev-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -301,6 +308,8 @@
 			isa = PBXGroup;
 			children = (
 				7A1000000000000000000001 /* Release.xcconfig */,
+				7D1000000000000000000002 /* Distribution.xcconfig */,
+				7D1000000000000000000001 /* Development.xcconfig */,
 				61C000000000000000000001 /* EngineInstaller */,
 				59DBECA12FCFE0DA005075E1 /* ChopChop */,
 				60C000000000000000000001 /* Vendor */,
@@ -328,6 +337,7 @@
                 62A000000000000000000005 /* AppShortcuts.xcstrings */,
 				62A000000000000000000003 /* NativeControls.swift */,
 				62A000000000000000000007 /* TorrentFileSelection.swift */,
+				63D000000000000000000002 /* TorrentDiscovery.swift */,
 				62A000000000000000000008 /* TorrentStorage.swift */,
 				62A00000000000000000000A /* TransferDetailsView.swift */,
 				62A000000000000000000009 /* TransferDetails.swift */,
@@ -377,6 +387,7 @@
 				60A000000000000000000017 /* EngineSetupView.swift */,
 				60A000000000000000000001 /* Aria2NextEngineController.swift */,
 				60A000000000000000000002 /* Aria2RPCClient.swift */,
+				63FADC8FA254BCDE727332AA /* Aria2WebSocketTransport.swift */,
 				60A000000000000000000003 /* ChopChopApp.swift */,
 				60A000000000000000000004 /* ContentView.swift */,
 				60A000000000000000000005 /* DownloadConsoleView.swift */,
@@ -421,6 +432,7 @@
 				7BA000000000000000000002 /* AppBrand.swift */,
 				60A00000000000000000000F /* Assets.xcassets */,
 				60A000000000000000000014 /* Info.plist */,
+				7D1000000000000000000003 /* Dev-Info.plist */,
 			);
 			path = ChopChop;
 			sourceTree = "<group>";
@@ -603,6 +615,7 @@
 			files = (
 				62B000000000000000000003 /* NativeControls.swift in Sources */,
 				62B000000000000000000007 /* TorrentFileSelection.swift in Sources */,
+				63D000000000000000000001 /* TorrentDiscovery.swift in Sources */,
 				62B000000000000000000008 /* TorrentStorage.swift in Sources */,
 				62B00000000000000000000A /* TransferDetailsView.swift in Sources */,
 				62B000000000000000000009 /* TransferDetails.swift in Sources */,
@@ -652,6 +665,7 @@
 				60B000000000000000000017 /* EngineSetupView.swift in Sources */,
 				60B000000000000000000001 /* Aria2NextEngineController.swift in Sources */,
 				60B000000000000000000002 /* Aria2RPCClient.swift in Sources */,
+				73FADC8FA254BCDE727332AA /* Aria2WebSocketTransport.swift in Sources */,
 				7BB000000000000000000002 /* AppBrand.swift in Sources */,
 				60B000000000000000000003 /* ChopChopApp.swift in Sources */,
 				60B000000000000000000004 /* ContentView.swift in Sources */,
@@ -733,7 +747,7 @@
 /* Begin XCBuildConfiguration section */
 		59DBECBE2FCFE0DA005075E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7A1000000000000000000001 /* Release.xcconfig */;
+			baseConfigurationReference = 7D1000000000000000000001 /* Development.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -797,7 +811,7 @@
 		};
 		59DBECBF2FCFE0DA005075E1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7A1000000000000000000001 /* Release.xcconfig */;
+			baseConfigurationReference = 7D1000000000000000000001 /* Development.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -861,20 +875,22 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ChopChop/Info.plist;
+				INFOPLIST_FILE = "$(CHOPCHOP_INFO_PLIST)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "$(CHOPCHOP_PRODUCT_NAME)";
+				PRODUCT_MODULE_NAME = ChopChop;
+				EXECUTABLE_NAME = ChopChop;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -899,20 +915,22 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ChopChop/Info.plist;
+				INFOPLIST_FILE = "$(CHOPCHOP_INFO_PLIST)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "$(CHOPCHOP_PRODUCT_NAME)";
+				PRODUCT_MODULE_NAME = ChopChop;
+				EXECUTABLE_NAME = ChopChop;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -935,13 +953,13 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@loader_path/../Frameworks",
-					"@loader_path/../../../ChopChop.app/Contents/MacOS",
-					"@loader_path/../../../ChopChop.app/Contents/Frameworks",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/Contents/MacOS/ChopChop";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS/ChopChop";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -965,13 +983,13 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@loader_path/../Frameworks",
-					"@loader_path/../../../ChopChop.app/Contents/MacOS",
-					"@loader_path/../../../ChopChop.app/Contents/Frameworks",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChopChop.app/Contents/MacOS/ChopChop";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS/ChopChop";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -1072,6 +1090,174 @@
             SWIFT_STRICT_CONCURRENCY = complete;
         }; name = Release; };
 
+		7D2000000000000000000001 /* Distribution */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7D1000000000000000000002 /* Distribution.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Distribution;
+		};
+		7D2000000000000000000002 /* Distribution */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APP_SHORTCUTS_ENABLE_FLEXIBLE_MATCHING = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = 8J75L9A3BN;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(CHOPCHOP_INFO_PLIST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)";
+				PRODUCT_NAME = "$(CHOPCHOP_PRODUCT_NAME)";
+				PRODUCT_MODULE_NAME = ChopChop;
+				EXECUTABLE_NAME = ChopChop;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
+
+			};
+			name = Distribution;
+		};
+		7D2000000000000000000003 /* Distribution */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS",
+					"@loader_path/../../../$(CHOPCHOP_PRODUCT_NAME).app/Contents/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/$(CHOPCHOP_PRODUCT_NAME).app/Contents/MacOS/ChopChop";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
+
+			};
+			name = Distribution;
+		};
+		7D2000000000000000000004 /* Distribution */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER)UITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
+
+				TEST_TARGET_NAME = ChopChop;
+			};
+			name = Distribution;
+		};
+		7D2000000000000000000005 /* Distribution */ = {isa = XCBuildConfiguration; buildSettings = {
+            ARCHS = arm64;
+            CODE_SIGN_STYLE = Automatic;
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+            DEVELOPMENT_TEAM = 8J75L9A3BN;
+            ENABLE_APP_SANDBOX = NO;
+            ENABLE_HARDENED_RUNTIME = YES;
+            GENERATE_INFOPLIST_FILE = NO;
+            INFOPLIST_FILE = EngineInstaller/Info.plist;
+            LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@executable_path/../../../../Frameworks", );
+            PRODUCT_BUNDLE_IDENTIFIER = "$(CHOPCHOP_APP_IDENTIFIER).EngineInstaller";
+            PRODUCT_NAME = "$(TARGET_NAME)";
+            SKIP_INSTALL = YES;
+            SWIFT_VERSION = 6.0;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				CHOPCHOP_RELEASE_VERSION = development;
+
+            SWIFT_STRICT_CONCURRENCY = complete;
+        }; name = Distribution; };
+
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1080,6 +1266,7 @@
 			buildConfigurations = (
 				59DBECBE2FCFE0DA005075E1 /* Debug */,
 				59DBECBF2FCFE0DA005075E1 /* Release */,
+				7D2000000000000000000001 /* Distribution */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1089,6 +1276,7 @@
 			buildConfigurations = (
 				59DBECC12FCFE0DA005075E1 /* Debug */,
 				59DBECC22FCFE0DA005075E1 /* Release */,
+				7D2000000000000000000002 /* Distribution */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1098,6 +1286,7 @@
 			buildConfigurations = (
 				59DBECC42FCFE0DA005075E1 /* Debug */,
 				59DBECC52FCFE0DA005075E1 /* Release */,
+				7D2000000000000000000003 /* Distribution */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1107,12 +1296,13 @@
 			buildConfigurations = (
 				59DBECC72FCFE0DA005075E1 /* Debug */,
 				59DBECC82FCFE0DA005075E1 /* Release */,
+				7D2000000000000000000004 /* Distribution */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 
-        61F000000000000000000002 /* EngineInstaller configurations */ = {isa = XCConfigurationList; buildConfigurations = (61F000000000000000000003, 61F000000000000000000004, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        61F000000000000000000002 /* EngineInstaller configurations */ = {isa = XCConfigurationList; buildConfigurations = (61F000000000000000000003, 61F000000000000000000004, 7D2000000000000000000005, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 
 /* End XCConfigurationList section */
 	};

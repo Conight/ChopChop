@@ -46,8 +46,10 @@ nonisolated enum TorrentStorage {
     }
 
     @concurrent
-    static func saveEngineCopy(infoHash: String, name: String, directory: URL, original: Data?,
+    static func saveEngineCopy(taskID: String, infoHash: String, name: String, directory: URL, original: Data?,
                                metadataURL: URL?, stateDirectory: URL) async throws {
+        let gid = taskID.lowercased()
+        guard gid.count == 16, gid.allSatisfy({ $0.isHexDigit && $0.isASCII }) else { throw invalidMetadata }
         let hash = infoHash.lowercased()
         guard [40, 64].contains(hash.count), hash.allSatisfy({ $0.isHexDigit && $0.isASCII }) else { throw invalidMetadata }
         if let data = original ?? metadataURL.flatMap({ try? readMetadata($0) }) {
@@ -55,7 +57,8 @@ nonisolated enum TorrentStorage {
             try saveCopy(torrent, in: directory, name: name)
             return
         }
-        let resume = stateDirectory.appendingPathComponent("bittorrent/torrents/\(hash).fastresume")
+        // aria2-next v3 stores resume data by task GID, independently of the info hash.
+        let resume = stateDirectory.appendingPathComponent("bittorrent/torrents/\(gid).fastresume")
         // Pausing commits fast-resume asynchronously. A short bounded retry avoids racing it.
         for attempt in 0..<15 {
             try Task.checkCancellation()

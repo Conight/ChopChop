@@ -27,13 +27,20 @@ struct EmptyContentState: View {
 
 /// Use Finder's file-type artwork without reading the downloaded file or generating thumbnails.
 struct DownloadTaskIcon: View {
-    let task: DownloadTask
+    let name: String
+    let isTorrentLike: Bool
     var size: CGFloat = 28
+    init(task: DownloadTask, size: CGFloat = 28) {
+        self.init(name: task.name, isTorrentLike: task.isTorrentLike, size: size)
+    }
+    init(name: String, isTorrentLike: Bool, size: CGFloat = 28) {
+        self.name = name; self.isTorrentLike = isTorrentLike; self.size = size
+    }
     @MainActor private static var icons: [UTType: NSImage] = [:]
 
     private var icon: NSImage {
-        let type = task.isTorrentLike ? UTType.folder :
-            (UTType(filenameExtension: (task.name as NSString).pathExtension) ?? .data)
+        let type = isTorrentLike ? UTType.folder :
+            (UTType(filenameExtension: (name as NSString).pathExtension) ?? .data)
         if let icon = Self.icons[type] { return icon }
         let icon = NSWorkspace.shared.icon(for: type)
         Self.icons[type] = icon

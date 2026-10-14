@@ -73,7 +73,7 @@ final class PersistentEngineConfiguration {
         self.connectTimeoutSeconds = settings.connectTimeoutSeconds
         self.timeoutSeconds = settings.timeoutSeconds
         self.fileAllocationRawValue = settings.fileAllocation.rawValue
-        self.asyncDNS = settings.asyncDNS
+        self.asyncDNS = false
         self.userAgent = settings.userAgent
         self.proxyURL = settings.proxyURL
         self.proxyBypass = settings.proxyBypass
@@ -87,7 +87,7 @@ final class PersistentEngineConfiguration {
         self.shareRatio = settings.shareRatio
         self.shareTimeMinutes = settings.shareTimeMinutes
         self.listenPort = settings.listenPort
-        self.dhtListenPort = settings.dhtListenPort
+        self.dhtListenPort = 29130
         self.btTracker = settings.btTracker
         self.btTrackerAutoSync = settings.btTrackerAutoSync
         self.btTrackerSyncIntervalHours = settings.btTrackerSyncIntervalHours
@@ -123,7 +123,6 @@ final class PersistentEngineConfiguration {
         settings.connectTimeoutSeconds = connectTimeoutSeconds > 0 ? connectTimeoutSeconds : settings.connectTimeoutSeconds
         settings.timeoutSeconds = timeoutSeconds > 0 ? timeoutSeconds : settings.timeoutSeconds
         settings.fileAllocation = FileAllocationMode(rawValue: fileAllocationRawValue) ?? settings.fileAllocation
-        settings.asyncDNS = asyncDNS
         if !userAgent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             settings.userAgent = userAgent
         }
@@ -139,7 +138,6 @@ final class PersistentEngineConfiguration {
         settings.shareRatio = shareRatio > 0 ? shareRatio : settings.shareRatio
         settings.shareTimeMinutes = shareTimeMinutes > 0 ? shareTimeMinutes : settings.shareTimeMinutes
         settings.listenPort = listenPort > 0 ? listenPort : settings.listenPort
-        settings.dhtListenPort = dhtListenPort > 0 ? dhtListenPort : settings.dhtListenPort
         settings.btTracker = btTracker ?? settings.btTracker
         settings.btTrackerAutoSync = btTrackerAutoSync ?? settings.btTrackerAutoSync
         settings.btTrackerSyncIntervalHours = btTrackerSyncIntervalHours ?? settings.btTrackerSyncIntervalHours
@@ -174,7 +172,7 @@ final class PersistentEngineConfiguration {
         connectTimeoutSeconds = settings.connectTimeoutSeconds
         timeoutSeconds = settings.timeoutSeconds
         fileAllocationRawValue = settings.fileAllocation.rawValue
-        asyncDNS = settings.asyncDNS
+        asyncDNS = false
         userAgent = settings.userAgent
         proxyURL = settings.proxyURL
         proxyBypass = settings.proxyBypass
@@ -188,7 +186,7 @@ final class PersistentEngineConfiguration {
         shareRatio = settings.shareRatio
         shareTimeMinutes = settings.shareTimeMinutes
         listenPort = settings.listenPort
-        dhtListenPort = settings.dhtListenPort
+        dhtListenPort = 29130
         btTracker = settings.btTracker
         btTrackerAutoSync = settings.btTrackerAutoSync
         btTrackerSyncIntervalHours = settings.btTrackerSyncIntervalHours

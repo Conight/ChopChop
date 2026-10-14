@@ -38,7 +38,8 @@ nonisolated enum EngineDownload {
     }
 
     @concurrent static func latestRelease() async throws -> EngineRelease {
-        try parseRelease(await releaseData(from: EngineDistribution.latestAPI))
+        guard let release = try await recentReleases().first else { throw EngineInstallationError.invalidRelease }
+        return release
     }
 
     @concurrent static func recentReleases() async throws -> [EngineRelease] {

@@ -23,10 +23,15 @@ struct DownloadFilesTable: View {
     @State private var width: CGFloat = 440
     @State private var selection: Set<Int> = []
     @State private var search = ""
+    @State private var order: [Int] = []
     @State private var sort = [KeyPathComparator(\DownloadFileTableRow.name, comparator: .localizedStandard)]
+    private var sortedRows: [DownloadFileTableRow] {
+        DownloadFileTableRow.rows(files, directory: directory).sorted(using: sort)
+    }
     private var rows: [DownloadFileTableRow] {
-        DownloadFileTableRow.rows(files, directory: directory)
-            .filter { search.isEmpty || $0.name.localizedStandardContains(search) }.sorted(using: sort)
+        let positions = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return sortedRows.filter { search.isEmpty || $0.name.localizedStandardContains(search) }
+            .sorted { (positions[$0.id] ?? Int.max) < (positions[$1.id] ?? Int.max) }
     }
     private var selectedFiles: [DownloadFile] { files.filter { selection.contains($0.index) } }
     var body: some View {
@@ -59,6 +64,13 @@ struct DownloadFilesTable: View {
                 if priorities != nil { priorityMenu(ids) }
             }
             .accessibilityLabel(String(localized: "Download files"))
+            if sort.first?.keyPath == \DownloadFileTableRow.progress {
+                HStack(alignment: .top) {
+                    Text("Values update live. Sort again to reorder.").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(String(localized: "Refresh Order")) { order = sortedRows.map(\.id) }.controlSize(.small)
+                }
+            }
             HStack {
                 Text(String(localized: "\(selection.count) selected")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -90,6 +102,10 @@ struct DownloadFilesTable: View {
             if rows.isEmpty { Text("No matching files").foregroundStyle(.secondary) }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onChange(of: files.map(\.index), initial: true) { _, _ in
+            order = LiveTableOrder.reconcile(order, incoming: sortedRows.map(\.id))
+        }
+        .onChange(of: sort) { _, _ in order = sortedRows.map(\.id) }
         .onChange(of: rows.map(\.id), initial: true) { _, ids in
             selection.formIntersection(ids)
             if files.count == 1, let id = ids.first { selection = [id] }

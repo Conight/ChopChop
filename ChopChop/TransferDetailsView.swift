@@ -172,7 +172,7 @@ struct PieceMapView: View {
 }
 
 struct TransferDetailsView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var monitor = TransferDetailMonitor()
     @State private var windowVisible = false
@@ -180,8 +180,8 @@ struct TransferDetailsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
+            TransferRateSummary(task: task, uploaded: monitor.snapshot?.uploaded)
             if let snapshot = monitor.snapshot {
-                TransferRateSummary(snapshot: snapshot, isTorrent: task.isTorrentLike)
                 if let map = snapshot.pieces { PieceMapView(map: map) }
                 else if task.isTorrentLike {
                     Text(String(localized: "The piece map appears when the engine reports torrent metadata."))
@@ -194,8 +194,14 @@ struct TransferDetailsView: View {
                 }
                 if task.isTorrentLike { PeerTransfersView(peers: snapshot.peers) }
                 else { ServerTransfersView(servers: snapshot.servers) }
-                Text(String(localized: "Live snapshot · \(snapshot.updatedAt.formatted(date: .omitted, time: .standard))"))
+                Text(String(localized: "Last updated · \(snapshot.updatedAt.formatted(date: .omitted, time: .standard))"))
                     .font(.caption).foregroundStyle(.secondary)
+                if let issue = monitor.issue {
+                    Label(issue, systemImage: "wifi.exclamationmark").font(.callout).foregroundStyle(.secondary)
+                } else if !monitor.isObserving {
+                    Text(String(localized: "Live details are available while this window and the engine are active."))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             } else if let issue = monitor.issue {
                 Label(issue, systemImage: "wifi.exclamationmark").font(.callout).foregroundStyle(.secondary)
             } else if task.isAvailableInEngine && scenePhase == .active && windowVisible {
@@ -208,10 +214,10 @@ struct TransferDetailsView: View {
         .stateChangeMotion(monitor.snapshot != nil)
         .stateChangeMotion(monitor.issue != nil)
         .background(WindowVisibilityReader(visible: $windowVisible).frame(width: 0, height: 0))
-        .task(id: "\(task.id):\(task.isAvailableInEngine):\(scenePhase == .active && windowVisible):\(store.isUpdatingEngine)") {
+        .task(id: "\(store.engineSessionID):\(task.id):\(task.isAvailableInEngine):\(scenePhase == .active && windowVisible):\(store.isUpdatingEngine)") {
             guard scenePhase == .active && windowVisible, task.isAvailableInEngine, !store.isUpdatingEngine else { return }
             let id = task.id, torrent = task.isTorrentLike, store = store
-            await monitor.observe {
+            await monitor.observe(taskID: "\(store.engineSessionID):\(id)") {
                 let client = try await store.transferClient(for: id)
                 return try await client.transferSnapshot(id, isTorrent: torrent)
             }
@@ -220,21 +226,26 @@ struct TransferDetailsView: View {
 }
 
 struct TransferRateSummary: View {
-    let snapshot: TransferSnapshot
-    let isTorrent: Bool
+    let task: DownloadTask
+    let uploaded: Int64?
+    private var live: Bool { task.status == .active && task.isAvailableInEngine }
+    private var downloadSpeed: Int64 { live ? task.downloadSpeed : 0 }
+    private var uploadSpeed: Int64 { live ? task.uploadSpeed : 0 }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(ByteFormat.speed(snapshot.downloadSpeed), systemImage: "arrow.down.circle")
-                    .accessibilityLabel(String(localized: "Download speed")).accessibilityValue(ByteFormat.speed(snapshot.downloadSpeed))
+                TransferSpeedLabel(speed: downloadSpeed, uploading: false, circled: true)
+                    .accessibilityLabel(String(localized: "Download speed")).accessibilityValue(ByteFormat.speed(downloadSpeed))
+                    .accessibilityIdentifier("network-transfer-download-speed")
                 Spacer()
-                if isTorrent {
-                    Label(ByteFormat.speed(snapshot.uploadSpeed), systemImage: "arrow.up.circle")
-                        .accessibilityLabel(String(localized: "Upload speed")).accessibilityValue(ByteFormat.speed(snapshot.uploadSpeed))
+                if task.isTorrentLike {
+                    TransferSpeedLabel(speed: uploadSpeed, uploading: true, circled: true)
+                        .accessibilityLabel(String(localized: "Upload speed")).accessibilityValue(ByteFormat.speed(uploadSpeed))
+                        .accessibilityIdentifier("network-transfer-upload-speed")
                 }
             }.font(.headline).monospacedDigit()
-            Text(String(localized: "\(snapshot.connections) active connections")).font(.caption).foregroundStyle(.secondary)
-            if isTorrent, let uploaded = snapshot.uploaded {
+            Text(String(localized: "\(live ? task.connections : 0) active connections")).font(.caption).foregroundStyle(.secondary)
+            if task.isTorrentLike, let uploaded {
                 Text(String(localized: "Uploaded \(ByteFormat.size(uploaded))")).font(.caption).foregroundStyle(.secondary)
             }
         }.contentPanel()
@@ -252,10 +263,10 @@ struct PeerTransferRow: View {
                 Text(peer.seeder == "true" ? String(localized: "Seeder") : peer.stateLabel)
             }.font(.caption).foregroundStyle(.secondary)
             HStack {
-                Label(ByteFormat.speed(peer.down), systemImage: "arrow.down").accessibilityLabel(String(localized: "Download speed"))
+                TransferSpeedLabel(speed: peer.down, uploading: false).accessibilityLabel(String(localized: "Download speed"))
                     .accessibilityValue(ByteFormat.speed(peer.down))
                 Spacer()
-                Label(ByteFormat.speed(peer.up), systemImage: "arrow.up").accessibilityLabel(String(localized: "Upload speed"))
+                TransferSpeedLabel(speed: peer.up, uploading: true).accessibilityLabel(String(localized: "Upload speed"))
                     .accessibilityValue(ByteFormat.speed(peer.up))
             }.font(.callout).monospacedDigit()
             if let fraction = peer.fraction {
@@ -283,7 +294,7 @@ struct PeerTransferRow: View {
 }
 
 struct TransferOptionsView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     let task: DownloadTask
     @State private var uploadKiB = 0
     @State private var originalKiB: Int?
@@ -314,10 +325,6 @@ struct TransferOptionsView: View {
                 if saved { Label(String(localized: "Upload limit saved"), systemImage: "checkmark.circle").font(.caption) }
                 Text(String(localized: "0 removes this task's cap. The global cap still applies; it is not a way to turn off seeding."))
                     .font(.caption).foregroundStyle(.secondary)
-                if store.engineCapabilities?.version == "2.8.6" {
-                    Text(String(localized: "Aria2 Next 2.8.6 exempts local-network peers from global bandwidth limits. Set a task upload limit to cap their speed too."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
                 if let globalUpload {
                     Text(globalUpload == 0 ? String(localized: "Global upload: Unlimited") : String(localized: "Global upload: \(ByteFormat.speed(globalUpload))"))
                         .font(.caption).foregroundStyle(.secondary)

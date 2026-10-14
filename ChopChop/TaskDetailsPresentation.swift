@@ -186,7 +186,7 @@ final class TaskDetailsPanel: NSPanel {
 }
 
 private struct TaskDetailsPanelContent: View {
-    @ObservedObject var store: DownloadStore
+    let store: DownloadStore
     @ObservedObject var presentation: TaskDetailsPresentation
 
     var body: some View {
@@ -195,10 +195,10 @@ private struct TaskDetailsPanelContent: View {
                 TaskInspectorView(task: task, selection: $presentation.selectedTab, sectionRequest: presentation.sectionRequest)
             }
         }
-        .environmentObject(store)
+        .environment(store)
         .environment(\.scenePhase, presentation.scenePhase)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: store.selectedTask?.id) { _, id in
+        .onChange(of: store.selectedTaskRow?.id) { _, id in
             if id == nil { presentation.dismiss(returnFocus: false) }
         }
     }

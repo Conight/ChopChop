@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>ChopChop</string>
+	<string>$(PRODUCT_NAME)</string>
 	<key>ChopChopReleaseRepository</key>
 	<string>$(CHOPCHOP_RELEASE_REPOSITORY)</string>
 	<key>ChopChopAppIdentifier</key>

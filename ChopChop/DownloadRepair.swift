@@ -49,7 +49,7 @@ nonisolated extension DownloadTask {
 }
 
 struct DownloadRepairView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     let task: DownloadTask
     @State private var repair = DownloadConnectionRepair()
     @State private var busy = false

@@ -1,5 +1,12 @@
 import Foundation
 
+/// Fixed in the signed app bundle; never selected by launch arguments or user defaults.
+nonisolated enum AppIdentity {
+    static let isDevelopment = Bundle.main.object(forInfoDictionaryKey: "ChopChopDevelopmentBuild") as? Bool == true
+    static let displayName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "ChopChop"
+    static let portOffset = isDevelopment ? 100 : 0
+}
+
 /// Public identity embedded by Xcode from Configuration/Release.xcconfig.
 /// Runtime configuration never comes from an update response or the environment.
 nonisolated struct ReleaseConfiguration: Equatable, Sendable {

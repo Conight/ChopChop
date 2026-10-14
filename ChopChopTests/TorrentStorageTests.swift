@@ -11,6 +11,7 @@ final class TorrentStorageTests: XCTestCase {
     }
 
     private let info = Data("d6:lengthi4e4:name8:file.bin12:piece lengthi16384e6:pieces20:abcdefghijklmnopqrste".utf8)
+    private let taskID = "0123456789abcdef"
     private var infoHash: String { Insecure.SHA1.hash(data: info).map { String(format: "%02x", $0) }.joined() }
 
     func testDirectoriesAreReservedWithoutReusingOrEscapingExistingFolders() throws {
@@ -54,26 +55,58 @@ final class TorrentStorageTests: XCTestCase {
         let existing = root.appendingPathComponent("Example.torrent")
         try Data("user file".utf8).write(to: existing)
         var torrent = Data("d4:info".utf8); torrent.append(info); torrent.append(Data("e".utf8))
-        try await TorrentStorage.saveEngineCopy(infoHash: infoHash, name: "Example", directory: root,
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: infoHash, name: "Example", directory: root,
             original: torrent, metadataURL: nil, stateDirectory: root)
-        try await TorrentStorage.saveEngineCopy(infoHash: infoHash, name: "Example", directory: root,
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: infoHash, name: "Example", directory: root,
             original: torrent, metadataURL: nil, stateDirectory: root)
         XCTAssertEqual(try Data(contentsOf: existing), Data("user file".utf8))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Example (2).torrent")), torrent)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path).count, 2)
     }
 
-    func testMagnetCopyReadsSavedResumeAndLeavesStateUntouched() async throws {
+    func testMagnetCopyReadsV3GIDResumeAndLeavesStateUntouched() async throws {
         let root = try temporaryDirectory()
         let state = root.appendingPathComponent("bittorrent/torrents")
         try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
         var resume = Data("d4:info".utf8); resume.append(info); resume.append(Data("e".utf8))
-        let resumeURL = state.appendingPathComponent(infoHash + ".fastresume")
+        let resumeURL = state.appendingPathComponent(taskID + ".fastresume")
         try resume.write(to: resumeURL)
-        try await TorrentStorage.saveEngineCopy(infoHash: infoHash, name: "Magnet", directory: root,
+        // A stale hash-named file must never be selected instead of this task's v3 state.
+        try Data("stale legacy state".utf8).write(to: state.appendingPathComponent(infoHash + ".fastresume"))
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: infoHash, name: "Magnet", directory: root,
             original: nil, metadataURL: nil, stateDirectory: root)
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Magnet.torrent")), resume)
         XCTAssertEqual(try Data(contentsOf: resumeURL), resume)
+    }
+
+    func testMagnetCopyWaitsForAsynchronousV3ResumeSave() async throws {
+        let root = try temporaryDirectory()
+        let state = root.appendingPathComponent("bittorrent/torrents")
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
+        var resume = Data("d4:info".utf8); resume.append(info); resume.append(Data("e".utf8))
+        let data = resume
+        let resumeURL = state.appendingPathComponent(taskID + ".fastresume")
+        let writer = Task {
+            try await Task.sleep(for: .milliseconds(250))
+            try data.write(to: resumeURL, options: .atomic)
+        }
+        defer { writer.cancel() }
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: infoHash, name: "Delayed", directory: root,
+            original: nil, metadataURL: nil, stateDirectory: root)
+        try await writer.value
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Delayed.torrent")), resume)
+    }
+
+    func testMagnetCopyRejectsUnsafeTaskIDsBeforeReadingState() async throws {
+        let root = try temporaryDirectory()
+        for invalidID in ["../0123456789abcdef", "", "0123456789abcdeg", String(repeating: "1", count: 40)] {
+            do {
+                try await TorrentStorage.saveEngineCopy(taskID: invalidID, infoHash: infoHash, name: "Unsafe", directory: root,
+                    original: nil, metadataURL: nil, stateDirectory: root)
+                XCTFail("Invalid task ID must not select a resume file")
+            } catch is DownloadOperationError {}
+        }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }
 
     func testSkippedSharedPiecesAreNotPresentedAsACompletedFile() throws {
@@ -98,8 +131,8 @@ final class TorrentStorageTests: XCTestCase {
         let hash = SHA256.hash(data: v2Info).map { String(format: "%02x", $0) }.joined()
         var resume = Data("d4:info".utf8); resume.append(v2Info)
         resume.append(Data("8:trackersll20:https://example.com/eee".utf8))
-        try resume.write(to: state.appendingPathComponent(hash + ".fastresume"))
-        try await TorrentStorage.saveEngineCopy(infoHash: hash, name: "Example", directory: root,
+        try resume.write(to: state.appendingPathComponent(taskID + ".fastresume"))
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: hash, name: "Example", directory: root,
             original: nil, metadataURL: nil, stateDirectory: root)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Example.torrent").path))
         let bookmark = try XCTUnwrap(PropertyListSerialization.propertyList(from:

@@ -29,7 +29,6 @@ nonisolated enum PreferenceKey {
     static let connectTimeoutSeconds = "engine.connectTimeoutSeconds"
     static let timeoutSeconds = "engine.timeoutSeconds"
     static let fileAllocation = "engine.fileAllocation"
-    static let asyncDNS = "engine.asyncDNS"
     static let userAgent = "engine.userAgent"
     static let proxyURL = "engine.proxyURL"
     static let btMaxPeers = "engine.btMaxPeers"
@@ -41,7 +40,6 @@ nonisolated enum PreferenceKey {
     static let shareRatio = "engine.shareRatio"
     static let shareTimeMinutes = "engine.shareTimeMinutes"
     static let listenPort = "engine.listenPort"
-    static let dhtListenPort = "engine.dhtListenPort"
 
     static let launchAtLogin = "app.launchAtLogin"
     static let showMenuBar = "app.showMenuBar"
@@ -73,7 +71,6 @@ nonisolated enum PreferenceKey {
         connectTimeoutSeconds,
         timeoutSeconds,
         fileAllocation,
-        asyncDNS,
         userAgent,
         proxyURL,
         btMaxPeers,
@@ -85,7 +82,6 @@ nonisolated enum PreferenceKey {
         shareRatio,
         shareTimeMinutes,
         listenPort,
-        dhtListenPort,
         launchAtLogin,
         showMenuBar,
         keepRunningAfterClose,

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MediaDownloadOptionsView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @ObservedObject var coordinator: MediaDownloadCoordinator
 
     var body: some View {
@@ -22,7 +22,7 @@ struct MediaDownloadOptionsView: View {
                 }
                 selectionControls(media)
             } else if store.engineCapabilities?.supportsMedia == true && store.addDraft.isHTTPSource {
-                Picker(String(localized: "Download as"), selection: $store.addDraft.media.mode) {
+                Picker(String(localized: "Download as"), selection: Bindable(store).addDraft.media.mode) {
                     ForEach(MediaSourceMode.allCases) { Text($0.title).tag($0) }
                 }
                 if store.addDraft.shouldInspectMedia {
@@ -97,7 +97,7 @@ struct MediaDownloadOptionsView: View {
 }
 
 struct MediaTaskActions: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     var task: DownloadTask
 
     var body: some View {

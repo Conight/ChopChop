@@ -140,7 +140,6 @@ nonisolated enum TrackerSourceCatalog {
 }
 
 nonisolated enum TrackerText {
-    static let maxAria2OptionLength = 6_144
 
     static func trackers(from text: String) -> [String] {
         uniqueTrackers(
@@ -162,20 +161,41 @@ nonisolated enum TrackerText {
         trackers(from: text).joined(separator: ",")
     }
 
-    static func reducedCommaSeparated(from text: String, maxLength: Int = maxAria2OptionLength) -> String {
-        let commaSeparated = commaSeparated(from: text)
-        guard commaSeparated.count > maxLength else { return commaSeparated }
-        let prefix = String(commaSeparated.prefix(maxLength))
-        guard let lastComma = prefix.lastIndex(of: ",") else { return prefix }
-        return String(prefix[..<lastComma])
-    }
-
     private static func uniqueTrackers(_ values: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
         for value in values where !value.isEmpty {
             guard seen.insert(value).inserted else { continue }
             result.append(value)
+        }
+        return result
+    }
+}
+
+nonisolated enum TrackerSyncSchedule {
+    static func nextDate(settings: EngineSettings, now: Date, force: Bool, retryAfter: Date?) -> Date? {
+        guard settings.btTrackerAutoSync, !settings.trackerSourceURLs.isEmpty else { return nil }
+        if let retryAfter { return max(now, retryAfter) }
+        if force { return now }
+        guard settings.btTrackerSyncIntervalHours > 0 else { return nil }
+        return max(now, settings.lastTrackerSyncAt?.addingTimeInterval(Double(settings.btTrackerSyncIntervalHours) * 3_600) ?? now)
+    }
+}
+
+nonisolated struct TorrentTrackerAddress: Equatable, Sendable {
+    var url: String
+    var tier: Int
+
+    static func merging(_ current: [BitTorrentTrackerStatus], additional: [String]) -> [Self] {
+        var seen = Set<String>()
+        var result = current.compactMap { entry -> Self? in
+            guard seen.insert(entry.url).inserted else { return nil }
+            return Self(url: entry.url, tier: min(255, max(0, Int(entry.tier ?? "0") ?? 0)))
+        }
+        var tier = min(255, (result.map(\.tier).max() ?? -1) + 1)
+        for url in additional where seen.insert(url).inserted {
+            result.append(Self(url: url, tier: tier))
+            tier = min(255, tier + 1)
         }
         return result
     }
@@ -223,18 +243,25 @@ nonisolated protocol BitTorrentTrackerSourceFetching: Sendable {
 }
 
 nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSourceFetching {
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 30
+        return URLSession(configuration: configuration)
+    }()
     @concurrent
     func fetchTrackerSources(_ urls: [String]) async -> TrackerSourceFetchResult {
         var data: [String] = []
         var failures: [TrackerSourceFetchFailure] = []
 
         for urlString in urls {
+            guard !Task.isCancelled else { break }
             guard let url = URL(string: urlString) else {
                 failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "Invalid URL.")))
                 continue
             }
             do {
-                let (body, response) = try await URLSession.shared.data(from: url)
+                let (body, response) = try await Self.session.data(from: url)
                 if let httpResponse = response as? HTTPURLResponse,
                    !(200...299).contains(httpResponse.statusCode) {
                     failures.append(

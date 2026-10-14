@@ -2,7 +2,7 @@ import SwiftUI
 
 nonisolated enum LiveTableOrder {
     /// Keep rows under the pointer still while their values refresh; append newly connected peers.
-    static func reconcile(_ previous: [String], incoming: [String]) -> [String] {
+    static func reconcile<ID: Hashable>(_ previous: [ID], incoming: [ID]) -> [ID] {
         let current = Set(incoming), existing = Set(previous)
         return previous.filter { current.contains($0) } + incoming.filter { !existing.contains($0) }
     }
@@ -93,14 +93,14 @@ struct ServerTransfersView: View {
                         }
                     }.width(max(80, width - 178))
                     TableColumn(String(localized: "File"), value: \.fileIndex) { Text($0.fileIndex.formatted()) }.width(40)
-                    TableColumn("↓", value: \.downloadSpeed) { Text(ByteFormat.speed($0.downloadSpeed)).monospacedDigit() }.width(74)
+                    TableColumn("↓") { Text($0.downloadSpeed.map(ByteFormat.speed) ?? "—").monospacedDigit() }.width(74)
                 }.frame(height: min(260, max(100, CGFloat(servers.count) * 42 + 30)))
                     .accessibilityLabel(String(localized: "Server transfers"))
                 if let server = servers.first(where: { $0.id == selection }) {
                     Text(server.address).font(.callout.monospaced()).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(String(localized: "HTTP entries are server summaries and can combine multiple connections. Individual connection speeds, byte ranges and progress are not exposed by this engine."))
+            Text(String(localized: "The engine reports HTTP server addresses but no measured server speeds. Use the total download speed above; individual connection speeds, byte ranges and progress are unavailable."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }

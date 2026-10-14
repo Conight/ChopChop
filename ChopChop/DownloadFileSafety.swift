@@ -36,7 +36,7 @@ nonisolated enum TorrentFileIssue: String, Codable, Hashable, Sendable, Localize
         case .changed: String(localized: "One or more downloaded files no longer match the expected size.")
         case .unreadable: String(localized: "One or more downloaded files cannot be read. Check the disk and folder permissions.")
         }
-        return reason + " " + String(localized: "Restore the files to their original location, then recheck downloaded pieces before resuming. To download again, remove this task and add it again.")
+        return reason + " " + String(localized: "Restore the files, remove this task without deleting files, then add the torrent again to verify them. The engine cannot recheck a paused torrent.")
     }
 }
 

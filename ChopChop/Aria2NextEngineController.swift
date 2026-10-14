@@ -60,11 +60,6 @@ nonisolated struct EngineRuntimeSnapshot: Equatable, Sendable {
     var sessionBackupURL: URL?
 }
 
-nonisolated struct EngineRPCConfiguration: Equatable, Sendable {
-    var port: Int
-    var token: String
-}
-
 nonisolated enum Aria2NextPaths {
     static let supportDirectoryName = EngineStorage.supportDirectoryName
     private static let automationBase = FileManager.default.temporaryDirectory
@@ -92,6 +87,25 @@ nonisolated enum Aria2NextPaths {
 }
 
 nonisolated enum EngineSessionMigration {
+    /// Task options in a saved session override global defaults. Upgrade old
+    /// unlimited tasks before loading them, preserving every other option.
+    static func boundRetryAttempts(supportDirectory: URL, maximumAttempts: Int) throws -> URL? {
+        let storage = EngineStorage(supportDirectory: supportDirectory)
+        guard FileManager.default.fileExists(atPath: storage.session.path) else { return nil }
+        let original = try String(contentsOf: storage.session, encoding: .utf8)
+        let bounded = original.components(separatedBy: "\n").map { line in
+            guard line.hasPrefix(" ") || line.hasPrefix("\t"),
+                  line.trimmingCharacters(in: .whitespacesAndNewlines) == "max-tries=0" else { return line }
+            return line.replacingOccurrences(of: "max-tries=0", with: "max-tries=\(max(1, maximumAttempts))")
+        }.joined(separator: "\n")
+        guard bounded != original else { return nil }
+        try FileManager.default.createDirectory(at: storage.sessionBackups, withIntermediateDirectories: true)
+        let backup = storage.sessionBackups.appendingPathComponent("aria2-\(UUID().uuidString).session")
+        try FileManager.default.copyItem(at: storage.session, to: backup)
+        try bounded.write(to: storage.session, atomically: true, encoding: .utf8)
+        return backup
+    }
+
     /// Preserve the old task list before a new engine can rewrite output paths.
     /// Partial download files and recovery databases are never modified here.
     static func prepare(supportDirectory: URL, version: String) throws -> URL? {
@@ -319,10 +333,15 @@ final class Aria2NextEngineController: Aria2EngineControlling {
     private var lifecycleInput: FileHandle?
     private var engineProcessID: Int32?
     private var pidFileURL: URL?
-    private var rpcConfiguration: EngineRPCConfiguration?
+    private var rpcClient: Aria2RPCClient?
     private var scopedURLs: [URL] = []
     private var isStopping = false
     private var isStarting = false
+    private let makeRPCClient: (Int, String) throws -> Aria2RPCClient
+
+    init(makeRPCClient: @escaping (Int, String) throws -> Aria2RPCClient = { try Aria2RPCClient(port: $0, token: $1) }) {
+        self.makeRPCClient = makeRPCClient
+    }
 
     func selectInstallation(_ installation: EngineInstallation) {
         self.installation = installation
@@ -361,11 +380,16 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         let logURL = EngineStorage(supportDirectory: support).log
         let pidFileURL = support.appendingPathComponent("aria2-\(UUID().uuidString).pid", isDirectory: false)
         let sessionExists = FileManager.default.fileExists(atPath: sessionURL.path)
-        let sessionBackupURL = try EngineSessionMigration.prepare(
+        var sessionBackupURL = try EngineSessionMigration.prepare(
             supportDirectory: support,
             version: installation.version.description
         )
+        let retryBackupURL = try EngineSessionMigration.boundRetryAttempts(
+            supportDirectory: support, maximumAttempts: settings.maximumAttempts)
+        if sessionBackupURL == nil { sessionBackupURL = retryBackupURL }
         try? FileManager.default.removeItem(at: pidFileURL)
+
+        try EngineStorage(supportDirectory: support).writeTrackerConfiguration(TrackerText.commaSeparated(from: settings.btTracker))
 
         let arguments = launchArguments(
             settings: settings,
@@ -402,7 +426,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         self.process = process
         self.lifecycleInput = lifecyclePipe.fileHandleForWriting
         self.pidFileURL = pidFileURL
-        rpcConfiguration = EngineRPCConfiguration(port: settings.rpcPort, token: settings.rpcToken)
+        rpcClient = try makeRPCClient(settings.rpcPort, settings.rpcToken)
 
         let enginePID: Int32
         do {
@@ -435,7 +459,8 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         }
         guard let process, process.isRunning else { throw EngineError.notRunning }
         isStopping = true
-        process.terminate()
+        if let client = rpcClient { await client.close() }
+        if process.isRunning { process.terminate() }
         await ProcessWaiter.waitUntilExit(process)
         if self.process === process {
             clearLaunchedProcessState()
@@ -464,8 +489,8 @@ final class Aria2NextEngineController: Aria2EngineControlling {
     }
 
     func client() throws -> Aria2RPCClient {
-        guard let rpcConfiguration, isRunning else { throw EngineError.notRunning }
-        return try Aria2RPCClient(port: rpcConfiguration.port, token: rpcConfiguration.token)
+        guard let rpcClient, isRunning else { throw EngineError.notRunning }
+        return rpcClient
     }
 
     private func downloadDirectoryURL(from settings: EngineSettings) throws -> URL {
@@ -501,7 +526,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         logURL: URL
     ) -> [String] {
         var arguments = [
-            "--no-conf=true",
+            "--conf-path=\(EngineStorage(supportDirectory: sessionURL.deletingLastPathComponent()).trackerConfiguration.path)",
             // Matches aria2's macOS default in production, isolated alongside
             // the session file during automation. Keep this stable for resume.
             "--state-dir=\(EngineStorage(supportDirectory: sessionURL.deletingLastPathComponent()).state.path)",
@@ -519,6 +544,7 @@ final class Aria2NextEngineController: Aria2EngineControlling {
             arguments.append("--input-file=\(sessionURL.path)")
         }
         var options = settings.engineOptions(downloadDirectoryPath: downloadDirectory.path, includeStartupOnly: true)
+        options.removeValue(forKey: "bt-tracker") // Loaded in full from our explicit config file.
         if let bootstrapPaths = ED2KBootstrapCache.cachedPathsIfAvailable() {
             options["ed2k-server-list"] = bootstrapPaths.serverMetPath
             options["ed2k-node-list"] = bootstrapPaths.nodesDatPath
@@ -575,7 +601,8 @@ final class Aria2NextEngineController: Aria2EngineControlling {
         engineProcessID = nil
         stopSecurityScopedAccess()
         process = nil
-        rpcConfiguration = nil
+        if let client = rpcClient { Task { await client.close() } }
+        rpcClient = nil
     }
 
     private func closeLifecycleInput(_ fileHandle: FileHandle?) {

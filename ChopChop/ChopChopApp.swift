@@ -12,19 +12,19 @@ import SwiftUI
 @main
 struct ChopChopApp: App {
     @NSApplicationDelegateAdaptor(ChopChopAppDelegate.self) private var appDelegate
-    @StateObject private var store: DownloadStore
+    @State private var store: DownloadStore
     @StateObject private var supportNavigation = AppSupportNavigation()
-    @StateObject private var updates = AppUpdateCoordinator()
+    @State private var updates = AppUpdateCoordinator()
 
     init() {
         AppLaunchConfiguration.prepare()
         let store = DownloadStore()
         DownloadIntentRouter.shared.store = store
-        _store = StateObject(wrappedValue: store)
+        _store = State(initialValue: store)
     }
 
     var body: some Scene {
-        WindowGroup(id: AppWindowID.downloads) {
+        WindowGroup(AppIdentity.displayName, id: AppWindowID.downloads) {
             ContentView(updates: updates, supportNavigation: supportNavigation)
                 .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
@@ -35,7 +35,7 @@ struct ChopChopApp: App {
                     appDelegate.configureMenuBar(store: store)
                     store.startEngineOnAppLaunch()
                 }
-            .environmentObject(store)
+            .environment(store)
         }
         .defaultSize(width: 1100, height: 740)
         .windowResizability(.contentMinSize)
@@ -47,7 +47,7 @@ struct ChopChopApp: App {
         }
 
         Window(String(localized: "ChopChop Help"), id: AppWindowID.help) {
-            AppSupportView(navigation: supportNavigation).environmentObject(store)
+            AppSupportView(navigation: supportNavigation).environment(store)
         }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
@@ -62,8 +62,8 @@ struct ChopChopApp: App {
 
         Settings {
             SettingsView()
-                .environmentObject(store)
-                .environmentObject(updates)
+                .environment(store)
+                .environment(updates)
         }
         .defaultSize(width: 940, height: 640)
         .windowResizability(.contentMinSize)
@@ -154,7 +154,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
             self.store = store
             downloadNavigation = store.downloadWindowRequests.sink { [weak self] in self?.revealDownloadWindow() }
             addPanelNavigation = store.addPanelRequests.sink { [weak self] in self?.revealDownloadWindow() }
-            notificationNavigation = store.$notificationNavigationRevision.dropFirst().sink { [weak self] _ in
+            notificationNavigation = store.notificationNavigationRequests.sink { [weak self] _ in
                 self?.revealDownloadWindow()
             }
         }
@@ -213,7 +213,7 @@ private final class MenuBarStatusController: NSObject {
         if self.store !== store {
             self.store = store
             popover = nil
-            preferencesCancellable = store.$preferences
+            preferencesCancellable = store.preferenceChanges
                 .map(\.showMenuBar)
                 .removeDuplicates()
                 .sink { [weak self] isVisible in
@@ -255,7 +255,7 @@ private final class MenuBarStatusController: NSObject {
             item.button?.imagePosition = .imageOnly
             item.button?.target = self
             item.button?.action = #selector(togglePopover(_:))
-            item.button?.toolTip = "ChopChop"
+            item.button?.toolTip = AppIdentity.displayName
             statusItem = item
         }
     }
@@ -266,7 +266,7 @@ private final class MenuBarStatusController: NSObject {
             let popover = NSPopover()
             popover.behavior = .transient
             popover.contentSize = NSSize(width: 376, height: 520)
-            popover.contentViewController = NSHostingController(rootView: MenuBarPanel().environmentObject(store))
+            popover.contentViewController = NSHostingController(rootView: MenuBarPanel().environment(store))
             self.popover = popover
         }
         return popover

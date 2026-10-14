@@ -129,14 +129,19 @@ final class DownloadImportTests: XCTestCase {
         store.finishDownloadPanel(owner: owner)
     }
 
-    func testAppRegistersDownloadSchemesAndDocumentTypesWithoutClaimingHTTP() throws {
+    func testDownloadTypeMetadataAndBuildScopedSystemHandlers() throws {
         let bundle = Bundle(for: DownloadStore.self)
         let info = try XCTUnwrap(bundle.infoDictionary)
-        let urlTypes = try XCTUnwrap(info["CFBundleURLTypes"] as? [[String: Any]])
-        XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["ed2k", "magnet"])
-        let documents = try XCTUnwrap(info["CFBundleDocumentTypes"] as? [[String: Any]])
-        XCTAssertEqual(documents.count, 2)
-        XCTAssertTrue(documents.allSatisfy { $0["LSHandlerRank"] as? String == "Alternate" })
+        if AppIdentity.isDevelopment {
+            XCTAssertNil(info["CFBundleURLTypes"])
+            XCTAssertNil(info["CFBundleDocumentTypes"])
+        } else {
+            let urlTypes = try XCTUnwrap(info["CFBundleURLTypes"] as? [[String: Any]])
+            XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["ed2k", "magnet"])
+            let documents = try XCTUnwrap(info["CFBundleDocumentTypes"] as? [[String: Any]])
+            XCTAssertEqual(documents.count, 2)
+            XCTAssertTrue(documents.allSatisfy { $0["LSHandlerRank"] as? String == "Alternate" })
+        }
         let declarations = try XCTUnwrap(info["UTImportedTypeDeclarations"] as? [[String: Any]])
         let extensions = declarations.flatMap { ($0["UTTypeTagSpecification"] as? [String: Any])?["public.filename-extension"] as? [String] ?? [] }
         XCTAssertEqual(Set(extensions), ["torrent", "metalink", "meta4"])
@@ -281,7 +286,7 @@ final class DownloadNotificationTests: XCTestCase {
     }
 
     func testTorrentCompletionIncludesSeedingButMediaWaitsForFinalization() throws {
-        let seeding = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"seed","status":"active","seeder":"true","bittorrent":{"state":"seeding"}}"#.utf8)).toTask()
+        let seeding = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"seed","status":"active","seeder":"true","bittorrent":{"mode":"single","state":"seeding"}}"#.utf8)).toTask()
         XCTAssertTrue(seeding.hasCompletedPayload)
         let metadata = try JSONDecoder().decode(Aria2TaskDTO.self, from: Data(#"{"gid":"metadata","status":"complete","followedBy":["content"]}"#.utf8)).toTask()
         XCTAssertFalse(metadata.hasCompletedPayload)

@@ -21,11 +21,16 @@ else
 fi
 cleanup() {
     "$PYTHON" Scripts/cleanup-verification.py "$validation_root" || true
+    if [[ -n "${test_derived_data:-}" && "$test_derived_data" != "$CHOPCHOP_DERIVED_DATA" ]]; then
+        "$PYTHON" Scripts/cleanup-verification.py "$validation_root" --derived-data "$test_derived_data" || true
+    fi
     if $owns_validation_root; then rm -rf "$validation_root"; fi
 }
 trap cleanup EXIT
 export TMPDIR="$validation_root/tmp/"
 export CHOPCHOP_DERIVED_DATA="$validation_root/DerivedData"
+test_derived_data="$CHOPCHOP_DERIVED_DATA"
+if [[ "${CI:-false}" != true ]]; then test_derived_data="$repo_root/DerivedData"; fi
 mkdir -p "$TMPDIR"
 "$PYTHON" - <<'PY'
 import json, re, subprocess, sys
@@ -42,14 +47,15 @@ PY
 "$PYTHON" Scripts/test_release_config.py
 "$PYTHON" Scripts/test_engine_fixture.py
 node --test Scripts/test-browser-extension.mjs
-Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
-Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"
 "$PYTHON" Scripts/smoke-aria2-next.py
 "$PYTHON" Scripts/smoke-media.py
 Scripts/check.sh release
 CHOPCHOP_VALIDATION_ROOT="$validation_root" "$PYTHON" Scripts/smoke-app-update.py
-app="$CHOPCHOP_DERIVED_DATA/Build/Products/Release/ChopChop.app"
-"$PYTHON" Scripts/verify-release-app.py "$app"
+app="$CHOPCHOP_DERIVED_DATA/Build/Products/Release/ChopChop Dev.app"
+"$PYTHON" Scripts/verify-release-app.py --development "$app"
 if [[ "${1:-}" == --package && $# == 3 ]]; then
-    Scripts/create-dmg.sh --app "$app" --output-dir "$2" --dmg-name "$3"
+    # Distribution is archived separately and never launched by local tests.
+    Scripts/create-dmg.sh --output-dir "$2" --dmg-name "$3"
 fi

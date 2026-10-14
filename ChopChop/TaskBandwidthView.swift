@@ -26,7 +26,7 @@ nonisolated struct TaskBandwidthLimits: Equatable {
 }
 
 struct TaskBandwidthView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     let task: DownloadTask
     @State private var limits: TaskBandwidthLimits?
     @State private var original: TaskBandwidthLimits?

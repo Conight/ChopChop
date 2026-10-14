@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         -h|--help)
             echo 'Usage: Scripts/create-dmg.sh [--app PATH.app] [--output-dir PATH] [--dmg-name NAME]'
-            echo 'Requires Xcode 27 and Python 3.10+. Builds Release unless --app is supplied.'
+            echo 'Requires Xcode 27 and Python 3.10+. Builds Distribution unless --app is supplied.'
             exit 0 ;;
         *) echo "error: unknown option $1" >&2; exit 2 ;;
     esac
@@ -31,12 +31,19 @@ temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/chopchop-dmg.XXXXXX")"
 mount_point=""
 cleanup() {
     if [[ -n "$mount_point" ]]; then hdiutil detach "$mount_point" -quiet || true; fi
+    local archive_app
+    for archive_app in "$temp_dir/ChopChop.xcarchive/Products/Applications/ChopChop.app" \
+        "$temp_dir/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/ChopChop/InstallationBuildProductsLocation/Applications/ChopChop.app"; do
+        # Xcode moves the intermediate bundle into the archive; its old path
+        # may already be gone while a Launch Services registration remains.
+        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$archive_app" >/dev/null 2>&1 || true
+    done
     rm -rf "$temp_dir"
 }
 trap cleanup EXIT
 if [[ -z "$app_path" ]]; then
     xcodebuild -project "$repo_root/ChopChop.xcodeproj" -scheme ChopChop \
-        -configuration Release -destination 'generic/platform=macOS' \
+        -configuration Distribution -destination 'generic/platform=macOS' \
         -derivedDataPath "$temp_dir/DerivedData" \
         -archivePath "$temp_dir/ChopChop.xcarchive" \
         CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ARCHS=arm64 \

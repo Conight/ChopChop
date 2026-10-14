@@ -36,7 +36,7 @@ final class SettingsAndTablesTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.1"), client: SearchReleaseClient(), defaults: defaults)
         let search = SettingsSearchModel()
-        let host = NSHostingController(rootView: SettingsView(initialPane: .general, search: search).environmentObject(store).environmentObject(updates))
+        let host = NSHostingController(rootView: SettingsView(initialPane: .general, search: search).environment(store).environment(updates))
         host.sizingOptions = [.minSize]
         host.view.frame = NSRect(x: 0, y: 0, width: 860, height: 560)
         let window = NSWindow(contentRect: host.view.frame, styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
@@ -184,6 +184,8 @@ final class SettingsAndTablesTests: XCTestCase {
     func testLiveOrderPreservesRowsDuringSpeedChangesAndDropsDisconnectedPeers() {
         XCTAssertEqual(LiveTableOrder.reconcile(["a", "b", "c"], incoming: ["d", "c", "a"]), ["a", "c", "d"])
         XCTAssertEqual(LiveTableOrder.reconcile([], incoming: ["b", "a"]), ["b", "a"])
+        XCTAssertEqual(LiveTableOrder.reconcile([1, 2], incoming: [2, 3, 1]), [1, 2, 3],
+                       "File progress changes keep existing file indexes in place and append new files")
     }
 
     func testFileIdentityAndRelativeDirectorySurviveRPCDecodedUUIDChanges() {
@@ -197,7 +199,7 @@ final class SettingsAndTablesTests: XCTestCase {
     }
 
     func testRefreshBackoffDoesNotChangeScheduleDeadline() {
-        XCTAssertEqual(DownloadRefreshPolicy.interval(foreground: true, hasTransfers: true, failures: 0), .seconds(2))
+        XCTAssertEqual(DownloadRefreshPolicy.interval(foreground: true, hasTransfers: true, failures: 0), .seconds(1))
         XCTAssertEqual(DownloadRefreshPolicy.interval(foreground: false, hasTransfers: true, failures: 0), .seconds(5))
         XCTAssertEqual(DownloadRefreshPolicy.interval(foreground: false, hasTransfers: false, failures: 0), .seconds(30))
         XCTAssertEqual(DownloadRefreshPolicy.interval(foreground: true, hasTransfers: true, failures: 100), .seconds(60))

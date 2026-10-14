@@ -34,8 +34,8 @@ struct PeerLimitConfirmation {
 
 struct SettingsView: View {
     private static let lastPaneKey = "settings.lastPane"
-    @EnvironmentObject var store: DownloadStore
-    @EnvironmentObject var updates: AppUpdateCoordinator
+    @Environment(DownloadStore.self) var store
+    @Environment(AppUpdateCoordinator.self) var updates
     @Environment(\.controlActiveState) var controlActiveState
     @Environment(\.openWindow) private var openWindow
     @StateObject var settingsSearch = SettingsSearchModel()
@@ -130,8 +130,8 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings-sidebar")
         } detail: {
             SettingsPaneHost(content: settingsPage
-                .environmentObject(store)
-                .environmentObject(updates))
+                .environment(store)
+                .environment(updates))
                 .navigationTitle(selectedPane.localizedTitle)
         }
         .navigationSplitViewStyle(.balanced)

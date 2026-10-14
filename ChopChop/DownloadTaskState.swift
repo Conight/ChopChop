@@ -8,15 +8,13 @@ nonisolated struct DownloadOperationError: LocalizedError, Sendable {
 }
 
 nonisolated struct EngineCapabilities: Decodable, Equatable, Sendable {
-    var product: String?
-    var rpcVersion: String?
+    var product: String = "aria2-next"
+    var rpcVersion: String = "1.1.0"
     var version: String
-    var enabledFeatures: [String]?
-    var mediaFeatures: [String]?
+    var enabledFeatures: [String] = []
+    var mediaFeatures: [String] = []
 
-    // Missing capability information is unknown, rather than proof of no support.
     func supports(_ kind: TaskProtocol) -> Bool {
-        guard let enabledFeatures else { return true }
         let feature: String
         switch kind {
         case .sftp: feature = "SFTP"

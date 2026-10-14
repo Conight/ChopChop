@@ -6,7 +6,7 @@ extension SettingsView {
     var ed2k: some View {
         SettingsSection(title: String(localized: "Ports")) {
             SettingsControlRow(title: String(localized: "ED2K listen port")) {
-                TextField(String(localized: "ED2K listen port"), value: $store.engineSettings.ed2kListenPort, format: .number.grouping(.never))
+                TextField(String(localized: "ED2K listen port"), value: Bindable(store).engineSettings.ed2kListenPort, format: .number.grouping(.never))
                     .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
@@ -14,27 +14,27 @@ extension SettingsView {
             }
             .settingsAnchor("ed2k.ed2k-listen-port")
             SettingsControlRow(title: String(localized: "ED2K UDP listen port")) {
-                TextField(String(localized: "ED2K UDP listen port"), value: $store.engineSettings.ed2kUDPListenPort, format: .number.grouping(.never))
+                TextField(String(localized: "ED2K UDP listen port"), value: Bindable(store).engineSettings.ed2kUDPListenPort, format: .number.grouping(.never))
                     .nativeTextFieldStyle()
                     .labelsHidden()
                     .frame(width: 112)
                     .accessibilityIdentifier("settings-ed2k-udp-listen-port-field")
             }
             .settingsAnchor("ed2k.ed2k-udp-listen-port")
-            Stepper(value: $store.engineSettings.ed2kUploadSlots, in: 1...100) {
-                SettingValueRow(title: String(localized: "Upload slots"), value: "\(store.engineSettings.ed2kUploadSlots)")
-            }
+            SettingsNumberRow(
+                title: String(localized: "Upload slots"), value: Bindable(store).engineSettings.ed2kUploadSlots, range: 1...100
+            )
             .accessibilityIdentifier("settings-ed2k-upload-slots-stepper")
             .settingsAnchor("ed2k.upload-slots")
         }
 
         SettingsSection(title: String(localized: "Bootstrap")) {
-            TextField(String(localized: "server.met URL"), text: $store.engineSettings.ed2kServerMetURL)
+            TextField(String(localized: "server.met URL"), text: Bindable(store).engineSettings.ed2kServerMetURL)
                 .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
                 .accessibilityIdentifier("settings-ed2k-server-met-url-field")
             .settingsAnchor("ed2k.server-met-url")
-            TextField(String(localized: "nodes.dat URL"), text: $store.engineSettings.ed2kNodesDatURL)
+            TextField(String(localized: "nodes.dat URL"), text: Bindable(store).engineSettings.ed2kNodesDatURL)
                 .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
                 .accessibilityIdentifier("settings-ed2k-nodes-dat-url-field")
@@ -44,7 +44,7 @@ extension SettingsView {
                 Text(String(localized: "ED2K servers"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField(String(localized: "One server per line, for example server.example:4661"), text: $store.engineSettings.ed2kServer, axis: .vertical)
+                TextField(String(localized: "One server per line, for example server.example:4661"), text: Bindable(store).engineSettings.ed2kServer, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(3...6)
@@ -64,11 +64,11 @@ extension SettingsView {
                 }
             }
 
-            Toggle(String(localized: "Sync bootstrap files automatically"), isOn: $store.engineSettings.ed2kBootstrapAutoSync)
+            Toggle(String(localized: "Sync bootstrap files automatically"), isOn: Bindable(store).engineSettings.ed2kBootstrapAutoSync)
                 .accessibilityIdentifier("settings-ed2k-bootstrap-auto-sync-toggle")
             .settingsAnchor("ed2k.sync-bootstrap-files-automatically")
 
-            Picker(String(localized: "Sync frequency:"), selection: $store.engineSettings.ed2kBootstrapSyncIntervalHours) {
+            Picker(String(localized: "Sync frequency:"), selection: Bindable(store).engineSettings.ed2kBootstrapSyncIntervalHours) {
                 ForEach(TrackerSyncInterval.allCases) { interval in
                     Text(interval.title).tag(interval.rawValue)
                 }
@@ -97,7 +97,7 @@ extension SettingsView {
         }
 
         SettingsSection(title: String(localized: "Search")) {
-            TextField(String(localized: "Keyword"), text: $store.ed2kSearchKeyword)
+            TextField(String(localized: "Keyword"), text: Bindable(store).ed2kSearchKeyword)
                 .nativeTextFieldStyle()
                 .frame(minWidth: 220, maxWidth: .infinity)
                 .accessibilityIdentifier("settings-ed2k-search-keyword-field")
@@ -112,14 +112,15 @@ extension SettingsView {
             .accessibilityIdentifier("settings-ed2k-search-file-type-picker")
             .settingsAnchor("ed2k.file-type")
 
-            Stepper(value: $store.ed2kSearchMinSources, in: 1...9_999) {
-                SettingValueRow(title: String(localized: "Minimum sources"), value: "\(store.ed2kSearchMinSources)")
-            }
+            SettingsNumberRow(
+                title: String(localized: "Minimum sources"), value: Bindable(store).ed2kSearchMinSources, range: 1...9_999
+            )
             .settingsAnchor("ed2k.minimum-sources")
 
-            Stepper(value: $store.engineSettings.ed2kSearchTimeoutSeconds, in: 10...600, step: 10) {
-                SettingValueRow(title: String(localized: "Search timeout"), value: String(localized: "\(store.engineSettings.ed2kSearchTimeoutSeconds) s"))
-            }
+            SettingsNumberRow(
+                title: String(localized: "Search timeout"), value: Bindable(store).engineSettings.ed2kSearchTimeoutSeconds, range: 10...600, step: 10,
+                unit: .seconds
+            )
             .accessibilityIdentifier("settings-ed2k-search-timeout-stepper")
             .settingsAnchor("ed2k.search-timeout")
 

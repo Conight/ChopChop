@@ -3,6 +3,27 @@ import XCTest
 
 final class UpdateCheckTests: XCTestCase {
     @MainActor
+    func testDevNeverFetchesProductionAppUpdatesButStillChecksEngine() async throws {
+        let suite = "ChopChop-dev-updates-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let probe = UpdateCheckProbe()
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true), engineInstallationManager: probe)
+        defer { store.shutdown() }
+        let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1", isDevelopment: true), client: probe, defaults: defaults)
+        XCTAssertFalse(updates.canCheckForUpdates)
+        XCTAssertFalse(updates.canDownloadInstaller)
+        XCTAssertFalse(updates.canChangeChannel)
+        await updates.check()
+        await updates.checkAtLaunch(using: store)
+        await updates.checkAll(using: store)
+        let counts = await probe.counts
+        XCTAssertEqual(counts, [0, 2])
+        XCTAssertEqual(updates.state, .idle)
+        XCTAssertTrue(updates.canCheckAllUpdates)
+    }
+
+    @MainActor
     func testIndividualChecksOnlyContactTheirComponentAndRemainIndependent() async throws {
         let suite = "ChopChop-individual-checks-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -64,7 +85,7 @@ final class UpdateCheckTests: XCTestCase {
         try await waitUntil { !reopened.isChecking(using: store) }
         let after = await probe.counts
         XCTAssertEqual(after, [1, 1])
-        XCTAssertEqual(store.latestEngineRelease?.version, EngineVersion("2.8.6"))
+        XCTAssertEqual(store.latestEngineRelease?.version, EngineVersion("3.8.6"))
     }
 
     @MainActor
@@ -182,9 +203,9 @@ actor UpdateCheckProbe: AppReleaseFetching, EngineInstallationManaging {
     func latestRelease() async throws -> EngineRelease {
         engineCalls += 1
         if holdEngine { await withCheckedContinuation { engineWaiter = $0 } }
-        return EngineDistribution.release(version: EngineVersion("2.8.6")!)
+        return EngineDistribution.release(version: EngineVersion("3.8.6")!)
     }
-    func recentReleases() async throws -> [EngineRelease] { [EngineDistribution.release(version: EngineVersion("2.8.6")!)] }
+    func recentReleases() async throws -> [EngineRelease] { [EngineDistribution.release(version: EngineVersion("3.8.6")!)] }
     func finishApp() { holdApp = false; appWaiter?.resume(); appWaiter = nil }
     func finishEngine() { holdEngine = false; engineWaiter?.resume(); engineWaiter = nil }
     func activate(_ installation: EngineInstallation) async throws { XCTFail("Checking must not activate an Engine") }

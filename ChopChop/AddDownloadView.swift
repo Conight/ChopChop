@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct AddDownloadPanel: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @ObservedObject var mediaCoordinator: MediaDownloadCoordinator
     @State private var isShowingAdvanced: Bool
     @State private var submissionError: UserFacingAlert?
@@ -133,7 +133,7 @@ struct AddDownloadPanel: View {
                 }
             }
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $store.addDraft.rawInput)
+                TextEditor(text: Bindable(store).addDraft.rawInput)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .focused($linksAreFocused)
@@ -158,7 +158,7 @@ struct AddDownloadPanel: View {
             }
             .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
             if store.addDraft.isBatch {
-                Toggle(String(localized: "Use these links as mirrors for one download"), isOn: $store.addDraft.treatLinesAsMirrors)
+                Toggle(String(localized: "Use these links as mirrors for one download"), isOn: Bindable(store).addDraft.treatLinesAsMirrors)
                     .toggleStyle(.checkbox)
                     .disabled(isSubmitting)
             }
@@ -201,7 +201,7 @@ struct AddDownloadPanel: View {
         VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
             HStack {
                 Text(String(localized: "After adding")).font(AppTypography.fieldLabel)
-                Picker(String(localized: "After adding"), selection: $store.addDraft.startPaused) {
+                Picker(String(localized: "After adding"), selection: Bindable(store).addDraft.startPaused) {
                     Text(String(localized: "Start downloading")).tag(false)
                     Text(String(localized: "Keep paused")).tag(true)
                 }
@@ -353,13 +353,14 @@ private struct DownloadFolderPath: NSViewRepresentable {
         return control
     }
     func updateNSView(_ control: NSPathControl, context: Context) {
-        control.url = DownloadLocationDisplay.resolvedURL(path)
+        let url = DownloadLocationDisplay.resolvedURL(path)
+        if control.url != url { control.url = url }
         control.setAccessibilityValue(DownloadLocationDisplay.path(path))
     }
 }
 
 private struct AddDownloadOptions: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
@@ -367,7 +368,7 @@ private struct AddDownloadOptions: View {
                 if store.addDraft.supportsOutputOptions {
                     row(String(localized: "Filename")) {
                         VStack(alignment: .leading, spacing: 6) {
-                            TextField(String(localized: "Use the original filename"), text: $store.addDraft.outputName)
+                            TextField(String(localized: "Use the original filename"), text: Bindable(store).addDraft.outputName)
                             if store.addDraft.isBatch && !store.addDraft.treatLinesAsMirrors {
                                 Text(String(localized: "Leave empty when adding separate downloads."))
                                     .font(.caption).foregroundStyle(.secondary)
@@ -375,7 +376,7 @@ private struct AddDownloadOptions: View {
                         }
                     }
                     row(String(localized: "Connections")) {
-                        Stepper(value: $store.addDraft.splitCount, in: 1...256) {
+                        Stepper(value: Bindable(store).addDraft.splitCount, in: 1...256) {
                             Text("\(store.addDraft.splitCount)").monospacedDigit()
                         }
                         .frame(width: 100)
@@ -383,12 +384,12 @@ private struct AddDownloadOptions: View {
                 }
                 row(String(localized: "Download speed")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle(String(localized: "Limit speed"), isOn: $store.addDraft.limitSpeed)
+                        Toggle(String(localized: "Limit speed"), isOn: Bindable(store).addDraft.limitSpeed)
                             .toggleStyle(.checkbox)
                             .accessibilityIdentifier("add-download-limit-speed-toggle")
                         if store.addDraft.limitSpeed {
                             HStack {
-                                TextField(String(localized: "Speed"), value: $store.addDraft.speedLimitKB, format: .number.grouping(.never))
+                                TextField(String(localized: "Speed"), value: Bindable(store).addDraft.speedLimitKB, format: .number.grouping(.never))
                                     .frame(width: 88)
                                 Text("KB/s").foregroundStyle(.secondary)
                             }
@@ -405,13 +406,13 @@ private struct AddDownloadOptions: View {
             Divider()
             Text(String(localized: "HTTP Request")).font(AppTypography.fieldLabel)
             VStack(spacing: 12) {
-                row("User-Agent") { TextField(String(localized: "Default"), text: $store.addDraft.userAgent) }
-                row("Referer") { TextField(String(localized: "Optional"), text: $store.addDraft.referer) }
-                row("Cookie") { SecureField(String(localized: "Optional"), text: $store.addDraft.cookie) }
-                row("Authorization") { SecureField(String(localized: "Optional"), text: $store.addDraft.authorization) }
-                row(String(localized: "Proxy")) { TextField(String(localized: "Use engine settings"), text: $store.addDraft.proxyURL) }
+                row("User-Agent") { TextField(String(localized: "Default"), text: Bindable(store).addDraft.userAgent) }
+                row("Referer") { TextField(String(localized: "Optional"), text: Bindable(store).addDraft.referer) }
+                row("Cookie") { SecureField(String(localized: "Optional"), text: Bindable(store).addDraft.cookie) }
+                row("Authorization") { SecureField(String(localized: "Optional"), text: Bindable(store).addDraft.authorization) }
+                row(String(localized: "Proxy")) { TextField(String(localized: "Use engine settings"), text: Bindable(store).addDraft.proxyURL) }
                 row(String(localized: "Custom headers")) {
-                    TextField(String(localized: "Header: Value"), text: $store.addDraft.customHeaders, axis: .vertical)
+                    TextField(String(localized: "Header: Value"), text: Bindable(store).addDraft.customHeaders, axis: .vertical)
                         .lineLimit(3...5)
                         .font(.system(.callout, design: .monospaced))
                 }

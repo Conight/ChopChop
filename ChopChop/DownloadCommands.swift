@@ -28,7 +28,7 @@ extension FocusedValues {
 }
 
 struct DownloadCommands: Commands {
-    @ObservedObject var store: DownloadStore
+    let store: DownloadStore
     @FocusedValue(\.downloadWindowActions) private var actions
 
     private var context: DownloadActionContext {

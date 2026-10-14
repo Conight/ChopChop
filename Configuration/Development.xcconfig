@@ -1,0 +1,7 @@
+// Debug and optimized local Release builds always use an independent identity.
+#include "Release.xcconfig"
+CHOPCHOP_APP_IDENTIFIER = $(inherited).dev
+CHOPCHOP_PRODUCT_NAME = ChopChop Dev
+CHOPCHOP_INFO_PLIST = ChopChop/Dev-Info.plist
+CODE_SIGN_IDENTITY = Apple Development
+DEVELOPMENT_TEAM = 8J75L9A3BN

@@ -28,7 +28,7 @@ extension AppUpdateError: LocalizedError {
 }
 
 struct AppUpdateWindow: View {
-    @ObservedObject var updates: AppUpdateCoordinator
+    let updates: AppUpdateCoordinator
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
@@ -54,7 +54,7 @@ struct AppUpdateWindow: View {
                 .padding(.bottom, 24)
             } else {
                 HStack {
-                    Picker("Update Channel", selection: $updates.channel) {
+                    Picker("Update Channel", selection: Bindable(updates).channel) {
                         ForEach(AppUpdateChannel.allCases, id: \.self) { Text($0.title).tag($0) }
                     }.fixedSize().disabled(!updates.canChangeChannel)
                     Spacer()

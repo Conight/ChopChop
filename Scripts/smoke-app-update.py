@@ -14,6 +14,7 @@ import threading
 import time
 
 from release_config import load
+from local_signing import signing_identity
 
 REPO = Path(__file__).resolve().parent.parent
 ENV = dict(os.environ, DEVELOPER_DIR=subprocess.check_output(
@@ -74,6 +75,7 @@ def verify_task_termination(root):
         print(f'Passed {mode}: MainActor cleanup finished before real AppKit termination')
 
 def main():
+    identity = signing_identity()
     with workspace() as root:
         # Use exactly the shared production implementation; no network or installer substitutes.
         sources = ['ReleaseConfiguration', 'AppUpdateStorage', 'AppVersion', 'AppUpdatePackage', 'AppUpdateTransfer', 'AppUpdateInstallation', 'EngineRelease', 'EngineDownload']
@@ -93,7 +95,7 @@ def main():
         verify_task_termination(root)
         failing_source = root/'failing.swift'; failing_source.write_text('import Darwin\nexit(1)\n')
         run('xcrun', 'swiftc', '-module-cache-path', root/'cache', failing_source, '-o', root/'failing')
-        helper = Path(os.environ['CHOPCHOP_DERIVED_DATA'])/'Build/Products/Release/ChopChop.app/Contents/XPCServices/EngineInstaller.xpc'
+        helper = Path(os.environ['CHOPCHOP_DERIVED_DATA'])/'Build/Products/Release/ChopChop Dev.app/Contents/XPCServices/EngineInstaller.xpc'
         if not helper.exists(): raise RuntimeError('Build Release before running updater smoke tests')
         for mode in ('success', 'rollback', 'tamper', 'resume', 'waiting', 'worker', 'worker-self-quit', 'worker-xpc-self-quit', 'worker-failure'):
             case = root/mode; case.mkdir()
@@ -110,9 +112,9 @@ def main():
                             ChopChopAppIdentifier='org.example.ChopChopFork',
                             ChopChopReleaseRepository='example/ChopChopFork', ChopChopUpdatePublicKey=public_key)
                 (xpc/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
-                run('codesign', '--force', '--sign', '-', '--options', 'runtime', xpc, capture_output=True)
-                (app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.example.ChopChopFork', ChopChopAppIdentifier='org.example.ChopChopFork', ChopChopReleaseRepository='example/ChopChopFork', CFBundleExecutable='ChopChop', CFBundleName='ChopChop Update Test', CFBundlePackageType='APPL', CFBundleVersion='2' if version.endswith('2') else '1', CFBundleShortVersionString='1.0.0', ChopChopReleaseVersion='v'+version, ChopChopUpdatePublicKey=public_key, LSMinimumSystemVersion='26.5', LSUIElement=True)))
-                run('codesign', '--force', '--sign', '-', '--options', 'runtime', app, capture_output=True)
+                run('codesign', '--force', '--sign', identity, '--timestamp=none', '--options', 'runtime', xpc, capture_output=True)
+                (app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.example.ChopChopFork', ChopChopAppIdentifier='org.example.ChopChopFork', ChopChopReleaseRepository='example/ChopChopFork', CFBundleExecutable='ChopChop', CFBundleName='ChopChop Dev Update Test', CFBundleDisplayName='ChopChop Dev Update Test', CFBundlePackageType='APPL', CFBundleVersion='2' if version.endswith('2') else '1', CFBundleShortVersionString='1.0.0', ChopChopReleaseVersion='v'+version, ChopChopUpdatePublicKey=public_key, LSMinimumSystemVersion='26.5', LSUIElement=True)))
+                run('codesign', '--force', '--sign', identity, '--timestamp=none', '--options', 'runtime', app, capture_output=True)
             (case/'user-data').write_text('untouched')
             try: run(root/'smoke', mode, case, timeout=90)
             finally:

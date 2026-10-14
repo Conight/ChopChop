@@ -20,7 +20,7 @@ extension SettingsView {
                 }
             }
             .settingsAnchor("downloads.default-save-location")
-            Toggle(String(localized: "Auto organize files"), isOn: $store.preferences.autoOrganizeFiles)
+            Toggle(String(localized: "Auto organize files"), isOn: Bindable(store).preferences.autoOrganizeFiles)
             .settingsAnchor("downloads.auto-organize-files")
         }
 
@@ -29,7 +29,7 @@ extension SettingsView {
             .settingsAnchor("downloads.confirm-before-removing-downloads")
             Toggle(
                 String(localized: "Move files to Trash when confirmation is skipped"),
-                isOn: $store.preferences.deleteFilesWhenSkippingRemoveConfirmation
+                isOn: Bindable(store).preferences.deleteFilesWhenSkippingRemoveConfirmation
             )
             .disabled(!store.preferences.suppressRemoveConfirmation)
             .settingsAnchor("downloads.move-files-to-trash-when-confirmation-is-skipped")

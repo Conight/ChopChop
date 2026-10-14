@@ -77,9 +77,6 @@ nonisolated struct TransferProgressDTO: Decodable, Sendable {
     var bitfield: String?
     var pieceLength: String?
     var numPieces: String?
-    var connections: String?
-    var downloadSpeed: String?
-    var uploadSpeed: String?
     var uploadLength: String?
     var files: [Aria2FileDTO]?
     var bittorrent: TorrentInfo?
@@ -175,7 +172,8 @@ nonisolated struct ServerTransferDTO: Decodable, Sendable {
                 let address = (host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host) + (parts?.port.map { ":\($0)" } ?? "")
                 return ServerTransfer(id: "\(entry.index ?? "0"):\(offset)", fileIndex: Int(entry.index ?? "") ?? 0,
                     address: address, transport: parts?.scheme?.uppercased() ?? "—",
-                    downloadSpeed: max(0, Int64(server.downloadSpeed ?? "") ?? 0))
+                    // V3 currently returns a placeholder zero, not a measured server rate.
+                    downloadSpeed: Int64(server.downloadSpeed ?? "").flatMap { $0 > 0 ? $0 : nil })
             }
         }
     }
@@ -186,17 +184,15 @@ nonisolated struct ServerTransfer: Identifiable, Equatable, Sendable {
     var fileIndex: Int
     var address: String
     var transport: String
-    var downloadSpeed: Int64
+    var downloadSpeed: Int64?
 }
 
 nonisolated struct TransferSnapshot: Sendable {
     var pieces: PieceMap?
     var peers: [PeerTransfer] = []
     var servers: [ServerTransfer] = []
-    var downloadSpeed: Int64 = 0
-    var uploadSpeed: Int64 = 0
+    // Aggregate rates/connections belong to DownloadTask, shared by list and details.
     var uploaded: Int64?
-    var connections: Int = 0
     var updatedAt = Date()
 }
 
@@ -204,12 +200,25 @@ nonisolated struct TransferSnapshot: Sendable {
 final class TransferDetailMonitor: ObservableObject {
     @Published private(set) var snapshot: TransferSnapshot?
     @Published private(set) var issue: String?
+    @Published private(set) var isObserving = false
     private var generation = UUID()
+    private var taskID: String?
+    private let pollInterval: Duration
+    private let retryInterval: Duration
 
-    func observe(fetch: @escaping @Sendable () async throws -> TransferSnapshot) async {
+    init(pollInterval: Duration = .seconds(2), retryInterval: Duration = .seconds(6)) {
+        self.pollInterval = pollInterval; self.retryInterval = retryInterval
+    }
+
+    func observe(taskID: String, fetch: @escaping @Sendable () async throws -> TransferSnapshot) async {
         let request = UUID(); generation = request
-        snapshot = nil; issue = nil
-        defer { if generation == request { snapshot = nil } }
+        if self.taskID != taskID { snapshot = nil; issue = nil }
+        self.taskID = taskID
+        isObserving = true
+        // Keep the last successful content while inactive or retrying, preserving
+        // table selection, search and disclosure state. A different task/session
+        // must never inherit the old snapshot.
+        defer { if generation == request { isObserving = false } }
         while !Task.isCancelled {
             do {
                 let fresh = try await fetch()
@@ -217,10 +226,9 @@ final class TransferDetailMonitor: ObservableObject {
                 snapshot = fresh; issue = nil
             } catch {
                 guard !Task.isCancelled, generation == request else { return }
-                snapshot = nil
                 issue = String(localized: "Live details are unavailable. Retrying automatically.")
             }
-            do { try await Task.sleep(for: .seconds(issue == nil ? 2 : 6)) }
+            do { try await Task.sleep(for: issue == nil ? pollInterval : retryInterval) }
             catch { return }
         }
     }

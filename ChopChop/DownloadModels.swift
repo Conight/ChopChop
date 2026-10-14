@@ -156,6 +156,8 @@ nonisolated struct BitTorrentFileSelectionSession: Identifiable, Equatable, Send
     var destination = ""
     var diagnostics: BitTorrentDiagnostics?
     var isQueued = false
+    var isPaused = false
+    var discovery: TorrentDiscovery?
     var issue: String?
     var torrentDirectory: String?
     var metadataFilePath: String?

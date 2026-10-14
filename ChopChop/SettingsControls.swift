@@ -52,21 +52,84 @@ struct SettingsControlRow<Control: View>: View {
     }
 }
 
-struct SettingValueRow: View {
+struct SettingsNumberRow: View {
     var title: String
-    var value: String
+    @Binding var value: Int
+    var range: ClosedRange<Int>
+    var step: Int = 1
     var subtitle: String? = nil
+    var unit: SettingsIntegerFormat.Unit? = nil
+    var zeroLabel: String? = nil
+    var disabledLabel: String? = nil
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).fixedSize(horizontal: false, vertical: true)
-                if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        SettingsControlRow(title: title, subtitle: subtitle) {
+            HStack(alignment: .center, spacing: 6) {
+                TextField(
+                    title, value: boundedValue,
+                    format: SettingsIntegerFormat(range: range, unit: unit, zeroLabel: zeroLabel, disabledLabel: disabledLabel)
+                )
+                    .nativeTextFieldStyle()
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 112)
+                Stepper(title, value: boundedValue, in: range, step: step)
+                    .labelsHidden()
+                    .fixedSize()
             }
-            Spacer()
-            Text(value)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            .controlSize(.small)
+            .disabled(disabledLabel != nil)
+        }
+    }
+
+    private var boundedValue: Binding<Int> {
+        Binding(
+            get: { value },
+            set: { proposed in
+                guard disabledLabel == nil else { return }
+                let bounded = min(range.upperBound, max(range.lowerBound, proposed))
+                if bounded != value { value = bounded }
+            }
+        )
+    }
+}
+
+struct SettingsIntegerFormat: ParseableFormatStyle {
+    enum Unit: String, Codable { case seconds, minutes, kibibytesPerSecond }
+
+    var range: ClosedRange<Int>
+    var unit: Unit? = nil
+    var zeroLabel: String? = nil
+    var disabledLabel: String? = nil
+
+    func format(_ value: Int) -> String {
+        if let disabledLabel { return disabledLabel }
+        if value == 0, let zeroLabel { return zeroLabel }
+        switch unit {
+        case .seconds: return String(localized: "\(value) s")
+        case .minutes: return String(localized: "\(value) min")
+        case .kibibytesPerSecond: return String(localized: "\(String(value)) KiB/s")
+        case nil: return String(value)
+        }
+    }
+
+    var parseStrategy: Strategy { Strategy(format: self) }
+
+    struct Strategy: ParseStrategy {
+        var format: SettingsIntegerFormat
+
+        func parse(_ value: String) throws -> Int {
+            guard format.disabledLabel == nil else { throw CocoaError(.formatting) }
+            let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text == format.zeroLabel, format.range.contains(0) { return 0 }
+            let plainInteger = Int(text)
+            let integer = plainInteger ?? (try? IntegerFormatStyle<Int>.number.parseStrategy.parse(text))
+            guard let integer, format.range.contains(integer),
+                  plainInteger != nil || text == format.format(integer) || text == integer.formatted() else {
+                throw CocoaError(.formatting)
+            }
+            return integer
         }
     }
 }
@@ -76,10 +139,11 @@ struct SpeedLimitStepper: View {
     @Binding var value: Int
 
     var body: some View {
-        Stepper(value: $value, in: 0...1_048_576, step: 128) {
-            SettingValueRow(title: title, value: value == 0 ? String(localized: "Unlimited") : String(localized: "\(value.formatted()) KiB/s"),
-                subtitle: String(localized: "Across all tasks. Default: unlimited. Scheduled bandwidth can override this limit."))
-        }
+        SettingsNumberRow(
+            title: title, value: $value, range: 0...1_048_576, step: 128,
+            subtitle: String(localized: "Across all tasks. Default: unlimited. Scheduled bandwidth can override this limit."),
+            unit: .kibibytesPerSecond, zeroLabel: String(localized: "Unlimited")
+        )
     }
 }
 
@@ -139,7 +203,7 @@ struct RuntimeRequirementLine: View {
 }
 
 struct EngineStatusView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
 
     var body: some View {
         HStack(spacing: 10) {
@@ -205,7 +269,7 @@ struct EngineStatusView: View {
 
 
 struct CompletionNotificationSetting: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @ObservedObject var coordinator: DownloadNotificationCoordinator
 
     var body: some View {

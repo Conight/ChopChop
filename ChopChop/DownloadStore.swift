@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import Observation
 import Security
 
 struct UserFacingAlert: Identifiable, Equatable {
@@ -30,13 +31,28 @@ private struct ED2KSearchSession {
 }
 
 @MainActor
-final class DownloadStore: ObservableObject {
-    @Published var engineSettings: EngineSettings {
-        didSet { persistEngineSettings(); if oldValue != engineSettings { startPlanClock() } }
+@Observable
+final class DownloadStore {
+    var engineSettings: EngineSettings {
+        didSet {
+            persistEngineSettings()
+            if oldValue != engineSettings { startPlanClock() }
+            if oldValue.trackerSourceURLs != engineSettings.trackerSourceURLs {
+                trackerSyncPending = true
+                trackerSyncRetryAfter = nil
+            }
+            if trackerSyncClockStarted && (oldValue.btTrackerAutoSync != engineSettings.btTrackerAutoSync
+                || oldValue.btTrackerSyncIntervalHours != engineSettings.btTrackerSyncIntervalHours
+                || oldValue.trackerSourceURLs != engineSettings.trackerSourceURLs
+                || oldValue.lastTrackerSyncAt != engineSettings.lastTrackerSyncAt) {
+                scheduleTrackerSync()
+            }
+        }
     }
-    @Published var preferences: AppPreferences {
+    var preferences: AppPreferences {
         didSet {
             persistAppPreferences()
+            if oldValue != preferences { preferenceChanges.send(preferences) }
             if oldValue.notifyOnDownloadCompletion != preferences.notifyOnDownloadCompletion {
                 notifications.setEnabled(preferences.notifyOnDownloadCompletion)
             }
@@ -51,15 +67,21 @@ final class DownloadStore: ObservableObject {
     let notifications: DownloadNotificationCoordinator
     let mediaDownloads = MediaDownloadCoordinator()
     let browserCapture = BrowserCaptureServer()
+    // Explicit event streams for AppKit integrations; SwiftUI observes properties.
+    let taskSnapshots = CurrentValueSubject<[DownloadTask], Never>([])
+    let preferenceChanges = PassthroughSubject<AppPreferences, Never>()
+    let notificationNavigationRequests = PassthroughSubject<Void, Never>()
     let downloadWindowRequests = PassthroughSubject<Void, Never>()
-    private var inputTask: Task<Void, Never>?
-    @Published private(set) var importIssues: [String] = []
-    @Published private(set) var notificationNavigationRevision = 0
-    @Published var runtime = EngineRuntimeSnapshot()
-    @Published var engineCapabilities: EngineCapabilities?
-    @Published var connectionIssue: String?
-    @Published var historyIssue: String?
-    @Published var addDraftNotice: String?
+    @ObservationIgnored private var inputTask: Task<Void, Never>?
+    private(set) var importIssues: [String] = []
+    private(set) var notificationNavigationRevision = 0 {
+        didSet { notificationNavigationRequests.send() }
+    }
+    var runtime = EngineRuntimeSnapshot()
+    var engineCapabilities: EngineCapabilities?
+    var connectionIssue: String?
+    var historyIssue: String?
+    var addDraftNotice: String?
     let historyStore: DownloadHistoryStore?
     var hiddenTaskIDs: Set<String> = []
     var sessionProtectedTorrentIDs: Set<String> = []
@@ -67,67 +89,84 @@ final class DownloadStore: ObservableObject {
     var refreshSequence = 0
     var taskMutationDepth = 0
 
-    @Published private(set) var engineSetupState: EngineSetupState = .unchecked
-    @Published private(set) var installedEngine: EngineInstallation?
-    @Published private(set) var engineUpdateStatus = String(localized: "Not checked yet")
-    @Published private(set) var availableEngineUpdate: EngineRelease?
-    @Published private(set) var latestEngineRelease: EngineRelease?
-    @Published private(set) var recentEngineReleases: [EngineRelease] = []
+    private(set) var engineSetupState: EngineSetupState = .unchecked
+    private(set) var installedEngine: EngineInstallation?
+    private(set) var engineUpdateStatus = String(localized: "Not checked yet")
+    private(set) var availableEngineUpdate: EngineRelease?
+    private(set) var latestEngineRelease: EngineRelease?
+    private(set) var recentEngineReleases: [EngineRelease] = []
     /// nil follows the upstream Latest release; explicit versions apply to this installation only.
-    @Published var selectedEngineVersion: EngineVersion? {
+    var selectedEngineVersion: EngineVersion? {
         didSet {
             engineUpgradeError = nil
             engineUpgradeResult = nil
             engineVersionSelectionNotice = nil
         }
     }
-    @Published private(set) var engineReleaseListError: String?
-    @Published private(set) var engineVersionSelectionNotice: String?
+    private(set) var engineReleaseListError: String?
+    private(set) var engineVersionSelectionNotice: String?
     private var didLoadEngineReleases = false
-    @Published private(set) var engineSettingsRequested = false
-    @Published private(set) var updateSettingsRequested = false
-    @Published private(set) var isCheckingEngineUpdate = false
-    @Published private(set) var engineUpgradeProgress: EngineInstallationProgress?
-    @Published private(set) var engineUpgradeError: String?
-    @Published private(set) var engineUpgradeResult: String?
-    private var engineUpgradeTask: Task<Void, Never>?
+    private(set) var engineSettingsRequested = false
+    private(set) var updateSettingsRequested = false
+    private(set) var isCheckingEngineUpdate = false
+    private(set) var engineUpgradeProgress: EngineInstallationProgress?
+    private(set) var engineUpgradeError: String?
+    private(set) var engineUpgradeResult: String?
+    @ObservationIgnored private var engineUpgradeTask: Task<Void, Never>?
     private let engineInstallationManager: any EngineInstallationManaging
-    private var startupTask: Task<Void, Never>?
-    private var engineUpdateTask: Task<Void, Never>?
-    private var engineInstallTask: Task<Void, Never>?
-    private var engineMaintenanceTask: Task<Void, Never>?
+    @ObservationIgnored private var startupTask: Task<Void, Never>?
+    @ObservationIgnored private var engineUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var engineInstallTask: Task<Void, Never>?
+    @ObservationIgnored private var engineMaintenanceTask: Task<Void, Never>?
     let listPresentation = DownloadListPresentation()
-    @Published var tasks: [DownloadTask] = [] {
-        didSet { listPresentation.update(tasks); updatePowerAssertion() }
+    var tasks: [DownloadTask] = [] {
+        didSet {
+            listPresentation.update(tasks)
+            if oldValue != tasks { taskSnapshots.send(tasks) }
+            updatePowerAssertion()
+            let wasTransferring = oldValue.contains { $0.status == .active || $0.status == .waiting || $0.isSharing }
+            if !wasTransferring, tasks.contains(where: { $0.status == .active || $0.status == .waiting || $0.isSharing }) {
+                // A start notification can show a brief checking/queued snapshot.
+                // Do not leave it frozen behind the previous idle polling delay.
+                pollWakeContinuation?.yield(())
+            }
+        }
     }
-    @Published var speedSamples: [SpeedSample] = []
-    @Published var selectedDestination: SidebarDestination = .all
-    @Published var selectedTaskIDs: Set<DownloadTask.ID> = []
+    var speedSamples: [SpeedSample] = []
+    var selectedDestination: SidebarDestination = .all
+    var selectedTaskIDs: Set<DownloadTask.ID> = []
     var selectedTaskID: DownloadTask.ID? {
         get { selectedTaskIDs.count == 1 ? selectedTaskIDs.first : nil }
         set { selectedTaskIDs = newValue.map { [$0] } ?? [] }
     }
-    @Published var batchOperationIssue: String?
-    @Published var isPerformingBatchOperation = false
-    @Published var searchQuery = ""
-    @Published var addDraft = AddDownloadDraft()
-    @Published var isReorderingQueue = false
-    @Published var trackerSyncFeedback = ActionFeedback.idle
-    @Published var bootstrapSyncFeedback = ActionFeedback.idle
-    @Published var runtimeSettingsFeedback = ActionFeedback.idle
-    @Published var isSyncingTrackers = false
-    @Published var isSyncingED2KBootstrap = false
-    @Published var ed2kBootstrapStatus = ED2KBootstrapStatus()
-    @Published var ed2kSearchKeyword = ""
-    @Published var ed2kSearchFileType: ED2KSearchFileType = .any
-    @Published var ed2kSearchMinSources = 1
-    @Published var isSearchingED2K = false
-    @Published var ed2kSearchElapsedSeconds = 0
-    @Published var ed2kSearchResults: [ED2KSearchResult] = []
-    @Published var isResolvingBitTorrentFiles = false
-    @Published var activityMessage: String?
-    @Published var removalRequest: DownloadRemovalRequest?
-    @Published var bitTorrentSelectionSession: BitTorrentFileSelectionSession?
+    var batchOperationIssue: String?
+    var isPerformingBatchOperation = false
+    var searchQuery = ""
+    var addDraft = AddDownloadDraft()
+    var isReorderingQueue = false
+    var trackerSyncFeedback = ActionFeedback.idle
+    var bootstrapSyncFeedback = ActionFeedback.idle
+    var runtimeSettingsFeedback = ActionFeedback.idle
+    var isSyncingTrackers = false
+    var trackerSyncIssue: String?
+    @ObservationIgnored private var trackerSyncClock: Task<Void, Never>?
+    @ObservationIgnored private var trackerSyncOperation: Task<Void, Never>?
+    private var trackerSyncClockStarted = false
+    private var trackerSyncPending = false
+    private var trackerSyncRetryAfter: Date?
+    var isSyncingED2KBootstrap = false
+    var ed2kBootstrapStatus = ED2KBootstrapStatus()
+    var ed2kSearchKeyword = ""
+    var ed2kSearchFileType: ED2KSearchFileType = .any
+    var ed2kSearchMinSources = 1
+    var isSearchingED2K = false
+    var ed2kSearchElapsedSeconds = 0
+    var ed2kSearchResults: [ED2KSearchResult] = []
+    var isResolvingBitTorrentFiles = false
+    private(set) var isRetryingBitTorrentDiscovery = false
+    var activityMessage: String?
+    var removalRequest: DownloadRemovalRequest?
+    var bitTorrentSelectionSession: BitTorrentFileSelectionSession?
     let addPanelRequests = PassthroughSubject<Void, Never>()
     let userAlerts = PassthroughSubject<UserFacingAlert, Never>()
 
@@ -137,22 +176,32 @@ final class DownloadStore: ObservableObject {
     private let ed2kBootstrapFetcher: any ED2KBootstrapFetching
     private let ed2kBootstrapApplicationSupportBase: URL?
     private let powerAssertionController: any PowerAssertionControlling
-    var pollTask: Task<Void, Never>?
+    @ObservationIgnored var pollTask: Task<Void, Never>?
+    @ObservationIgnored var pollWakeContinuation: AsyncStream<Void>.Continuation?
+    var fullRefreshesInFlight = 0
+    var transferRefreshInFlight = false
+    var transferRefreshDeferred = false
+    var lastFullRefresh: ContinuousClock.Instant?
+    @ObservationIgnored var engineEventTask: Task<Void, Never>?
+    @ObservationIgnored var engineEventRefreshTask: Task<Void, Never>?
+    var engineEventRefreshPending = false
+    var engineEventsConnected = false
     var refreshClockStarted = false
-    var planTask: Task<Void, Never>?
-    private var wakeObservers: Set<AnyCancellable> = []
-    private var ed2kSearchTask: Task<Void, Never>?
+    @ObservationIgnored var planTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObservers: Set<AnyCancellable> = []
+    @ObservationIgnored private var ed2kSearchTask: Task<Void, Never>?
     private var claimedAlertIDs: Set<UUID> = []
     private var pendingStartupAlerts: [UserFacingAlert] = []
     private var didAttemptLaunchStartup = false
     private var bitTorrentSelectionRequestID: UUID?
+    private var bitTorrentDiscoveryRetryRequested = false
     private var didReportPowerAssertionFailure = false
     private var ed2kSearchSession: ED2KSearchSession?
     var engineSessionID = UUID()
     var isShuttingDown = false
-    @Published var armedScheduledTaskIDs: Set<String> = []
-    @Published var downloadPlanIssue: String?
-    @Published var bandwidthPlanIssue: String?
+    var armedScheduledTaskIDs: Set<String> = []
+    var downloadPlanIssue: String?
+    var bandwidthPlanIssue: String?
     var applyingDownloadPlans = false
     var scheduleRequests: [String: UUID] = [:]
     var lastBandwidthOptions: [String: String]?
@@ -260,8 +309,11 @@ final class DownloadStore: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    guard let self, self.refreshClockStarted, self.engineController.isRunning, !self.isShuttingDown else { return }
+                    guard let self, !self.isShuttingDown else { return }
+                    self.scheduleTrackerSync()
+                    guard self.refreshClockStarted, self.engineController.isRunning else { return }
                     await self.refreshTasks()
+                    self.pollWakeContinuation?.yield(())
                     self.startPlanClock()
                 }
             }.store(in: &wakeObservers)
@@ -277,6 +329,10 @@ final class DownloadStore: ObservableObject {
     }
 
     deinit {
+        trackerSyncClock?.cancel()
+        trackerSyncOperation?.cancel()
+        engineEventTask?.cancel()
+        engineEventRefreshTask?.cancel()
         inputTask?.cancel()
         startupTask?.cancel()
         engineUpdateTask?.cancel()
@@ -284,12 +340,14 @@ final class DownloadStore: ObservableObject {
         engineUpgradeTask?.cancel()
         engineMaintenanceTask?.cancel()
         pollTask?.cancel()
-        refreshClockStarted = false
         planTask?.cancel()
         ed2kSearchTask?.cancel()
     }
 
     func shutdown() {
+        trackerSyncClock?.cancel()
+        trackerSyncOperation?.cancel()
+        stopEngineEvents()
         isShuttingDown = true
         browserCapture.stop()
         inputTask?.cancel()
@@ -317,6 +375,8 @@ final class DownloadStore: ObservableObject {
         guard startupTask == nil else { return }
         startupTask = Task { @MainActor [weak self] in
             await self?.prepareEngineOnLaunch()
+            // The app can keep the cached list up to date even with its engine stopped.
+            if self?.trackerSyncClockStarted == false { self?.startTrackerSyncClock(startup: true) }
         }
     }
 
@@ -471,6 +531,7 @@ final class DownloadStore: ObservableObject {
     }
 
     private func suspendEngineMonitoring() {
+        stopEngineEvents()
         engineSessionID = UUID()
         engineMaintenanceTask?.cancel()
         pollTask?.cancel()
@@ -607,46 +668,19 @@ final class DownloadStore: ObservableObject {
         engineSetupState = .installing(stage)
     }
 
-    var selectedTask: DownloadTask? {
+    var selectedTaskRow: DownloadRowState? {
         guard let selectedTaskID else { return nil }
-        return tasks.first { $0.id == selectedTaskID }
+        return listPresentation.row(id: selectedTaskID)
     }
+
+    var selectedTask: DownloadTask? { selectedTaskRow?.task }
 
     var visibleTasks: [DownloadTask] {
         visibleTasks(for: selectedDestination)
     }
 
     func visibleTasks(for destination: SidebarDestination) -> [DownloadTask] {
-        var filtered = tasks
-        switch destination {
-        case .all:
-            break
-        case .active:
-            filtered = filtered.filter { $0.status == .active }
-        case .waiting:
-            filtered = filtered.filter { $0.status == .waiting || $0.status == .paused }
-            filtered.sort {
-                if $0.queuePosition != $1.queuePosition { return ($0.queuePosition ?? Int.max) < ($1.queuePosition ?? Int.max) }
-                return $0.addedAt < $1.addedAt
-            }
-        case .completed:
-            filtered = filtered.filter { $0.status == .completed }
-        case .failed:
-            filtered = filtered.filter { $0.status == .failed }
-        case .torrents:
-            filtered = filtered.filter { $0.protocolKind == .bitTorrent || $0.protocolKind == .magnet }
-        case .ed2k:
-            filtered = filtered.filter { $0.protocolKind == .ed2k }
-        case .browserCapture:
-            filtered = []
-        }
-
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return filtered }
-        return filtered.filter {
-            $0.name.localizedCaseInsensitiveContains(query) ||
-            $0.destination.localizedCaseInsensitiveContains(query)
-        }
+        listPresentation.visibleRows(for: destination, query: searchQuery).map(\.task)
     }
 
     var activeSpeed: Int64 {
@@ -699,24 +733,7 @@ final class DownloadStore: ObservableObject {
     }
 
     func count(for destination: SidebarDestination) -> Int {
-        switch destination {
-        case .all:
-            tasks.count
-        case .active:
-            tasks.filter { $0.status == .active }.count
-        case .waiting:
-            tasks.filter { $0.status == .waiting || $0.status == .paused }.count
-        case .completed:
-            tasks.filter { $0.status == .completed }.count
-        case .failed:
-            tasks.filter { $0.status == .failed }.count
-        case .torrents:
-            tasks.filter { $0.protocolKind == .bitTorrent || $0.protocolKind == .magnet }.count
-        case .ed2k:
-            tasks.filter { $0.protocolKind == .ed2k }.count
-        case .browserCapture:
-            0
-        }
+        listPresentation.visibleRows(for: destination).count
     }
 
     func adoptDownloadDirectory(_ url: URL) {
@@ -798,7 +815,7 @@ final class DownloadStore: ObservableObject {
     }
 
     func syncBitTorrentTrackersManually() async {
-        await syncBitTorrentTrackers(startup: false, reportFailures: true)
+        await syncBitTorrentTrackers(reportFailures: true)
     }
 
     func setBrowserCaptureEnabled(_ enabled: Bool) {
@@ -927,8 +944,12 @@ final class DownloadStore: ObservableObject {
             try await waitForEngineRPC(port: launchSettings.rpcPort)
             try Task.checkCancellation()
             guard engineSessionID == sessionID else { return }
-            engineCapabilities = try? await engineController.client().getVersion()
+            engineCapabilities = try await engineController.client().getVersion()
             guard engineSessionID == sessionID, !Task.isCancelled else { return }
+            if engineSettings.btTracker != launchSettings.btTracker {
+                try await engineController.client().changeGlobalOption(["bt-tracker": TrackerText.commaSeparated(from: engineSettings.btTracker)])
+                guard engineSessionID == sessionID, !Task.isCancelled else { return }
+            }
             runtime = launchSnapshot
             if showAlerts, let backup = launchSnapshot.sessionBackupURL {
                 userAlerts.send(UserFacingAlert(
@@ -939,15 +960,15 @@ final class DownloadStore: ObservableObject {
             await refreshTasks(reportErrors: showAlerts)
             guard engineSessionID == sessionID, engineController.isRunning else { return }
             startPolling()
+            startTrackerSyncClock(startup: startupSync)
             engineMaintenanceTask?.cancel()
             engineMaintenanceTask = Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.syncBitTorrentTrackersIfDue(startup: startupSync)
-                guard !Task.isCancelled, self.engineSessionID == sessionID else { return }
                 await self.syncED2KBootstrapIfDue(startup: startupSync)
             }
         } catch is CancellationError {
             guard engineSessionID == sessionID else { return }
+            stopEngineEvents()
             pollTask?.cancel()
             refreshClockStarted = false
             planTask?.cancel()
@@ -958,6 +979,7 @@ final class DownloadStore: ObservableObject {
             updatePowerAssertion()
         } catch {
             guard engineSessionID == sessionID else { return }
+            stopEngineEvents()
             pollTask?.cancel()
             refreshClockStarted = false
             planTask?.cancel()
@@ -980,6 +1002,7 @@ final class DownloadStore: ObservableObject {
             return
         }
         engineSessionID = UUID()
+        stopEngineEvents()
         engineMaintenanceTask?.cancel()
         clearActivityMessage()
         do {
@@ -1008,6 +1031,9 @@ final class DownloadStore: ObservableObject {
     }
 
     func prepareForAppTermination() async {
+        trackerSyncClock?.cancel()
+        trackerSyncOperation?.cancel()
+        stopEngineEvents()
         isShuttingDown = true
         browserCapture.stop()
         inputTask?.cancel()
@@ -1230,9 +1256,12 @@ final class DownloadStore: ObservableObject {
         let requestID = UUID()
         bitTorrentSelectionRequestID = requestID
         isResolvingBitTorrentFiles = true
+        isRetryingBitTorrentDiscovery = false
+        bitTorrentDiscoveryRetryRequested = false
         clearActivityMessage()
         if var retained = bitTorrentSelectionSession {
             retained.phase = .loading; retained.issue = nil
+            retained.startedAt = Date(); retained.discovery = nil
             bitTorrentSelectionSession = retained
         } else {
             bitTorrentSelectionSession = BitTorrentFileSelectionSession(
@@ -1240,7 +1269,11 @@ final class DownloadStore: ObservableObject {
                 selectedFileIndexes: [], phase: .loading, destination: draft.savePath)
         }
         defer {
-            if bitTorrentSelectionRequestID == requestID { isResolvingBitTorrentFiles = false }
+            if bitTorrentSelectionRequestID == requestID {
+                isResolvingBitTorrentFiles = false
+                isRetryingBitTorrentDiscovery = false
+                bitTorrentDiscoveryRetryRequested = false
+            }
         }
         do {
             let client = try engineController.client()
@@ -1274,6 +1307,24 @@ final class DownloadStore: ObservableObject {
                 rememberSubmittedTasks([metadataGID], draft: draft)
                 _ = await saveSessionAfterTaskMutation(using: client)
             }
+            // Diagnostics must never delay the file-list poll, even if one endpoint stalls.
+            let diagnostics = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self, self.isCurrentBitTorrentSelection(requestID),
+                          self.bitTorrentSelectionSession?.phase == .loading else { return }
+                    let gid = self.bitTorrentSelectionSession?.downloadTaskID ?? metadataGID
+                    let attempt = self.bitTorrentSelectionSession?.startedAt
+                    let observation = await client.torrentDiscovery(gid)
+                    guard !Task.isCancelled, self.isCurrentBitTorrentSelection(requestID),
+                          self.bitTorrentSelectionSession?.phase == .loading else { return }
+                    if self.bitTorrentSelectionSession?.startedAt == attempt,
+                       (self.bitTorrentSelectionSession?.downloadTaskID ?? metadataGID) == gid {
+                        self.updateBitTorrentSelectionSession { $0.discovery = observation }
+                    }
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                }
+            }
+            defer { diagnostics.cancel() }
             let prepared = try await waitForBitTorrentFiles(
                 metadataGID: metadataGID, source: source, client: client, requestID: requestID)
             guard isCurrentBitTorrentSelection(requestID) else { return }
@@ -1311,6 +1362,9 @@ final class DownloadStore: ObservableObject {
         do {
             let client = try engineController.client()
             let snapshot = try await client.tellStatus(downloadTaskID)
+            guard !snapshot.task.isFetchingMetadata else {
+                throw DownloadOperationError(String(localized: "Torrent files are not ready yet."))
+            }
             switch snapshot.task.status {
             case .active, .waiting:
                 try await client.forcePause(downloadTaskID)
@@ -1322,7 +1376,7 @@ final class DownloadStore: ObservableObject {
 
             if let directory = session.torrentDirectory, let infoHash = snapshot.task.infoHash {
                 try await client.saveSession()
-                try await saveTorrentCopy(infoHash: infoHash, name: session.taskName,
+                try await saveTorrentCopy(taskID: downloadTaskID, infoHash: infoHash, name: session.taskName,
                     directory: URL(fileURLWithPath: directory), source: session.source,
                     metadataFilePath: session.metadataFilePath)
             }
@@ -1357,22 +1411,34 @@ final class DownloadStore: ObservableObject {
         }
     }
 
+    func retryBitTorrentDiscovery() {
+        guard isResolvingBitTorrentFiles, !isRetryingBitTorrentDiscovery, !isShuttingDown,
+              let session = bitTorrentSelectionSession, session.phase == .loading,
+              session.metadataTaskID != nil, !session.isQueued else { return }
+        bitTorrentDiscoveryRetryRequested = true
+        isRetryingBitTorrentDiscovery = true
+    }
+
     func cancelBitTorrentFileSelection() async {
-        guard let session = bitTorrentSelectionSession else { return }
+        // AppKit dismisses sheets while quitting. The shutdown path saves these
+        // paused tasks for the next launch; disappearance is not user cancellation.
+        guard !isShuttingDown, let session = bitTorrentSelectionSession else { return }
         inputCoordinator.cancelManualRequest()
         bitTorrentSelectionRequestID = nil
         isResolvingBitTorrentFiles = false
+        isRetryingBitTorrentDiscovery = false
+        bitTorrentDiscoveryRetryRequested = false
         bitTorrentSelectionSession = nil
         await cleanupBitTorrentSelection(session, using: try? engineController.client())
     }
 
-    private func saveTorrentCopy(infoHash: String, name: String, directory: URL,
+    private func saveTorrentCopy(taskID: String, infoHash: String, name: String, directory: URL,
                                  source: String, metadataFilePath: String?) async throws {
         let original = addDraft.importedDocuments[source]?.data
         let metadataURL = metadataFilePath.map { URL(fileURLWithPath: $0) }
             ?? AddDownloadDraft.localTorrentFileURL(source)
         let state = EngineStorage(supportDirectory: try Aria2NextPaths.supportDirectory()).state
-        try await TorrentStorage.saveEngineCopy(infoHash: infoHash, name: name, directory: directory,
+        try await TorrentStorage.saveEngineCopy(taskID: taskID, infoHash: infoHash, name: name, directory: directory,
             original: original, metadataURL: metadataURL, stateDirectory: state)
     }
 
@@ -1414,6 +1480,13 @@ final class DownloadStore: ObservableObject {
     func refreshDetails(for taskID: DownloadTask.ID) async {
         guard engineController.isRunning else { return }
         guard let task = tasks.first(where: { $0.id == taskID }), task.isTorrentLike, task.isAvailableInEngine else { return }
+        guard task.status == .active else {
+            if let index = tasks.firstIndex(where: { $0.id == taskID }) {
+                tasks[index].peers = []
+                tasks[index].trackers = []
+            }
+            return
+        }
 
         do {
             let client = try engineController.client()
@@ -1440,107 +1513,169 @@ final class DownloadStore: ObservableObject {
         do {
             let client = try engineController.client()
             var options = engineSettings.hotReloadableEngineOptions(downloadDirectoryPath: engineSettings.downloadDirectoryPath)
-            // Omitting seed-time in changeGlobalOption does not remove the old value.
-            // In 2.8.6 an empty string also means zero (stop after completion), not unlimited.
-            let needsSharingRestart: Bool
-            if engineSettings.keepSharing {
-                needsSharingRestart = try await client.getGlobalOption()["seed-time"] != nil
-                if needsSharingRestart { options.removeValue(forKey: "seed-ratio") }
-            } else { needsSharingRestart = false }
             if preferences.bandwidthSchedule.enabled, let issue = preferences.bandwidthSchedule.validationIssue {
                 throw DownloadOperationError(issue)
             }
             // Apply the effective cap immediately, without briefly lifting a scheduled limit.
             options.merge(preferences.bandwidthSchedule.options(at: Date(), base: engineSettings)) { _, effective in effective }
             try await client.changeGlobalOption(options)
+            try await applyTrackersToRunningTasks(engineSettings.btTracker, using: client)
             lastBandwidthOptions = nil
             runtimeSettingsFeedback = .succeeded
-            if needsSharingRestart {
-                postActivity(String(localized: "Other runtime settings applied. Restart Aria2 Next to enable continuous seeding for new tasks. Existing tasks keep their own sharing limits."))
-            } else {
-                postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
-            }
+            postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
         } catch {
             postError(error, title: String(localized: "Apply Settings Failed"))
         }
     }
 
-    private func syncBitTorrentTrackersIfDue(startup: Bool) async {
-        guard shouldSyncBitTorrentTrackers(startup: startup) else { return }
-        await syncBitTorrentTrackers(startup: startup, reportFailures: false)
+    func startTrackerSyncClock(startup: Bool = false) {
+        guard !isShuttingDown else { return }
+        trackerSyncClockStarted = true
+        if startup && engineSettings.btTrackerSyncIntervalHours == 0 { trackerSyncPending = true }
+        scheduleTrackerSync()
     }
 
-    private func shouldSyncBitTorrentTrackers(startup: Bool, now: Date = Date()) -> Bool {
-        guard engineSettings.btTrackerAutoSync else { return false }
-        guard !engineSettings.trackerSourceURLs.isEmpty else { return false }
-
-        let intervalHours = max(0, engineSettings.btTrackerSyncIntervalHours)
-        if intervalHours == 0 {
-            return startup
-        }
-
-        guard let lastTrackerSyncAt = engineSettings.lastTrackerSyncAt else {
-            return true
-        }
-        return now.timeIntervalSince(lastTrackerSyncAt) >= Double(intervalHours * 3_600)
+    func nextTrackerSyncDate(now: Date = Date()) -> Date? {
+        TrackerSyncSchedule.nextDate(settings: engineSettings, now: now,
+            force: trackerSyncPending, retryAfter: trackerSyncRetryAfter)
     }
 
-    private func syncBitTorrentTrackers(startup: Bool, reportFailures: Bool) async {
-        guard !isSyncingTrackers else { return }
-        trackerSyncFeedback = .idle
+    private func scheduleTrackerSync() {
+        trackerSyncClock?.cancel()
+        trackerSyncClock = nil
+        guard trackerSyncClockStarted, !isShuttingDown, !isSyncingTrackers,
+              let deadline = nextTrackerSyncDate() else { return }
+        trackerSyncClock = Task { [weak self] in
+            // Reevaluate wall-clock deadlines after sleep/wake and clock changes.
+            let delay = min(60, max(0, deadline.timeIntervalSinceNow))
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard !Task.isCancelled, let self, !self.isShuttingDown else { return }
+            if deadline > Date() { self.scheduleTrackerSync(); return }
+            await self.syncBitTorrentTrackers(reportFailures: false)
+        }
+    }
+
+    private func syncBitTorrentTrackers(reportFailures: Bool) async {
+        guard !isShuttingDown else { return }
+        if let operation = trackerSyncOperation { await operation.value; return }
+        let operation = Task { [weak self] in
+            guard let self else { return }
+            await self.performTrackerSync(automatic: !reportFailures)
+        }
+        trackerSyncOperation = operation
+        await operation.value
+    }
+
+    private func performTrackerSync(automatic: Bool) async {
         let sources = engineSettings.trackerSourceURLs
-        guard !sources.isEmpty else {
-            if reportFailures {
-                postError(String(localized: "Select at least one tracker source."), title: String(localized: "Tracker Sync Failed"))
-            }
-            return
-        }
-
+        let originalText = engineSettings.btTracker
+        trackerSyncFeedback = .idle
+        trackerSyncIssue = nil
+        trackerSyncPending = false
         isSyncingTrackers = true
         trackerSyncFeedback = .working
         defer {
             isSyncingTrackers = false
+            trackerSyncOperation = nil
             if trackerSyncFeedback == .working { trackerSyncFeedback = .idle }
+            scheduleTrackerSync()
         }
-
+        func report(_ message: String, title: String) {
+            let safe = DownloadPrivacy.redact(message)
+            trackerSyncIssue = safe
+            trackerSyncRetryAfter = Date().addingTimeInterval(300)
+            if !automatic { postError(safe, title: title) }
+        }
+        guard !sources.isEmpty else {
+            report(String(localized: "Select at least one tracker source."), title: String(localized: "Tracker Sync Failed"))
+            return
+        }
         let result = await trackerFetcher.fetchTrackerSources(sources)
-        guard !Task.isCancelled, !isShuttingDown else { return }
-        let trackerText = TrackerText.lineSeparated(fromChunks: result.data)
-        guard !trackerText.isEmpty else {
-            if reportFailures {
-                postError(trackerFailureMessage(result.failures, successCount: 0, totalCount: sources.count), title: String(localized: "Tracker Sync Failed"))
+        // A completed fetch must not overwrite source changes or a manual edit made
+        // while the network was suspended, nor apply to an app that is shutting down.
+        guard !Task.isCancelled, !isShuttingDown, engineSettings.trackerSourceURLs == sources,
+              !automatic || engineSettings.btTrackerAutoSync else { return }
+        guard engineSettings.btTracker == originalText else {
+            // Do not immediately retry an overdue sync and overwrite the edit anyway.
+            if engineSettings.btTrackerSyncIntervalHours > 0 {
+                trackerSyncRetryAfter = Date().addingTimeInterval(Double(engineSettings.btTrackerSyncIntervalHours) * 3_600)
             }
             return
         }
-
+        let fetchedText = TrackerText.lineSeparated(fromChunks: result.data)
+        guard !fetchedText.isEmpty else {
+            report(trackerFailureMessage(result.failures, successCount: 0, totalCount: sources.count),
+                title: String(localized: "Tracker Sync Failed"))
+            return
+        }
+        // Keep cached entries from unreachable sources until a complete fetch succeeds.
+        let trackerText = result.failures.isEmpty ? fetchedText : TrackerText.lineSeparated(fromChunks: [originalText, fetchedText])
         var settings = engineSettings
         settings.btTracker = trackerText
         settings.lastTrackerSyncAt = Date()
         engineSettings = settings
+        trackerSyncRetryAfter = nil
 
         if engineController.isRunning {
             do {
-                try await engineController.client().changeGlobalOption([
-                    "bt-tracker": TrackerText.reducedCommaSeparated(from: trackerText)
-                ])
-            } catch {
-                updateRuntime(lastError: error.localizedDescription)
-                if reportFailures {
-                    postError(error, title: String(localized: "Apply Trackers Failed"))
-                }
+                let sessionID = engineSessionID
+                let client = try engineController.client()
+                try await client.changeGlobalOption(["bt-tracker": TrackerText.commaSeparated(from: trackerText)])
+                guard engineSessionID == sessionID, !isShuttingDown else { throw CancellationError() }
+                try await applyTrackersToRunningTasks(trackerText, using: client)
+            } catch is CancellationError { return }
+            catch {
+                report(error.localizedDescription, title: String(localized: "Apply Trackers Failed"))
                 return
             }
         }
-
-        let successCount = result.data.count
         if result.failures.isEmpty {
             trackerSyncFeedback = .succeeded
-            postActivity(startup ? String(localized: "Trackers auto-synced.") : String(localized: "Trackers synced."))
-        } else if reportFailures {
-            postError(
-                trackerFailureMessage(result.failures, successCount: successCount, totalCount: sources.count),
-                title: String(localized: "Tracker Sync Partially Failed")
-            )
+            postActivity(automatic ? String(localized: "Trackers auto-synced.") : String(localized: "Trackers synced."))
+        } else {
+            report(trackerFailureMessage(result.failures, successCount: result.data.count, totalCount: sources.count),
+                title: String(localized: "Tracker Sync Partially Failed"))
+        }
+    }
+
+    func applyTrackersToRunningTasks(_ text: String, using client: Aria2RPCClient) async throws {
+        let additional = TrackerText.trackers(from: text)
+        guard !additional.isEmpty else { return }
+        let sessionID = engineSessionID
+        let active = try await client.activeTorrentTasks()
+        var failures: [String] = []
+        var changed = false
+        for task in active {
+            try Task.checkCancellation()
+            guard sessionID == engineSessionID, engineController.isRunning, !isShuttingDown else { throw CancellationError() }
+            do {
+                let current = try await client.torrentTrackerStatus(task.id)
+                let merged = TorrentTrackerAddress.merging(current, additional: additional)
+                guard merged != TorrentTrackerAddress.merging(current, additional: []) else { continue }
+                try Task.checkCancellation()
+                guard sessionID == engineSessionID, engineController.isRunning else { throw CancellationError() }
+                try await client.replaceTorrentTrackers(task.id, trackers: merged)
+                changed = true
+            } catch is CancellationError { throw CancellationError() }
+            catch {
+                // A torrent can finish, pause or disappear between the snapshot and
+                // replacement. Never resume it just to apply a tracker update.
+                let failure = error
+                guard sessionID == engineSessionID, !isShuttingDown else { throw CancellationError() }
+                guard case RPCError.serverError = error else { throw error }
+                do {
+                    let latest = try await client.tellStatus(task.id)
+                    if latest.task.status != .active { continue }
+                } catch where isTaskAlreadyAbsent(error) { continue }
+                catch { /* Preserve the original actionable failure below. */ }
+                failures.append("\(task.id): \(DownloadPrivacy.redact(failure.localizedDescription))")
+            }
+        }
+        try Task.checkCancellation()
+        guard sessionID == engineSessionID, engineController.isRunning else { throw CancellationError() }
+        if changed { try await client.saveSession() }
+        if !failures.isEmpty {
+            throw DownloadOperationError(String(localized: "Could not update trackers for \(failures.count) running torrents.\n\(failures.joined(separator: "\n"))"))
         }
     }
 
@@ -1825,6 +1960,7 @@ final class DownloadStore: ObservableObject {
                 $0.downloadTaskID = contentID
                 $0.diagnostics = snapshot.task.torrentDiagnostics
                 $0.isQueued = snapshot.task.status == .waiting
+                $0.isPaused = snapshot.task.status == .paused
             }
             if snapshot.task.status == .failed || snapshot.task.status == .removed {
                 throw DownloadOperationError(snapshot.task.errorMessage ?? String(localized: "The engine could not retrieve this torrent. Check the source or open a local torrent file."))
@@ -1850,14 +1986,61 @@ final class DownloadStore: ObservableObject {
                     return session
                 }
             }
-            // Peer discovery has no reliable duration. Keep progress and cancellation live,
-            // rather than deleting a valid metadata task after an arbitrary timeout.
+            if bitTorrentDiscoveryRetryRequested {
+                bitTorrentDiscoveryRetryRequested = false
+                try await reconnectBitTorrentDiscovery(gid: gid, source: source, followed: contentID != nil,
+                    client: client, requestID: requestID)
+            }
+            // Long waits show a stage-specific explanation and an explicit reconnect
+            // action while continuing to watch the original, metadata-only task.
             try await Task.sleep(for: .milliseconds(500))
         }
     }
 
+    private func reconnectBitTorrentDiscovery(gid: String, source: String, followed: Bool,
+                                               client: Aria2RPCClient, requestID: UUID) async throws {
+        defer {
+            if bitTorrentSelectionRequestID == requestID { isRetryingBitTorrentDiscovery = false }
+        }
+        func checkCurrent() throws {
+            try Task.checkCancellation()
+            guard isCurrentBitTorrentSelection(requestID) else { throw CancellationError() }
+        }
+        try checkCurrent()
+        var snapshot = try await client.tellStatus(gid)
+        try checkCurrent()
+        // Metadata may arrive while the user presses Retry. Never resume a task
+        // that is already waiting for file selection, or bypass its queue position.
+        if TorrentFileTree.isResolved(snapshot, source: source, followed: followed) || snapshot.task.status == .waiting { return }
+        if snapshot.task.status == .active {
+            try await client.forcePause(gid)
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while snapshot.task.status != .paused {
+            try checkCurrent()
+            if snapshot.task.status == .failed || snapshot.task.status == .removed {
+                throw DownloadOperationError(snapshot.task.errorMessage ?? String(localized: "The engine could not retrieve this torrent. Check the source or open a local torrent file."))
+            }
+            guard ContinuousClock.now < deadline else {
+                throw DownloadOperationError(String(localized: "The engine did not pause the task in time. Try again to check its current state."))
+            }
+            try await Task.sleep(for: .milliseconds(250))
+            snapshot = try await client.tellStatus(gid)
+        }
+        try checkCurrent()
+        if TorrentFileTree.isResolved(snapshot, source: source, followed: followed) { return }
+        try await client.changeOption(gid: gid, options: ["pause-metadata": "true"])
+        try checkCurrent()
+        try await client.resume(gid)
+        try checkCurrent()
+        updateBitTorrentSelectionSession {
+            $0.startedAt = Date(); $0.discovery = nil; $0.isPaused = false
+        }
+        _ = await saveSessionAfterTaskMutation(using: client)
+    }
+
     private func isCurrentBitTorrentSelection(_ requestID: UUID) -> Bool {
-        bitTorrentSelectionRequestID == requestID && bitTorrentSelectionSession != nil
+        !isShuttingDown && bitTorrentSelectionRequestID == requestID && bitTorrentSelectionSession != nil
     }
 
     private func updateBitTorrentSelectionSession(_ transform: (inout BitTorrentFileSelectionSession) -> Void) {

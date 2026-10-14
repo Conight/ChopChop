@@ -1,6 +1,92 @@
 import AppKit
 import SwiftUI
 
+/// Layout is determined by a stable envelope, never by the current value.
+/// Unlike a minimum width, the overlay cannot grow the envelope on a live tick.
+struct StableMetricText: View {
+    let value: String
+    let reference: String
+    var alignment: Alignment = .trailing
+
+    var body: some View {
+        Text(verbatim: reference).hidden().accessibilityHidden(true)
+            .overlay(alignment: alignment) {
+                Text(verbatim: value).lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .monospacedDigit().fixedSize()
+            .accessibilityElement(children: .ignore).accessibilityLabel(value)
+    }
+}
+
+/// Keep the number's trailing edge and the unit's leading edge stationary.
+/// A rate changing between B/s, KB/s and MB/s must not move its arrow or neighbor.
+struct TransferByteValue: View {
+    let bytes: Int64
+    var perSecond = false
+
+    var body: some View {
+        let parts = ByteFormat.displayParts(bytes)
+        HStack(spacing: 3) {
+            StableMetricText(value: parts.count,
+                reference: 999.99.formatted(.number.precision(.fractionLength(2)).grouping(.never)))
+            ZStack(alignment: .leading) {
+                ForEach(ByteFormat.displayUnits, id: \.self) { unit in
+                    Text(verbatim: unit + (perSecond ? "/s" : "")).hidden().accessibilityHidden(true)
+                }
+            }
+            .overlay(alignment: .leading) {
+                Text(verbatim: parts.unit + (perSecond ? "/s" : "")).lineLimit(1)
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(perSecond ? ByteFormat.speed(bytes) : ByteFormat.size(bytes))
+    }
+}
+
+struct TransferSpeedLabel: View {
+    let speed: Int64
+    let uploading: Bool
+    var circled = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: (uploading ? "arrow.up" : "arrow.down") + (circled ? ".circle" : ""))
+                .frame(width: circled ? 16 : 12)
+            TransferByteValue(bytes: speed, perSecond: true)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(uploading ? String(localized: "Upload speed") : String(localized: "Download speed"))
+        .accessibilityValue(ByteFormat.speed(speed))
+    }
+}
+
+struct TransferSizeValue: View {
+    let completed: Int64
+    let total: Int64
+
+    var body: some View {
+        HStack(spacing: 3) {
+            TransferByteValue(bytes: completed)
+            Text(verbatim: "/")
+            TransferByteValue(bytes: total)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(ByteFormat.size(completed)) / \(ByteFormat.size(total))")
+    }
+}
+
+struct TaskProgressValue: View {
+    let task: DownloadTask
+    var body: some View {
+        StableMetricText(value: task.progressLabel,
+            reference: task.media != nil && task.progressState.fraction == nil
+                ? ByteFormat.duration(999 * 3_600 + 59 * 60) : "100%")
+    }
+}
+
 /// Animate semantic changes, never an entire polling snapshot or a search query.
 nonisolated enum AppMotion {
     static let duration = 0.18

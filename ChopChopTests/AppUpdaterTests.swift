@@ -5,6 +5,25 @@ import XCTest
 @testable import ChopChop
 
 final class AppUpdaterTests: XCTestCase {
+    func testHostedTestsUseTheIndependentDevIdentityAndStorage() throws {
+        let identifier = try XCTUnwrap(Bundle.main.bundleIdentifier)
+        XCTAssertTrue(identifier.hasSuffix(".dev"), "Never run hosted tests as the production app")
+        XCTAssertTrue(AppIdentity.isDevelopment)
+        XCTAssertTrue(AppBuild().isDevelopment)
+        XCTAssertEqual(AppIdentity.displayName, "ChopChop Dev")
+        XCTAssertEqual(Bundle.main.bundleURL.lastPathComponent, "ChopChop Dev.app")
+        XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes"))
+        XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes"))
+        XCTAssertTrue(NSHomeDirectory().contains("/Library/Containers/\(identifier)/Data"))
+        XCTAssertEqual(EngineSettings.defaultRPCPort, 29200)
+        XCTAssertEqual(BrowserCaptureServer.defaultPort, 29201)
+        XCTAssertEqual([EngineSettings.defaultBTListenPort,
+                        EngineSettings.defaultED2KListenPort, EngineSettings.defaultED2KUDPListenPort],
+                       [29220, 29240, 29250])
+        XCTAssertTrue(AppLaunchConfiguration.isTestAutomation)
+        XCTAssertTrue(try Aria2NextPaths.supportDirectory().path.contains("ChopChopAutomation-"))
+    }
+
     @MainActor
     func testUpdateAnimationKeyIgnoresBytePollingAndDistinguishesStages() {
         let release = AppRelease(version: AppVersion("1.0.0")!, notes: "")

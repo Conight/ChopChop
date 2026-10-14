@@ -68,11 +68,11 @@ nonisolated extension DownloadTask {
 }
 
 struct NativeQueueContainer: ViewModifier {
-    @ObservedObject var store: DownloadStore
+    let store: DownloadStore
     var enabled: Bool
     func body(content: Content) -> some View {
         if #available(macOS 27.0, *) {
-            content.reorderContainer(for: DownloadTask.self, isEnabled: enabled && !store.isReorderingQueue && !store.isUpdatingEngine && !store.isPerformingBatchOperation && store.engineController.isRunning) { difference in
+            content.reorderContainer(for: DownloadRowState.self, isEnabled: enabled) { difference in
                 let target: String?
                 let toEnd: Bool
                 switch difference.destination.position {
@@ -98,13 +98,15 @@ nonisolated struct QueuedDownloadReference: Codable, Transferable {
 
 struct QueueReordering: ViewModifier {
     let store: DownloadStore
-    let task: DownloadTask
+    let taskID: String
+    let canReorder: Bool
+    var enabled = true
     func body(content: Content) -> some View {
-        if task.canReorderInQueue {
-            content.draggable(QueuedDownloadReference(gid: task.id))
+        if enabled && canReorder {
+            content.draggable(QueuedDownloadReference(gid: taskID))
                 .dropDestination(for: QueuedDownloadReference.self) { items, _ in
-                    guard let first = items.first, items.count == 1, first.gid != task.id else { return false }
-                    Task { await store.moveQueuedTask(first.gid, before: task.id) }
+                    guard let first = items.first, items.count == 1, first.gid != taskID else { return false }
+                    Task { await store.moveQueuedTask(first.gid, before: taskID) }
                     return true
                 }
         } else { content }
@@ -112,7 +114,7 @@ struct QueueReordering: ViewModifier {
 }
 
 struct TaskScheduleView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     let task: DownloadTask
     @State private var date = Date().addingTimeInterval(3600)
     @State private var saving = false
@@ -158,15 +160,15 @@ struct TaskScheduleView: View {
 }
 
 struct BandwidthScheduleView: View {
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     var body: some View {
         Section(String(localized: "Scheduled Bandwidth")) {
-            Toggle(String(localized: "Use a daily bandwidth schedule"), isOn: $store.preferences.bandwidthSchedule.enabled)
+            Toggle(String(localized: "Use a daily bandwidth schedule"), isOn: Bindable(store).preferences.bandwidthSchedule.enabled)
             if store.preferences.bandwidthSchedule.enabled {
                 DatePicker(String(localized: "From"), selection: timeBinding(\.startMinute), displayedComponents: .hourAndMinute)
                 DatePicker(String(localized: "Until"), selection: timeBinding(\.endMinute), displayedComponents: .hourAndMinute)
-                TextField(String(localized: "Download limit (KiB/s)"), value: $store.preferences.bandwidthSchedule.downloadKB, format: .number.grouping(.never))
-                TextField(String(localized: "Upload limit (KiB/s)"), value: $store.preferences.bandwidthSchedule.uploadKB, format: .number.grouping(.never))
+                TextField(String(localized: "Download limit (KiB/s)"), value: Bindable(store).preferences.bandwidthSchedule.downloadKB, format: .number.grouping(.never))
+                TextField(String(localized: "Upload limit (KiB/s)"), value: Bindable(store).preferences.bandwidthSchedule.uploadKB, format: .number.grouping(.never))
                 Text(String(localized: "0 means unlimited. Uses local time; matching start and end means all day. Outside this window, the global limits apply. This does not start paused downloads."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let issue = store.preferences.bandwidthSchedule.validationIssue ?? store.bandwidthPlanIssue { Text(issue).foregroundStyle(.red) }

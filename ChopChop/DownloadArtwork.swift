@@ -107,7 +107,7 @@ struct DownloadFlowScene: View {
     var body: some View {
         Canvas(opaque: true) { context, size in
             let base = dark ? Color(white: 0.105) : Color(white: 0.975)
-            let colorAmount = increasedContrast ? 0.72 : 1.0
+            let colorAmount = increasedContrast ? 0.50 : 0.72
             func tinted(_ neutral: Color, _ amount: Double) -> Color {
                 neutral.mix(with: accent, by: amount * colorAmount)
             }

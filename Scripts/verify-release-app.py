@@ -2,6 +2,7 @@
 """Verify the app and installer service, and reject embedded engine payloads."""
 
 import base64
+import argparse
 import json
 import os
 import pathlib
@@ -27,12 +28,18 @@ def entitlements(path):
     return plistlib.loads(data) if data.strip() else {}
 
 
-def verify(app):
+def verify(app, development=False):
     root = pathlib.Path(__file__).resolve().parent.parent
     configuration = load()
+    if development:
+        configuration["CHOPCHOP_APP_IDENTIFIER"] += ".dev"
     expected_identifier = configuration["CHOPCHOP_APP_IDENTIFIER"]
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
     require(info["CFBundleIdentifier"] == expected_identifier, "Unexpected app identifier")
+    require(bool(info.get("ChopChopDevelopmentBuild")) == development, "Unexpected development/distribution profile")
+    require(info.get("CFBundleDisplayName") == ("ChopChop Dev" if development else "ChopChop"), "Unexpected app name")
+    if development:
+        require(not info.get("CFBundleURLTypes") and not info.get("CFBundleDocumentTypes"), "Dev must not register system download handlers")
     require("Aria2NextVersion" not in info, "App must not declare a bundled engine version")
     require(not list(app.rglob("aria2-next*")), "App contains an embedded engine payload")
     require(not list(app.rglob("*.xctest")), "Release contains an XCTest bundle")
@@ -44,6 +51,10 @@ def verify(app):
         details = subprocess.run(["codesign", "--display", "--verbose=4", str(signed)],
                                  check=True, capture_output=True).stderr.decode()
         require(re.search(r"^CodeDirectory .*flags=.*runtime", details, re.M), f"Hardened Runtime missing: {signed}")
+        if development and os.environ.get("CI") != "true":
+            require("Authority=Apple Development:" in details, f"Local Dev requires an Apple Development identity: {signed}")
+            requirement = subprocess.run(["codesign", "-d", "-r-", str(signed)], check=True, capture_output=True).stdout.decode()
+            require("anchor apple generic" in requirement and "cdhash" not in requirement, f"Unstable Dev signing identity: {signed}")
     app_entitlements = entitlements(app)
     for key in ("app-sandbox", "network.client", "network.server", "files.user-selected.read-write",
                 "files.downloads.read-write", "files.bookmarks.app-scope"):
@@ -93,7 +104,10 @@ def verify(app):
 
 if __name__ == "__main__":
     try:
-        require(len(sys.argv) == 2, "Usage: Scripts/verify-release-app.py PATH.app")
-        verify(pathlib.Path(sys.argv[1]).resolve())
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("--development", action="store_true", help="Verify an optimized Dev build instead of a distributable app")
+        parser.add_argument("app", type=pathlib.Path)
+        args = parser.parse_args()
+        verify(args.app.resolve(), development=args.development)
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
         sys.exit(f"error: {error}")

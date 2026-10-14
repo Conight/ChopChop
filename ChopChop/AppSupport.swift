@@ -24,7 +24,7 @@ nonisolated struct DiagnosticReport: Encodable, Sendable {
         engineVersion = store.engineCapabilities.flatMap { EngineVersion($0.version)?.description } ?? store.installedEngine?.version.description
         capabilitiesKnown = store.engineCapabilities?.enabledFeatures != nil
         let known = ["BitTorrent", "SFTP", "Metalink", "ED2K"]
-        capabilities = known.filter { name in store.engineCapabilities?.enabledFeatures?.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) == true }
+        capabilities = known.filter { name in store.engineCapabilities?.enabledFeatures.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) == true }
             + (store.engineCapabilities?.supportsMedia == true ? ["Media"] : [])
         taskCounts = Dictionary(uniqueKeysWithValues: DownloadStatus.allCases.map { status in
             (status.rawValue.lowercased(), store.tasks.filter { $0.status == status }.count)
@@ -45,13 +45,13 @@ nonisolated struct DiagnosticReport: Encodable, Sendable {
 }
 
 struct AppUpdateSettingsView: View {
-    @ObservedObject var updates: AppUpdateCoordinator
+    let updates: AppUpdateCoordinator
     var openUpdates: () -> Void
     @State private var hadUpdateAction = false
     var body: some View {
-        Section("ChopChop") {
+        Section(AppIdentity.displayName) {
             LabeledContent(String(localized: "Installed version"), value: updates.build.displayVersion)
-            Picker("Update Channel", selection: $updates.channel) {
+            Picker("Update Channel", selection: Bindable(updates).channel) {
                 ForEach(AppUpdateChannel.allCases, id: \.self) { Text($0.title).tag($0) }
             }.disabled(updates.busy || !updates.canChangeChannel)
             UpdateCheckRow(status: status, isChecking: updates.state == .checking,
@@ -74,6 +74,9 @@ struct AppUpdateSettingsView: View {
     }
 
     private var status: String {
+        if updates.build.isDevelopment {
+            return String(localized: "Dev checks Engine updates only. Rebuild locally to update ChopChop Dev.")
+        }
         if let release = updates.release, case .available = updates.state {
             return String(localized: "Version \(release.version.description) available")
         }
@@ -105,7 +108,7 @@ final class AppSupportNavigation: ObservableObject {
 
 struct AppSupportView: View {
     @ObservedObject var navigation: AppSupportNavigation
-    @EnvironmentObject private var store: DownloadStore
+    @Environment(DownloadStore.self) private var store
     @State private var report: String?
     @State private var exportStatus: String?
 
@@ -170,7 +173,7 @@ struct AppSupportView: View {
 }
 
 struct AppSupportCommands: Commands {
-    @ObservedObject var updates: AppUpdateCoordinator
+    let updates: AppUpdateCoordinator
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     let store: DownloadStore

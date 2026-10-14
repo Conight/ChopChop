@@ -1,5 +1,34 @@
 import Foundation
 
+/// A bounded progress sample, without file lists, tracker lists or saved history.
+/// Identity/status/layout changes are reconciled using the complete snapshot.
+nonisolated struct ActiveTransferProgress: Decodable, Sendable {
+    static let fields = ["gid", "status", "totalLength", "completedLength",
+                         "downloadSpeed", "uploadSpeed", "connections", "seeder"]
+    var gid: String
+    var status: String
+    var totalLength: String
+    var completedLength: String
+    var downloadSpeed: String
+    var uploadSpeed: String
+    var connections: String
+    var seeder: String?
+
+    func updating(_ task: DownloadTask) -> DownloadTask? {
+        guard status == "active", task.status == .active, task.isAvailableInEngine,
+              task.totalLength == Int64(totalLength), task.isSharing == (seeder == "true"),
+              let completed = Int64(completedLength), let down = Int64(downloadSpeed),
+              let up = Int64(uploadSpeed), let connections = Int(connections),
+              completed >= 0, down >= 0, up >= 0, connections >= 0 else { return nil }
+        var result = task
+        result.completedLength = completed
+        result.downloadSpeed = down
+        result.uploadSpeed = up
+        result.connections = connections
+        return result
+    }
+}
+
 // The wire contract is kept separate from transport and application history.
 nonisolated struct Aria2TaskDTO: Decodable, Sendable {
     var gid: String
@@ -25,6 +54,10 @@ nonisolated struct Aria2TaskDTO: Decodable, Sendable {
 
     var isBitTorrentMetadataPlaceholder: Bool {
         if bittorrent?.state == "downloadingMetadata" { return true }
+        // v3 also reports a named, zero-byte placeholder while adding, queued or
+        // paused. The name can come from magnet dn; only mode/selection proves
+        // that the engine has a real torrent layout (which may include empty files).
+        if let bittorrent, !bittorrent.hasMetadata { return true }
         if let followedBy,
            followedBy.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             return true
@@ -195,6 +228,7 @@ nonisolated struct Aria2BitTorrentDTO: Decodable, Sendable {
     }
 
     var info: Info?
+    var mode: String?
     var announceList: [[String]]?
     var state: String?
     var fileSelectionState: String?
@@ -205,6 +239,11 @@ nonisolated struct Aria2BitTorrentDTO: Decodable, Sendable {
     var availability: String?
     var seedingTime: String?
     var failedLength: String?
+
+    var hasMetadata: Bool {
+        mode == "single" || mode == "multi" ||
+            fileSelectionState == "awaiting" || fileSelectionState == "ready"
+    }
 
     var diagnostics: BitTorrentDiagnostics {
         BitTorrentDiagnostics(state: state, peers: numPeers.flatMap(Int.init), seeds: numSeeds.flatMap(Int.init),

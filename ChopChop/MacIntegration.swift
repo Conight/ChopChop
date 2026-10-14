@@ -28,28 +28,52 @@ nonisolated struct DockDownloadProgress: Equatable, Sendable {
 final class DockDownloadProgressController {
     private var subscription: AnyCancellable?
     private weak var store: DownloadStore?
+    private let content = DockDownloadProgressView(frame: .zero)
     func configure(store: DownloadStore) {
         guard !AppLaunchConfiguration.isTestAutomation, self.store !== store else { return }
         self.store = store
-        subscription = store.$tasks.map { DockDownloadProgress(tasks: $0) }.removeDuplicates()
+        subscription = store.taskSnapshots.map { DockDownloadProgress(tasks: $0) }.removeDuplicates()
             .sink { [weak self] in self?.update($0) }
     }
     private func update(_ summary: DockDownloadProgress) {
         let tile = NSApp.dockTile
         guard summary.count > 0 else { tile.badgeLabel = nil; tile.contentView = nil; tile.display(); return }
         tile.badgeLabel = summary.count > 99 ? "99+" : String(summary.count)
-        let view = NSView(frame: NSRect(origin: .zero, size: tile.size))
-        let icon = NSImageView(frame: view.bounds)
-        icon.image = NSApp.applicationIconImage
-        icon.imageScaling = .scaleProportionallyUpOrDown
-        view.addSubview(icon)
-        if let fraction = summary.fraction {
-            let bar = NSProgressIndicator(frame: NSRect(x: tile.size.width * 0.12, y: tile.size.height * 0.10,
-                                                        width: tile.size.width * 0.76, height: 12))
-            bar.style = .bar; bar.isIndeterminate = false; bar.minValue = 0; bar.maxValue = 1
-            bar.doubleValue = fraction; view.addSubview(bar)
-        }
-        tile.contentView = view; tile.display()
+        content.frame = NSRect(origin: .zero, size: tile.size)
+        content.update(summary)
+        if tile.contentView !== content { tile.contentView = content }
+        tile.display()
+    }
+}
+
+/// Keep native Dock content alive across transfer samples, including unknown sizes.
+@MainActor
+final class DockDownloadProgressView: NSView {
+    let iconView = NSImageView()
+    let progressIndicator = NSProgressIndicator()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        iconView.image = NSApp.applicationIconImage
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        progressIndicator.style = .bar
+        progressIndicator.isIndeterminate = false
+        progressIndicator.minValue = 0; progressIndicator.maxValue = 1
+        addSubview(iconView); addSubview(progressIndicator)
+    }
+    required init?(coder: NSCoder) { nil }
+
+    func update(_ summary: DockDownloadProgress) {
+        progressIndicator.isHidden = summary.fraction == nil
+        if let fraction = summary.fraction { progressIndicator.doubleValue = fraction }
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        iconView.frame = bounds
+        progressIndicator.frame = NSRect(x: bounds.width * 0.12, y: bounds.height * 0.10,
+                                        width: bounds.width * 0.76, height: 12)
     }
 }
 

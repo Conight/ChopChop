@@ -57,9 +57,9 @@ final class MediaDownloadTests: XCTestCase {
     }
 
     func testMediaCapabilityRequiresExplicitEngineSupport() {
-        XCTAssertFalse(EngineCapabilities(version: "2.8.6").supportsMedia)
-        XCTAssertFalse(EngineCapabilities(version: "2.8.6", enabledFeatures: ["HLS/DASH"]).supportsMedia)
-        XCTAssertTrue(EngineCapabilities(version: "2.8.6", enabledFeatures: ["HLS/DASH"], mediaFeatures: ["stable-track-ids"]).supportsMedia)
+        XCTAssertFalse(EngineCapabilities(version: "3.8.6").supportsMedia)
+        XCTAssertFalse(EngineCapabilities(version: "3.8.6", enabledFeatures: ["HLS/DASH"]).supportsMedia)
+        XCTAssertTrue(EngineCapabilities(version: "3.8.6", enabledFeatures: ["HLS/DASH"], mediaFeatures: ["stable-track-ids"]).supportsMedia)
     }
 
     func testRecordingAndRetryActionsRespectLifecycle() throws {
