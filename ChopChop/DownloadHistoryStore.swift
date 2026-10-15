@@ -95,6 +95,7 @@ final class DownloadHistoryStore {
                                 uniquingKeysWith: { first, _ in first })
         for var task in incoming where !hidden.contains(task.id) {
             if let old = result[task.id] {
+                task = EngineDownloadFilePolicy.preservingOwnedPaths(task, previous: old)
                 task.scheduledStart = old.scheduledStart
                 task.torrentDirectory = old.torrentDirectory
                 task.torrentFileIssue = old.torrentFileIssue

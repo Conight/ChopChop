@@ -164,11 +164,11 @@ struct DownloadedFileActions: View {
 
     @ViewBuilder
     private var actions: some View {
-        Button(String(localized: "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) }
+        Button(String(localized: "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.diskPath)]) }
         Button(String(localized: "Quick Look"), systemImage: "eye") {
-            previewURL = DownloadFileLocation.existingFile(file.path)
+            previewURL = DownloadFileLocation.existingFile(file.diskPath)
         }
-        ShareLink(item: URL(fileURLWithPath: file.path)) { Label(String(localized: "Share"), systemImage: "square.and.arrow.up") }
+        ShareLink(item: URL(fileURLWithPath: file.diskPath)) { Label(String(localized: "Share"), systemImage: "square.and.arrow.up") }
     }
 }
 
@@ -260,8 +260,8 @@ nonisolated enum DownloadFileLocation {
 
     static func revealURL(for task: DownloadTask, fileManager: FileManager = .default) -> URL? {
         let files = task.files.compactMap { file -> URL? in
-            guard file.path.hasPrefix("/"), DownloadTaskTrashPath.isReportedUserContentPath(file.path) else { return nil }
-            return URL(fileURLWithPath: file.path).standardizedFileURL
+            guard DownloadTaskTrashPath.isReportedUserContentPath(file.diskPath) else { return nil }
+            return URL(fileURLWithPath: file.diskPath).standardizedFileURL
         }
         let destination = task.destination.hasPrefix("/") ? URL(fileURLWithPath: task.destination).standardizedFileURL : nil
         if !task.isTorrentLike, files.count == 1,
@@ -287,7 +287,7 @@ nonisolated enum DownloadFileLocation {
 
 nonisolated extension DownloadFile {
     var isCompleteOnDisk: Bool {
-        isSelected && completedLength >= length && DownloadFileLocation.existingFile(path) != nil
+        storagePath == nil && isSelected && completedLength >= length && DownloadFileLocation.existingFile(diskPath) != nil
     }
     var displayedProgress: Double? { isSelected && length > 0 ? progress : nil }
 }
@@ -305,7 +305,7 @@ struct DownloadFileProgressView: View {
             } else {
                 Label(String(localized: "Skipped"), systemImage: "minus.circle")
                     .font(.caption).foregroundStyle(.secondary)
-                if DownloadFileLocation.existingFile(file.path) != nil {
+                if DownloadFileLocation.existingFile(file.diskPath) != nil {
                     Text(String(localized: "An existing copy remains on disk."))
                         .font(.caption).foregroundStyle(.secondary)
                 } else if file.completedLength > 0 {

@@ -21,7 +21,7 @@ nonisolated enum DownloadTaskFileTrash {
             : URL(fileURLWithPath: task.destination).standardizedFileURL
         let reportedURLs = uniqueURLs(
             task.files
-                .map(\.path)
+                .map(\.diskPath)
                 .filter(DownloadTaskTrashPath.isReportedUserContentPath)
                 .map { URL(fileURLWithPath: $0).standardizedFileURL }
                 .filter { url in
@@ -47,6 +47,7 @@ nonisolated enum DownloadTaskFileTrash {
     static func moveTaskFilesToTrash(_ task: DownloadTask, fileManager: FileManager = .default) throws {
         let plan = plan(for: task, fileManager: fileManager)
         guard !plan.primaryTargets.isEmpty else {
+            if task.errorCode != "14", !task.files.isEmpty && task.files.allSatisfy({ $0.storagePath == "" }) { return }
             throw DownloadFileTrashError.noReportedFiles(taskName: task.name)
         }
 
@@ -77,7 +78,9 @@ nonisolated enum DownloadTaskFileTrash {
     /// An already absent payload can still have its history record removed.
     static func allReportedFilesAreMissing(_ task: DownloadTask, fileManager: FileManager = .default) throws -> Bool {
         let targets = plan(for: task, fileManager: fileManager).primaryTargets
-        guard !targets.isEmpty else { return false }
+        guard !targets.isEmpty else {
+            return task.errorCode != "14" && !task.files.isEmpty && task.files.allSatisfy { $0.storagePath == "" }
+        }
         for target in targets {
             if try DownloadFilePresence.exists(at: target, fileManager: fileManager) { return false }
         }

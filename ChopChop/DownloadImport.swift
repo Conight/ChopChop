@@ -78,11 +78,12 @@ nonisolated enum DownloadImportReader {
                           (kind != .ed2k || preferences.handleED2KLinks),
                           (kind != .bitTorrent || preferences.handleTorrentFiles),
                           (kind != .metalink || preferences.handleMetalinkFiles) else { throw ImportError.disabled }
+                    let imported = raw.lowercased().hasPrefix("thunder://") ? raw : resource
                     if kind == .magnet || kind == .bitTorrent || AddDownloadDraft.isMediaManifest(resource) {
                         flushLinks()
-                        requests.append(.init(resources: [resource]))
+                        requests.append(.init(resources: [imported]))
                     } else {
-                        links.append(resource)
+                        links.append(imported)
                     }
                 } catch {
                     issues.append(DownloadPrivacy.redact(error.localizedDescription))

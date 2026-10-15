@@ -14,7 +14,7 @@ import threading
 import time
 
 from release_config import load
-from local_signing import signing_identity
+from local_signing import signing_identity, require_disposable_test_host
 
 REPO = Path(__file__).resolve().parent.parent
 ENV = dict(os.environ, DEVELOPER_DIR=subprocess.check_output(
@@ -75,6 +75,7 @@ def verify_task_termination(root):
         print(f'Passed {mode}: MainActor cleanup finished before real AppKit termination')
 
 def main():
+    require_disposable_test_host()
     identity = signing_identity()
     with workspace() as root:
         # Use exactly the shared production implementation; no network or installer substitutes.

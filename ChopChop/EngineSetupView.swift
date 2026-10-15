@@ -10,7 +10,7 @@ struct EngineSetupView: View {
                 .font(AppTypography.windowTitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(String(localized: "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically."))
+                    Text(String(localized: "ChopChop requires Aria2 Next 3.0.4 or later to download files. Install a supported engine to continue. It will start automatically."))
                         .fixedSize(horizontal: false, vertical: true)
                     if !store.engineSetupState.isInstalling {
                         EngineVersionPicker()

@@ -95,26 +95,27 @@ final class ManagedEngineTests: XCTestCase {
     func testVersionsCompareNumericallyAndRejectPrereleasesAndPaths() throws {
         XCTAssertLessThan(try XCTUnwrap(EngineVersion("v3.9.9")), try XCTUnwrap(EngineVersion("3.10.0")))
         XCTAssertEqual(EngineVersion("v3.8.6"), EngineVersion("3.8.6"))
-        for invalid in ["2.8.6", "1.37.0", "0.0.0", "3.8", "3.8.6-beta", "../../3.8.6", "2.-8.6", "3.8.6.1", "2.８.6"] {
+        for invalid in ["3.0.0", "3.0.1", "3.0.2", "3.0.3", "2.8.6", "1.37.0", "0.0.0", "3.8", "3.8.6-beta", "../../3.8.6", "2.-8.6", "3.8.6.1", "2.８.6"] {
             XCTAssertNil(EngineVersion(invalid))
         }
     }
 
-    func testPersistedVersionsCannotBypassTheSupportedMajor() throws {
-        for json in [#"{"major":2,"minor":8,"patch":6}"#, #"{"major":3,"minor":-1,"patch":0}"#,
+    func testPersistedVersionsCannotBypassTheMinimumVersion() throws {
+        for json in [#"{"major":3,"minor":0,"patch":3}"#, #"{"major":3,"minor":0,"patch":0}"#,
+                     #"{"major":2,"minor":8,"patch":6}"#, #"{"major":3,"minor":-1,"patch":0}"#,
                      #"{"major":3,"minor":0,"patch":-1}"#] {
             XCTAssertThrowsError(try JSONDecoder().decode(EngineVersion.self, from: Data(json.utf8)))
         }
-        for version in ["3.0.0", "3.0.1", "4.0.0", "10.0.0"] {
+        for version in ["3.0.4", "3.0.5", "4.0.0", "10.0.0"] {
             let parsed = try XCTUnwrap(EngineVersion(version))
             XCTAssertEqual(try JSONDecoder().decode(EngineVersion.self, from: JSONEncoder().encode(parsed)), parsed)
         }
     }
 
     func testRecentReleasesNeverOfferV2EvenWhenMixedWithV3AndFutureMajors() throws {
-        let payloads = ["2.99.99", "3.0.0", "2.8.6", "4.0.0", "3.0.1"].map { releaseJSON(version: $0) }
+        let payloads = ["2.99.99", "3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "2.8.6", "4.0.0", "3.0.5"].map { releaseJSON(version: $0) }
         let data = Data(("[" + payloads.map { String(decoding: $0, as: UTF8.self) }.joined(separator: ",") + "]").utf8)
-        XCTAssertEqual(try EngineDownload.parseRecentReleases(data).map(\.version.description), ["4.0.0", "3.0.1", "3.0.0"])
+        XCTAssertEqual(try EngineDownload.parseRecentReleases(data).map(\.version.description), ["4.0.0", "3.0.5", "3.0.4"])
         let unsupported = Data(("[" + String(decoding: releaseJSON(version: "2.8.6"), as: UTF8.self) + "]").utf8)
         XCTAssertTrue(try EngineDownload.parseRecentReleases(unsupported).isEmpty)
     }
@@ -123,7 +124,7 @@ final class ManagedEngineTests: XCTestCase {
         let release = try EngineDownload.parseRelease(releaseJSON())
         XCTAssertEqual(release.version, EngineVersion("3.8.6"))
         XCTAssertTrue(release.downloadURL.absoluteString.hasSuffix("/aria2-next-3.8.6-macos-arm64"))
-        for invalid in [releaseJSON(version: "2.8.6"), releaseJSON(prerelease: true), releaseJSON(host: "evil.example"), releaseJSON(architecture: "x86_64")] {
+        for invalid in [releaseJSON(version: "3.0.3"), releaseJSON(version: "2.8.6"), releaseJSON(prerelease: true), releaseJSON(host: "evil.example"), releaseJSON(architecture: "x86_64")] {
             XCTAssertThrowsError(try EngineDownload.parseRelease(invalid))
         }
     }
@@ -393,7 +394,7 @@ final class ManagedEngineTests: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["CHOPCHOP_TEST_ENGINE_DOWNLOAD"] == "1", "Live engine download is opt-in")
         let support = try Aria2NextPaths.supportDirectory()
         let manager = EngineInstallationManager(supportDirectory: support)
-        let version = "3.0.2"
+        let version = "3.0.4"
         let release = EngineRelease(version: try XCTUnwrap(EngineVersion(version)),
             downloadURL: URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(version)/aria2-next-\(version)-macos-arm64")!,
             checksumURL: URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(version)/aria2-next-\(version)-checksums.sha256")!)
@@ -549,11 +550,11 @@ final class ManagedEngineTests: XCTestCase {
     }
 
     @MainActor
-    func testManualUpgradeFrom300ThroughSandboxedStore() async throws {
+    func testManualUpgradeFrom304ThroughSandboxedStore() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["CHOPCHOP_TEST_ENGINE_DOWNLOAD"] == "1", "Live engine download is opt-in")
         let support = try Aria2NextPaths.supportDirectory()
         let manager = EngineInstallationManager(supportDirectory: support)
-        let oldVersion = "3.0.0"
+        let oldVersion = "3.0.4"
         let oldRelease = EngineRelease(version: try XCTUnwrap(EngineVersion(oldVersion)),
             downloadURL: URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(oldVersion)/aria2-next-\(oldVersion)-macos-arm64")!,
             checksumURL: URL(string: "https://github.com/AnInsomniacy/aria2-next/releases/download/v\(oldVersion)/aria2-next-\(oldVersion)-checksums.sha256")!)
@@ -574,6 +575,7 @@ final class ManagedEngineTests: XCTestCase {
         // Launch update checks are coordinated by the app, not by prepareEngineOnLaunch.
         store.startEngineUpdateCheck()
         await store.waitForEngineUpdateCheck()
+        try XCTSkipIf(store.availableEngineUpdate == nil, "No stable release newer than the minimum supported engine is available yet")
         let target = try XCTUnwrap(store.availableEngineUpdate?.version, store.engineUpdateStatus)
         XCTAssertTrue(store.canUpdateEngine)
         XCTAssertEqual(store.engineSidebarVersionDescription, oldVersion)

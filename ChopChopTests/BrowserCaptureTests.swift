@@ -4,6 +4,19 @@ import XCTest
 
 final class BrowserCaptureTests: XCTestCase {
     private let token = String(repeating: "a", count: 64)
+
+    func testThunderBridgePreservesPayloadButRejectsWrappedCredentialsAndLocalFiles() throws {
+        for (uri, accepted) in [("https://example.com/file", true),
+                                ("ed2k://|file|file.bin|1|0123456789abcdef0123456789abcdef|/", true),
+                                ("https://user:pass@example.com/file", false), ("ed2k://user:pass@example.com/file", false),
+                                ("file:///tmp/private.torrent", false)] {
+            let raw = "thunder://" + Data("AA\(uri)ZZ".utf8).base64EncodedString()
+            let data = request(body: "{\"urls\":[\"\(raw)\"]}")
+            guard case .request(let headers, let body) = BrowserCaptureHTTP.parse(data) else { return XCTFail() }
+            let result = BrowserCaptureHTTP.authorizedURLs(headers: headers, body: body, token: token, port: 29101)
+            XCTAssertEqual(result, accepted ? [raw] : nil)
+        }
+    }
     private func request(body: String = #"{"urls":["https://example.com/file"]}"#, extra: String = "") -> Data {
         Data("POST /v1/import HTTP/1.1\r\nHost: 127.0.0.1:29101\r\nAuthorization: Bearer \(token)\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\(extra)\r\n\(body)".utf8)
     }

@@ -15,6 +15,8 @@ ChopChop must be running with Browser Capture enabled. If pairing fails, copy th
 
 The extension follows the browser language, supports English and Simplified Chinese, and falls back to English. `chrome.i18n` supplies popup, settings, context-menu and error text. Connection failure explains both possible remedies—open ChopChop and enable receiving—because a stopped loopback listener cannot identify which condition applies. Rejected pairing, throttling and rejected imports have distinct messages and next steps. Only stable error codes are saved; raw server errors and source URLs are not retained as diagnostics.
 
+HTTP/HTTPS, SFTP, Magnet, ED2K and Thunder links can be sent from the context menu. Thunder payloads are preserved for the engine, including GBK bytes and missing or escaped Base64 padding; wrapped local-file URLs and credentials are rejected.
+
 ## Scope and permissions
 
 - `activeTab` and `scripting` inspect only the page where you explicitly open the extension. Media discovery reads video/audio/source elements, direct HLS/DASH resource addresses and manifest links.

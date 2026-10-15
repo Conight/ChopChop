@@ -20,14 +20,14 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var torrentDirectory: String? = nil
 
     var containsHTTPSource: Bool {
-        resourceLines.contains {
+        ((try? normalizedResources()) ?? []).contains {
             let scheme = URL(string: $0)?.scheme?.lowercased()
             return scheme == "http" || scheme == "https" || Self.detectProtocol(for: $0) == .metalink
         }
     }
 
     var supportsOutputOptions: Bool {
-        resourceLines.contains { [.http, .sftp].contains(Self.detectProtocol(for: $0)) }
+        ((try? normalizedResources()) ?? []).contains { [.http, .sftp].contains(Self.detectProtocol(for: $0)) }
     }
 
     var detectedProtocol: TaskProtocol? {
@@ -46,7 +46,7 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     }
 
     var containsBitTorrentResource: Bool {
-        resourceLines.contains { resource in
+        ((try? normalizedResources()) ?? []).contains { resource in
             let protocolKind = Self.detectProtocol(for: resource)
             return protocolKind == .magnet || protocolKind == .bitTorrent
         }
@@ -54,7 +54,8 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
 
     var shouldResolveBitTorrentFilesBeforeSubmit: Bool {
         guard resourceLines.count == 1, !treatLinesAsMirrors else { return false }
-        return detectedProtocol == .magnet || detectedProtocol == .bitTorrent
+        let kind = (try? normalizedResources().first).flatMap(Self.detectProtocol)
+        return kind == .magnet || kind == .bitTorrent
     }
 
     var isSubmittable: Bool {
@@ -68,8 +69,16 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
         guard !resources.isEmpty else { throw DownloadDraftError.emptyResource }
         return try resources.map { resource in
             let normalized = try Self.normalizedResource(resource)
-            guard Self.detectProtocol(for: normalized) != nil else { throw DownloadDraftError.unsupportedProtocol }
+            guard let kind = Self.detectProtocol(for: normalized), kind != .thunder else { throw DownloadDraftError.unsupportedProtocol }
             return normalized
+        }
+    }
+
+    /// Inspect the decoded URI locally; submit Thunder links intact to the engine.
+    func engineResources() throws -> [String] {
+        let normalized = try normalizedResources()
+        return zip(resourceLines, normalized).map { original, decoded in
+            original.lowercased().hasPrefix("thunder://") ? original : decoded
         }
     }
 
@@ -180,9 +189,22 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
             return "magnet:?xt=urn:btih:\(trimmed)"
         }
         if trimmed.lowercased().hasPrefix("thunder://") {
-            return try decodeThunderResource(trimmed)
+            let decoded = try decodeThunderResource(trimmed)
+            // ED2K's pipe-delimited file links are not authority-based URLs.
+            if isED2KFileResource(decoded) { return decoded }
+            guard let url = URLComponents(string: decoded),
+                  ["http", "https", "sftp", "magnet", "ed2k"].contains(url.scheme?.lowercased() ?? ""),
+                  !["http", "https", "sftp"].contains(url.scheme?.lowercased() ?? "") || url.host?.isEmpty == false else {
+                throw DownloadDraftError.unsupportedProtocol
+            }
+            return decoded
         }
         return trimmed
+    }
+
+    static func isED2KFileResource(_ resource: String) -> Bool {
+        resource.replacingOccurrences(of: "%7C", with: "|", options: .caseInsensitive)
+            .lowercased().hasPrefix("ed2k://|file|")
     }
 
     static func isBareBitTorrentInfoHash(_ value: String) -> Bool {
@@ -229,21 +251,32 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     }
 
     private static func decodeThunderResource(_ resource: String) throws -> String {
-        let payload = String(resource.dropFirst("thunder://".count))
-        guard let data = Data(base64Encoded: payload),
-              let decoded = String(data: data, encoding: .utf8),
-              decoded.hasPrefix("AA"),
-              decoded.hasSuffix("ZZ") else {
-            throw DownloadDraftError.invalidThunderLink(resource)
+        guard var payload = String(resource.dropFirst("thunder://".count)).removingPercentEncoding else {
+            throw DownloadDraftError.invalidThunderLink
         }
-        return String(decoded.dropFirst(2).dropLast(2))
+        while payload.hasSuffix("/") { payload.removeLast() }
+        payload += String(repeating: "=", count: (4 - payload.utf8.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload), data.count > 4,
+              data.starts(with: [0x41, 0x41]), data.suffix(2).elementsEqual([0x5a, 0x5a]) else {
+            throw DownloadDraftError.invalidThunderLink
+        }
+        // Preserve original bytes, including GBK. Decoding as Unicode and re-encoding
+        // would change the address requested from the server.
+        var bytes = data.dropFirst(2).dropLast(2)
+        let whitespace: Set<UInt8> = [9, 10, 11, 12, 13, 32]
+        while let first = bytes.first, whitespace.contains(first) { bytes = bytes.dropFirst() }
+        while let last = bytes.last, whitespace.contains(last) { bytes = bytes.dropLast() }
+        guard !bytes.isEmpty else { throw DownloadDraftError.invalidThunderLink }
+        return bytes.map { byte in
+            byte > 0x20 && byte < 0x7f ? String(UnicodeScalar(byte)) : String(format: "%%%02X", byte)
+        }.joined()
     }
 }
 
 nonisolated enum DownloadDraftError: LocalizedError, Sendable {
     case emptyResource
     case unsupportedProtocol
-    case invalidThunderLink(String)
+    case invalidThunderLink
     case invalidHeader(String)
     case outputNameRequiresSingleTask
     case bitTorrentSelectionRequiresSingleResource
@@ -255,8 +288,8 @@ nonisolated enum DownloadDraftError: LocalizedError, Sendable {
             String(localized: "This protocol is not supported. Use HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, or Metalink. FTP is no longer supported by Aria2 Next.")
         case .emptyResource:
             String(localized: "Enter at least one download link.")
-        case .invalidThunderLink(let value):
-            String(localized: "Thunder link could not be decoded: \(value)")
+        case .invalidThunderLink:
+            String(localized: "Thunder link could not be decoded.")
         case .invalidHeader(let value):
             String(localized: "Header value is invalid: \(value)")
         case .outputNameRequiresSingleTask:

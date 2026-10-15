@@ -80,20 +80,24 @@ nonisolated struct EngineVersion: Comparable, Hashable, Codable, Sendable, Custo
         let text = value.hasPrefix("v") ? String(value.dropFirst()) : value
         let parts = text.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
-              let major = Int(parts[0]), major >= 3, let minor = Int(parts[1]), let patch = Int(parts[2]) else { return nil }
+              let major = Int(parts[0]), let minor = Int(parts[1]), let patch = Int(parts[2]),
+              Self.isSupported(major: major, minor: minor, patch: patch) else { return nil }
         self.major = major
         self.minor = minor
         self.patch = patch
     }
 
     var description: String { "\(major).\(minor).\(patch)" }
+    private static func isSupported(major: Int, minor: Int, patch: Int) -> Bool {
+        minor >= 0 && patch >= 0 && (major, minor, patch) >= (3, 0, 4)
+    }
     // Validate persisted versions too: synthesized Codable would bypass the version floor.
     init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let major = try values.decode(Int.self, forKey: .major)
         let minor = try values.decode(Int.self, forKey: .minor)
         let patch = try values.decode(Int.self, forKey: .patch)
-        guard major >= 3, minor >= 0, patch >= 0 else {
+        guard Self.isSupported(major: major, minor: minor, patch: patch) else {
             throw EngineInstallationError.unsupportedVersion
         }
         self.major = major
@@ -142,7 +146,7 @@ nonisolated enum EngineInstallationError: LocalizedError {
         case .invalidRelease: String(localized: "This release does not contain a supported Apple Silicon engine.")
         case .invalidChecksum: String(localized: "The downloaded engine did not match its official SHA-256 checksum. Please retry.")
         case .invalidExecutable: String(localized: "The downloaded file is not a supported Apple Silicon Aria2 Next executable.")
-        case .unsupportedVersion: String(localized: "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates.")
+        case .unsupportedVersion: String(localized: "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates.")
         case .unexpectedResponse(let code): String(localized: "The download server returned HTTP \(code). Please try again later.")
         case .installationFailed(let message): String(localized: "Could not install Aria2 Next. \(message)")
         }

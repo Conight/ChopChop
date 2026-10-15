@@ -21,19 +21,44 @@ nonisolated enum DownloadTaskRPCOperations {
         }
     }
 
-    static func remove(_ task: DownloadTask, using client: Aria2RPCClient) async throws {
+    @discardableResult
+    static func remove(_ task: DownloadTask, using client: Aria2RPCClient, captureFiles: Bool = false) async throws -> DownloadTask {
+        var snapshot = task
+        let capture = captureFiles && task.media == nil
+            && [.http, .sftp, .metalink].contains(task.protocolKind)
         switch task.removalAction {
         case .removeActiveDownload:
             do {
                 try await client.forceRemove(task.id)
             } catch where isTaskAlreadyAbsent(error) {
+                if capture { snapshot = try await stoppedSnapshot(task, using: client) }
                 try await removeDownloadResultIfPresent(task.id, using: client)
-                return
+                return EngineDownloadFilePolicy.preservingOwnedPaths(snapshot, previous: task)
             }
+            if capture { snapshot = try await stoppedSnapshot(task, using: client) }
             await removeDownloadResultBestEffort(task.id, using: client)
         case .removeDownloadResult:
+            if capture {
+                do { snapshot = try await client.tellStatus(task.id).task }
+                catch where isTaskAlreadyAbsent(error) { /* Keep the saved owned path. */ }
+            }
             try await removeDownloadResultIfPresent(task.id, using: client)
         }
+        // Preserve a previously observed partial path after an engine publication
+        // failure, just as ordinary history reconciliation does.
+        return EngineDownloadFilePolicy.preservingOwnedPaths(snapshot, previous: task)
+    }
+
+    private static func stoppedSnapshot(_ task: DownloadTask, using client: Aria2RPCClient) async throws -> DownloadTask {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        repeat {
+            do {
+                let snapshot = try await client.tellStatus(task.id).task
+                if snapshot.removalAction == .removeDownloadResult { return snapshot }
+            } catch where isTaskAlreadyAbsent(error) { return task }
+            try await Task.sleep(for: .milliseconds(50))
+        } while ContinuousClock.now < deadline
+        throw DownloadOperationError(String(localized: "The download is still stopping. Wait a moment and try removing it again."))
     }
 
     static func pauseAll(_ tasks: [DownloadTask], using client: Aria2RPCClient) async throws -> Int {

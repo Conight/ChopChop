@@ -168,7 +168,7 @@ struct FileVerificationView: View {
         do {
             _ = try algorithm.normalizedExpected(expected)
             inputIssue = nil
-            verifier.verify(selectedURL ?? URL(fileURLWithPath: file.path), algorithm: algorithm)
+            verifier.verify(selectedURL ?? URL(fileURLWithPath: file.diskPath), algorithm: algorithm)
         } catch { inputIssue = error.localizedDescription }
     }
     private func locate() {

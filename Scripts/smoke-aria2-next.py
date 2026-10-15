@@ -21,7 +21,7 @@ import urllib.request
 import uuid
 
 from engine_fixture import download_engine
-from local_signing import signing_identity
+from local_signing import signing_identity, require_disposable_test_host
 from release_config import load
 
 
@@ -53,6 +53,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/auth") and (self.headers.get("Authorization") != "Bearer updated" or self.headers.get("Cookie") != "session=new"):
             self.send_response(403)
             self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path.startswith("/empty"):
+            ranged = self.headers.get("Range") is not None
+            self.send_response(416 if ranged else 200)
+            self.send_header("Content-Length", "0")
+            self.send_header("Accept-Ranges", "bytes")
+            if ranged:
+                self.send_header("Content-Range", "bytes */0")
             self.end_headers()
             return
         payload = SECOND_PAYLOAD if self.path.startswith("/second") else PAYLOAD
@@ -234,6 +243,7 @@ def verify_magnet_file_selection(engine, root, shared_piece=False):
 
 
 def main():
+    require_disposable_test_host()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     process = None
@@ -330,12 +340,16 @@ def main():
             rpc("removeDownloadResult", stalled)
             print("PASS bounded retries: stalled zero-byte request fails after three attempts with a timeout reason")
             url = f"http://127.0.0.1:{server.server_port}/payload.bin"
-            gid = rpc("addUri", [url], {"out": "payload.bin", "pause": "false"})
+            file_options = {"incomplete-suffix": ".part", "auto-file-renaming-style": "parentheses", "continue": "false"}
+            gid = rpc("addUri", [url], {**file_options, "out": "payload.bin", "pause": "false"})
             wait_for(lambda: int(rpc("tellStatus", gid)["completedLength"]) >= 131072)
             rpc("forcePause", gid)
             wait_for(lambda: rpc("tellStatus", gid)["status"] == "paused")
             progress = int(rpc("tellStatus", gid)["completedLength"])
             assert 0 < progress < len(PAYLOAD)
+            assert (downloads / "payload.bin.part").is_file()
+            assert not (downloads / "payload.bin").exists()
+            assert pathlib.Path(rpc("getFiles", gid)[0]["path"]).name == "payload.bin", "RPC exposes the final name, not the physical partial file"
             rpc("saveSession")
             assert f"gid={gid}" in session.read_text()
             stop(expected_status=2)  # V3 retains the controlled timeout as its process exit status.
@@ -343,6 +357,8 @@ def main():
             resumed = rpc("tellStatus", gid)
             assert int(resumed["completedLength"]) >= progress, resumed
             assert resumed["status"] == "paused", resumed
+            assert rpc("getOption", gid)["incomplete-suffix"] == ".part"
+            assert (downloads / "payload.bin.part").is_file()
             request_count = Handler.request_count
             time.sleep(0.5)
             assert Handler.request_count == request_count, "Restored task made an HTTP request before resume"
@@ -351,6 +367,7 @@ def main():
             downloaded = pathlib.Path(rpc("getFiles", gid)[0]["path"])
             expected = hashlib.sha256(PAYLOAD).digest()
             assert hashlib.sha256(downloaded.read_bytes()).digest() == expected
+            assert not (downloads / "payload.bin.part").exists()
             # V3 reports server addresses and a measured total task rate, but no server rates.
             connections_gid = rpc("addUri", [url], {"out": "connections.bin", "pause": "false", "split": "4",
                                    "max-connection-per-server": "4", "min-split-size": "1M", "max-download-limit": "512K"})
@@ -367,13 +384,32 @@ def main():
             wait_for(lambda: rpc("tellStatus", connections_gid)['status'] == 'complete')
             assert (downloads / 'connections.bin').read_bytes() == PAYLOAD
             print(f'PASS HTTP telemetry: {connection_count} reported connections, {len(streams)} server addresses; task rate measured; downloaded bytes verified')
-            second = rpc("addUri", [f"http://127.0.0.1:{server.server_port}/second.bin"], {"out": "payload.bin", "pause": "false"})
+            second = rpc("addUri", [f"http://127.0.0.1:{server.server_port}/second.bin"], {**file_options, "out": "payload.bin", "pause": "false"})
             wait_for(lambda: rpc("tellStatus", second)["status"] == "complete")
             second_path = pathlib.Path(rpc("getFiles", second)[0]["path"])
             assert second_path != downloaded
+            assert second_path.name == "payload (1).bin", second_path
             assert downloaded.read_bytes() == PAYLOAD, "A new same-name download must preserve the original file"
             assert second_path.read_bytes() == SECOND_PAYLOAD
             assert hashlib.sha256(downloaded.read_bytes()).digest() == expected
+            print("PASS 3.0.4 file naming: .part pause/restart/resume/publication, parentheses collisions, original bytes preserved")
+            # Native Thunder parser keeps original non-UTF8 URL bytes and accepts
+            # common page variants. The app validates locally but submits these intact.
+            thunder_bytes = f"AAhttp://127.0.0.1:{server.server_port}/".encode() + b"\xd6\xd0.binZZ"
+            encoded = base64.b64encode(thunder_bytes).decode()
+            for index, payload in enumerate([encoded, encoded.rstrip("="), encoded.replace("=", "%3D") + "/"]):
+                link = "thunder://" + payload
+                assert rpc("probe", link, {})["status"] in ["200", "206"]
+                thunder_gid = rpc("addUri", [link], {**file_options, "out": f"thunder-{index}.bin", "pause": "false"})
+                wait_for(lambda: rpc("tellStatus", thunder_gid)["status"] == "complete")
+                assert (downloads / f"thunder-{index}.bin").read_bytes() == PAYLOAD
+                rpc("removeDownloadResult", thunder_gid)
+            empty_gid = rpc("addUri", [f"http://127.0.0.1:{server.server_port}/empty"], {**file_options, "out": "empty.bin", "pause": "false"})
+            wait_for(lambda: rpc("tellStatus", empty_gid)["status"] == "complete")
+            assert (downloads / "empty.bin").read_bytes() == b""
+            assert not (downloads / "empty.bin.part").exists()
+            rpc("removeDownloadResult", empty_gid)
+            print("PASS 3.0.4 native Thunder variants/probe and zero-length range download")
             # Opening a local Metalink submits captured bytes and returns every child GID.
             metalink = (f'<metalink xmlns="urn:ietf:params:xml:ns:metalink">'
                         f'<file name="import-one.bin"><size>{len(SECOND_PAYLOAD)}</size>'

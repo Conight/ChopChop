@@ -158,7 +158,8 @@ nonisolated enum DownloadPrivacy {
     static func redact(_ text: String) -> String {
         var result = text.replacingOccurrences(of: "\\/", with: "/")
         // Diagnostics can echo request headers, URL credentials or signed query parameters.
-        for pattern in [#"(?i)(authorization|proxy-authorization|cookie|set-cookie)\s*[\"']?\s*[:=]\s*[^\r\n]+"#,
+        for pattern in [#"(?i)\bthunder://[^\s\"<>]+"#,
+                        #"(?i)(authorization|proxy-authorization|cookie|set-cookie)\s*[\"']?\s*[:=]\s*[^\r\n]+"#,
                         #"(?i)\b(?:https?|sftp)://[^\s\"<>]+"#] {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             for match in regex.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
@@ -207,6 +208,7 @@ nonisolated extension DownloadTask {
         destination = try values.decode(String.self, forKey: .destination)
         addedAt = try values.decode(Date.self, forKey: .addedAt)
         errorMessage = try values.decodeIfPresent(String.self, forKey: .errorMessage)
+        errorCode = try values.decodeIfPresent(String.self, forKey: .errorCode)
         files = try values.decode([DownloadFile].self, forKey: .files)
         peers = try values.decode([ConnectionPeer].self, forKey: .peers)
         trackers = try values.decode([TrackerEntry].self, forKey: .trackers)

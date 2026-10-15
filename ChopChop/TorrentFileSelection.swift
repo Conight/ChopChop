@@ -44,6 +44,7 @@ nonisolated enum TorrentFileKind: String, CaseIterable, Identifiable {
 /// Presentation and readiness are independent of fetched torrent documents’ followedBy chain.
 nonisolated enum TorrentFileTree {
     static func sourceName(_ source: String) -> String {
+        let source = (try? AddDownloadDraft.normalizedResource(source)) ?? source
         if let components = URLComponents(string: source), components.scheme?.lowercased() == "magnet" {
             return components.queryItems?.first(where: { $0.name == "dn" })?.value?.nonEmptyValue
                 ?? String(localized: "Magnet download")
@@ -59,6 +60,7 @@ nonisolated enum TorrentFileTree {
     }
 
     static func isResolved(_ snapshot: Aria2TaskSnapshot, source: String, followed: Bool) -> Bool {
+        let source = (try? AddDownloadDraft.normalizedResource(source)) ?? source
         guard !snapshot.task.isFetchingMetadata else { return false }
         if snapshot.task.requiresFileSelection { return true }
         return followed || AddDownloadDraft.localTorrentFileURL(source) != nil ||

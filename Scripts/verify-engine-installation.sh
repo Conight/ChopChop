@@ -3,6 +3,8 @@
 # Pass an optimized Dev app. XCTest's extra entitlements can mask process-exec failures.
 set -eu
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. "$repo_root/Scripts/test-host-policy.sh"
+chopchop_require_disposable_test_host
 release_app="${1:?Usage: Scripts/verify-engine-installation.sh '/path/to/Release/ChopChop Dev.app'}"
 python_bin="${PYTHON:-python3}"
 expected_identifier="$("$python_bin" -c 'import sys; sys.path.insert(0, sys.argv[1]); from release_config import load; print(load()["CHOPCHOP_APP_IDENTIFIER"])' "$repo_root/Scripts").dev"

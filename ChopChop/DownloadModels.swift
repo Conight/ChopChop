@@ -119,6 +119,12 @@ nonisolated struct DownloadFile: Identifiable, Hashable, Codable, Sendable {
     var length: Int64
     var completedLength: Int64
     var isSelected: Bool
+    // RPC reports the final name even while aria2-next writes an unfinished suffix.
+    // Empty means there is no safely identified payload; nil means path is
+    // the actual file (and also decodes history written before this field).
+    var storagePath: String? = nil
+
+    var diskPath: String { storagePath ?? path }
 
     var progress: Double {
         guard length > 0 else { return 0 }
@@ -225,17 +231,18 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
     var scheduledStart: Date? = nil
     var torrentDirectory: String? = nil
     var torrentFileIssue: TorrentFileIssue? = nil
+    var errorCode: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, protocolKind, status, totalLength, completedLength, downloadSpeed, uploadSpeed
         case connections, destination, addedAt, errorMessage, files, peers, trackers, recentLogs, infoHash
         case isSharing, sourceURL, torrentDiagnostics, media, isChecking, isFetchingMetadata
         case requiresFileSelection, isAvailableInEngine, addedAtIsFirstSeen, queuePosition, scheduledStart
-        case torrentDirectory, torrentFileIssue
+        case torrentDirectory, torrentFileIssue, errorCode
     }
 
     var hasReportedTrashableFiles: Bool {
-        files.contains { DownloadTaskTrashPath.isReportedUserContentPath($0.path) }
+        files.contains { DownloadTaskTrashPath.isReportedUserContentPath($0.diskPath) }
     }
 
     var progress: Double {

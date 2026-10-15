@@ -4,6 +4,27 @@ import {readFile} from 'node:fs/promises';
 import {parsePairingCode, normalizeLinks, sendLinks, discoverPageMedia} from '../BrowserExtension/core.js';
 const token = 'a'.repeat(64);
 
+test('ED2K pipe-delimited file links work directly and inside Thunder', () => {
+  const uri = 'ed2k://|file|file.bin|1|0123456789abcdef0123456789abcdef|/';
+  for (const value of [uri, uri.replaceAll('|', '%7C')]) {
+    const wrapped = 'thunder://' + Buffer.from('AA' + value + 'ZZ').toString('base64');
+    assert.deepEqual(normalizeLinks([value, wrapped]), [value, wrapped]);
+  }
+  assert.deepEqual(normalizeLinks(['ed2k://user:password@example.com/file']), []);
+});
+
+test('Thunder payloads retain their spelling and accept escaped/missing padding and GBK bytes', () => {
+  const bytes = Buffer.concat([Buffer.from('AAhttps://example.com/'), Buffer.from([0xd6, 0xd0]), Buffer.from('.zipZZ')]);
+  const link = 'thunder://' + bytes.toString('base64');
+  for (const value of [link, link.replace(/=+$/, ''), link.replaceAll('=', '%3D') + '/']) {
+    assert.deepEqual(normalizeLinks([value]), [value]);
+  }
+  for (const uri of ['file:///tmp/secret', 'ftp://example.com/file', 'javascript:alert(1)', 'https://user:pass@example.com/file']) {
+    assert.deepEqual(normalizeLinks(['thunder://' + Buffer.from('AA' + uri + 'ZZ').toString('base64')]), []);
+  }
+  assert.deepEqual(normalizeLinks(['thunder://bad', 'thunder://%zz']), []);
+});
+
 test('pairing codes cannot redirect the bridge to another host or an invalid port', () => {
   assert.deepEqual(parsePairingCode(`29101:${token}`), {port: 29101, token});
   for (const value of [`80:${token}`, `65536:${token}`, `https://evil.test:${token}`, '29101:short']) {

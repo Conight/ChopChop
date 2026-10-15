@@ -76,9 +76,10 @@ extension DownloadStore {
                 // Even an offline history snapshot may have a live GID after reconnect.
                 // Removal is idempotent; confirm it before touching its files.
                 let engineTaskRemoved = client != nil
-                if let client, engineTaskRemoved { try await DownloadTaskRPCOperations.remove(task, using: client) }
+                var removed = task
+                if let client { removed = try await DownloadTaskRPCOperations.remove(task, using: client, captureFiles: includingFiles) }
                 guard session == engineSessionID, !isShuttingDown else { break }
-                if includingFiles { try trashFilesAfterRemoval(task, engineTaskRemoved: engineTaskRemoved) }
+                if includingFiles { try trashFilesAfterRemoval(removed, engineTaskRemoved: engineTaskRemoved) }
                 cancelSchedule(id)
                 try hideHistory([id])
             } catch { failures += 1; lastError = DownloadPrivacy.redact(error.localizedDescription) }

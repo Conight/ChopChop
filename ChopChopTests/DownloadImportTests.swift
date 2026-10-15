@@ -5,6 +5,12 @@ import XCTest
 @testable import ChopChop
 
 final class DownloadImportTests: XCTestCase {
+    func testThunderImportsRetainNativeLinkAfterDecodedProtocolValidation() async throws {
+        let raw = "thunder://" + Data("AAhttps://example.com/file.zipZZ".utf8).base64EncodedString().replacingOccurrences(of: "=", with: "%3D") + "/"
+        let requests = await DownloadImportReader.prepare([.text(raw)], preferences: AppPreferences())
+        XCTAssertEqual(requests.first?.resources, [raw])
+        XCTAssertEqual(requests.first?.issues, [])
+    }
     func testMixedImportsKeepOrderAndSeparateTorrentReview() async throws {
         let directory = try temporaryDirectory()
         let torrent = directory.appendingPathComponent("a file.torrent")
@@ -137,7 +143,7 @@ final class DownloadImportTests: XCTestCase {
             XCTAssertNil(info["CFBundleDocumentTypes"])
         } else {
             let urlTypes = try XCTUnwrap(info["CFBundleURLTypes"] as? [[String: Any]])
-            XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["ed2k", "magnet"])
+            XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["ed2k", "magnet", "thunder"])
             let documents = try XCTUnwrap(info["CFBundleDocumentTypes"] as? [[String: Any]])
             XCTAssertEqual(documents.count, 2)
             XCTAssertTrue(documents.allSatisfy { $0["LSHandlerRank"] as? String == "Alternate" })

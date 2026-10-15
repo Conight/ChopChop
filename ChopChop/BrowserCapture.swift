@@ -43,10 +43,15 @@ nonisolated enum BrowserCaptureHTTP {
               !payload.urls.isEmpty, payload.urls.count <= 100 else { return nil }
         var unique: [String] = []
         for source in payload.urls {
-            guard source.utf8.count <= 8192, let url = URLComponents(string: source),
-                  ["http", "https", "magnet", "ed2k"].contains(url.scheme?.lowercased() ?? ""),
-                  url.user == nil, url.password == nil else { return nil }
-            if ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host?.isEmpty != false { return nil }
+            guard source.utf8.count <= 8192,
+                  let decoded = try? AddDownloadDraft.normalizedResource(source),
+                  !decoded.contains(where: { $0.isNewline || $0 == "\0" }) else { return nil }
+            if !AddDownloadDraft.isED2KFileResource(decoded) {
+                guard let url = URLComponents(string: decoded),
+                      ["http", "https", "sftp", "magnet", "ed2k"].contains(url.scheme?.lowercased() ?? ""),
+                      url.user == nil, url.password == nil else { return nil }
+                if ["http", "https", "sftp"].contains(url.scheme?.lowercased() ?? ""), url.host?.isEmpty != false { return nil }
+            }
             if !unique.contains(source) { unique.append(source) }
         }
         return unique

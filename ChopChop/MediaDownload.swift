@@ -118,7 +118,7 @@ nonisolated extension AddDownloadDraft {
     var shouldInspectMedia: Bool {
         guard isHTTPSource, !treatLinesAsMirrors else { return false }
         return media.mode == .hls || media.mode == .dash ||
-            (media.mode == .automatic && resourceLines.contains(where: Self.isMediaManifest))
+            (media.mode == .automatic && ((try? normalizedResources()) ?? []).contains(where: Self.isMediaManifest))
     }
 }
 

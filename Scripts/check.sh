@@ -2,16 +2,26 @@
 # Use full Xcode even when xcode-select points at CommandLineTools.
 set -eu
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-. "$repo_root/Scripts/xcode-environment.sh"
-
 mode="${1:-unit}"
 if [ "$#" -gt 0 ]; then shift; fi
+. "$repo_root/Scripts/test-host-policy.sh"
+if [ "$mode" != release ]; then chopchop_require_disposable_test_host; fi
 derived_data="${CHOPCHOP_DERIVED_DATA:-$repo_root/DerivedData}"
 # macOS can key a test host's Local Network rule by executable path, even
 # with a stable development signature. Never rotate that path on a user's Mac.
-if [ "$mode" != release ] && [ "${CI:-false}" != true ] && [ "$derived_data" != "$repo_root/DerivedData" ]; then
-    echo "error: Local tests must use $repo_root/DerivedData to keep their network permission identity stable. Custom build directories are supported for release builds and CI." >&2
-    exit 2
+if ! chopchop_is_disposable_test_host; then
+    if [ "$derived_data" != "$repo_root/DerivedData" ] || [ -n "${XCODE_XCCONFIG_FILE:-}" ]; then
+        echo "error: Local Dev builds must use $repo_root/DerivedData and the checked-in configuration to preserve their launch identity." >&2
+        exit 2
+    fi
+    for argument in "$@"; do
+        case "$argument" in
+            -configuration|-derivedDataPath|-project|-workspace|-scheme|-target|-xcconfig|test|test-without-building|build-for-testing|archive|install|clean|\
+            CODE_SIGN*=*|DEVELOPMENT_TEAM=*|CONFIGURATION*=*|*BUILD_DIR=*|*BUILD_ROOT=*|SYMROOT=*|OBJROOT=*|DSTROOT=*|TEST_HOST=*|TEST_TARGET_NAME=*|EXECUTABLE*=*|FULL_PRODUCT_NAME=*|PRODUCT_NAME=*|WRAPPER_NAME=*)
+                echo 'error: Local Dev build arguments cannot override signing, configuration, product paths, or launch tests; use a disposable test host.' >&2
+                exit 2 ;;
+        esac
+    done
 fi
 # Test entry points must never select the production identity, even by accident.
 expect_configuration=false
@@ -36,6 +46,7 @@ case "$mode" in
     release) set -- build -configuration Release "$@" ;;
     *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|all|release] [xcodebuild options...]' >&2; exit 2 ;;
 esac
+. "$repo_root/Scripts/xcode-environment.sh"
 . "$repo_root/Scripts/local-signing.sh"
 exec /usr/bin/xcodebuild -project "$repo_root/ChopChop.xcodeproj" \
     -scheme "ChopChop Dev" -destination 'platform=macOS,arch=arm64' \

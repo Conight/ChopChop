@@ -4,6 +4,103 @@ import XCTest
 @testable import ChopChop
 
 final class DownloadReliabilityTests: XCTestCase {
+    func testThunderBytePreservationAndNativeSubmission() throws {
+        let bytes = Data("AAhttps://example.com/".utf8) + Data([0xd6, 0xd0]) + Data(".zipZZ".utf8)
+        let link = "thunder://" + bytes.base64EncodedString()
+        for raw in [link, link.replacingOccurrences(of: "=", with: ""), link.replacingOccurrences(of: "=", with: "%3D") + "/"] {
+            let draft = AddDownloadDraft(rawInput: raw)
+            XCTAssertEqual(try draft.normalizedResources(), ["https://example.com/%D6%D0.zip"])
+            XCTAssertEqual(try draft.engineResources(), [raw])
+            XCTAssertTrue(draft.containsHTTPSource)
+            XCTAssertTrue(draft.supportsOutputOptions)
+        }
+        for uri in ["ftp://example.com/file", "file:///tmp/private", "thunder://nested"] {
+            XCTAssertThrowsError(try AddDownloadDraft(rawInput: "thunder://" + Data("AA\(uri)ZZ".utf8).base64EncodedString()).normalizedResources())
+        }
+        let media = "thunder://" + Data("AAhttps://example.com/live.m3u8ZZ".utf8).base64EncodedString()
+        XCTAssertTrue(AddDownloadDraft(rawInput: media).shouldInspectMedia)
+        let torrent = "thunder://" + Data("AAhttps://example.com/file.torrentZZ".utf8).base64EncodedString()
+        XCTAssertTrue(AddDownloadDraft(rawInput: torrent).shouldResolveBitTorrentFilesBeforeSubmit)
+        XCTAssertEqual(TorrentFileTree.sourceName(torrent), "file.torrent")
+        XCTAssertFalse(DownloadPrivacy.redact("Failed: \(link)").contains(bytes.base64EncodedString()))
+        let ed2k = "ed2k://|file|file.bin|1|0123456789abcdef0123456789abcdef|/"
+        let wrappedED2K = "thunder://" + Data("AA\(ed2k)ZZ".utf8).base64EncodedString()
+        XCTAssertEqual(try AddDownloadDraft(rawInput: wrappedED2K).normalizedResources(), [ed2k])
+        XCTAssertEqual(try AddDownloadDraft(rawInput: wrappedED2K).engineResources(), [wrappedED2K])
+    }
+
+    func testPartialFilesUseOwnedPathForRevealTrashAndHistoryUntilPublication() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let final = directory.appendingPathComponent("file.zip")
+        let partial = directory.appendingPathComponent("file.zip.part")
+        try Data([9]).write(to: final) // An unrelated file must never become our Trash target.
+        try Data([1, 2]).write(to: partial)
+        var value = try task()
+        value.destination = directory.path
+        value.files = [DownloadFile(index: 1, path: final.path, length: 10, completedLength: 10, isSelected: true)]
+        let mapped = EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value)
+        XCTAssertEqual(mapped.files[0].path, final.path)
+        XCTAssertEqual(mapped.files[0].diskPath, partial.path)
+        XCTAssertFalse(mapped.files[0].isCompleteOnDisk, "Full byte count does not mean the engine published its file")
+        XCTAssertEqual(DownloadTaskFileTrash.plan(for: mapped).primaryTargets, [partial])
+        XCTAssertEqual(DownloadFileLocation.revealURL(for: mapped), partial)
+        XCTAssertEqual(try JSONDecoder().decode(DownloadTask.self, from: JSONEncoder().encode(mapped)).files[0].diskPath, partial.path)
+        value.status = .completed
+        XCTAssertEqual(EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value).files[0].diskPath, final.path)
+        for protocolKind in [TaskProtocol.bitTorrent, .ed2k] {
+            value.status = .paused; value.protocolKind = protocolKind
+            XCTAssertNil(EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value).files[0].storagePath)
+        }
+    }
+
+    func testOutputPolicyDoesNotInventSuffixForExistingSessionsAndMedia() throws {
+        var value = try task()
+        value.files = [DownloadFile(path: "/tmp/old.bin", length: 10, completedLength: 2, isSelected: true)]
+        XCTAssertNil(EngineDownloadFilePolicy.applying([:], to: value).files[0].storagePath)
+        value.media = MediaTaskProgress(state: "downloading")
+        XCTAssertNil(EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value).files[0].storagePath)
+        let oldJSON = #"{"id":"00000000-0000-0000-0000-000000000001","index":1,"path":"/tmp/file","length":10,"completedLength":2,"isSelected":true}"#
+        XCTAssertEqual(try JSONDecoder().decode(DownloadFile.self, from: Data(oldJSON.utf8)).diskPath, "/tmp/file")
+    }
+
+    func testFailedPublicationKeepsThePreviouslyObservedPartialForCleanup() throws {
+        var previous = try task()
+        previous.files = [DownloadFile(index: 1, path: "/tmp/file.zip", length: 10, completedLength: 5,
+                                       isSelected: true, storagePath: "/tmp/file.zip.part")]
+        var failed = previous
+        failed.status = .failed
+        failed.errorCode = "14"
+        failed.files[0].path = "/tmp/file (1).zip"
+        failed.files[0].storagePath = "/tmp/file (1).zip.part"
+        let safe = EngineDownloadFilePolicy.preservingOwnedPaths(failed, previous: previous)
+        XCTAssertEqual(DownloadTaskFileTrash.plan(for: safe).primaryTargets.map(\.path), ["/tmp/file.zip.part"])
+        let polled = EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: failed)
+        let next = EngineDownloadFilePolicy.preservingOwnedPaths(polled, previous: safe)
+        XCTAssertEqual(next.files[0].diskPath, "/tmp/file.zip.part", "Repeated polls must retain the original path")
+        XCTAssertEqual(try JSONDecoder().decode(DownloadTask.self, from: JSONEncoder().encode(next)).errorCode, "14")
+    }
+
+    func testUnobservedPublicationFailureDoesNotGuessATrashTarget() throws {
+        var value = try task(#"{"gid":"rename-failed","status":"error","errorCode":"14","totalLength":"10","completedLength":"10"}"#)
+        value.files = [DownloadFile(index: 1, path: "/tmp/file (1).zip", length: 10, completedLength: 10, isSelected: true)]
+        let failed = EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value)
+        XCTAssertEqual(failed.errorCode, "14")
+        XCTAssertTrue(DownloadTaskFileTrash.plan(for: failed).primaryTargets.isEmpty)
+        XCTAssertThrowsError(try DownloadTaskFileTrash.moveTaskFilesToTrash(failed))
+        XCTAssertFalse(try DownloadTaskFileTrash.allReportedFilesAreMissing(failed))
+    }
+
+    func testQueuedOutputHintDoesNotClaimAnExistingFileForDeletion() throws {
+        var value = try task(#"{"gid":"not-started","status":"paused","totalLength":"0","completedLength":"0"}"#)
+        value.files = [DownloadFile(index: 1, path: "/tmp/existing.zip", length: 0, completedLength: 0, isSelected: true)]
+        let pending = EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value)
+        XCTAssertFalse(pending.hasReportedTrashableFiles)
+        XCTAssertTrue(DownloadTaskFileTrash.plan(for: pending).primaryTargets.isEmpty)
+        XCTAssertNoThrow(try DownloadTaskFileTrash.moveTaskFilesToTrash(pending))
+    }
+
     @MainActor
     func testLegacyUnlimitedRetriesBecomeFiniteAcrossSettingsReload() throws {
         let store = try PersistentSettingsStore(inMemory: true)

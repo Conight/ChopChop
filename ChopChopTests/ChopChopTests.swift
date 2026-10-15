@@ -17,6 +17,76 @@ import XCTest
 
 final class ChopChopTests: XCTestCase {
 
+    func testNativeThunderSubmissionUses304FileOptionsWithoutACompatibilityBranch() async throws {
+        let raw = "thunder://" + Data("AAhttps://example.com/file.zipZZ".utf8).base64EncodedString()
+        let client = try makeRPCClient { request in
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            XCTAssertEqual(body["method"] as? String, "aria2.addUri")
+            let params = try XCTUnwrap(body["params"] as? [Any])
+            XCTAssertEqual(params[1] as? [String], [raw])
+            let options = try XCTUnwrap(params[2] as? [String: String])
+            XCTAssertEqual(options["incomplete-suffix"], ".part")
+            XCTAssertEqual(options["auto-file-renaming-style"], "parentheses")
+            XCTAssertEqual(options["continue"], "false")
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"native-thunder"}"#)
+        }
+        let gid = try await client.addDownload(AddDownloadDraft(rawInput: raw), fallbackDirectory: "/tmp")
+        XCTAssertEqual(gid, "native-thunder")
+    }
+
+    func testStoragePathsQueryTaskOptionsOnceAndClearAfterCompletion() async throws {
+        let complete = LockedBox(false)
+        let queries = LockedBox(0)
+        let client = try makeRPCClient { request in
+            if try Self.captureRPCMethod(from: request) == "aria2.getOption" {
+                queries.withValue { $0 += 1 }
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"incomplete-suffix":".part","continue":"false"}}"#)
+            }
+            let state = complete.value() ? "complete" : "paused"
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"partial","status":"\#(state)","files":[{"path":"/tmp/file.zip","length":"10","completedLength":"5"}]}}"#)
+        }
+        for _ in 0..<2 {
+            let task = try await client.tellStatus("partial").task
+            XCTAssertEqual(task.files.first?.diskPath, "/tmp/file.zip.part")
+        }
+        complete.set(true)
+        let task = try await client.tellStatus("partial").task
+        XCTAssertEqual(task.files.first?.diskPath, "/tmp/file.zip")
+        XCTAssertEqual(queries.value(), 1)
+    }
+
+    func testRemovalWaitsForFileClosureAndUsesTheLatestPublishedName() async throws {
+        let reads = LockedBox(0)
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            if method == "aria2.tellStatus" {
+                reads.withValue { $0 += 1 }
+                let status = reads.value() == 1 ? "active" : "complete"
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"partial","status":"\#(status)","files":[{"path":"/tmp/file (1).zip","length":"10","completedLength":"10"}]}}"#)
+            }
+            if method == "aria2.getOption" {
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"incomplete-suffix":".part","continue":"false"}}"#)
+            }
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+        }
+        let original = makeTask(id: "partial", status: .active, files: [DownloadFile(path: "/tmp/file.zip", length: 10, completedLength: 5, isSelected: true, storagePath: "/tmp/file.zip.part")])
+        let stopped = try await DownloadTaskRPCOperations.remove(original, using: client, captureFiles: true)
+        XCTAssertEqual(stopped.files.first?.diskPath, "/tmp/file (1).zip")
+        XCTAssertEqual(calls.value().last, "aria2.removeDownloadResult")
+        XCTAssertEqual(reads.value(), 2)
+    }
+
+    func testRPCRejectsEveryEngineBefore304() async throws {
+        for version in ["2.8.6", "3.0.0", "3.0.1", "3.0.2", "3.0.3"] {
+            let client = try makeRPCClient { request in
+                try Self.rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"\#(version)","rpcVersion":"1.1.0","enabledFeatures":[],"mediaFeatures":[]}}"#)
+            }
+            do { _ = try await client.getVersion(); XCTFail("Accepted unsupported engine \(version)") }
+            catch EngineInstallationError.unsupportedVersion { }
+        }
+    }
+
     func testDetectsSupportedProtocols() {
         XCTAssertEqual(AddDownloadDraft(rawInput: "https://example.com/file.iso").detectedProtocol, .http)
         XCTAssertNil(AddDownloadDraft(rawInput: "ftp://example.com/file.zip").detectedProtocol)
@@ -633,6 +703,8 @@ final class ChopChopTests: XCTestCase {
                     for: request,
                     body: #"{"jsonrpc":"2.0","id":"stopped","result":[{"gid":"done","status":"complete","totalLength":"300","completedLength":"300","downloadSpeed":"0","uploadSpeed":"0","connections":"0","dir":"/tmp","files":[{"path":"/tmp/done.iso","length":"300","completedLength":"300","selected":"true"}]}]}"#
                 )
+            case "aria2.getOption":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{}}"#)
             default:
                 return try Self.rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"unknown","result":[]}"#)
             }
@@ -5259,7 +5331,11 @@ final class ChopChopTests: XCTestCase {
     ) throws -> (HTTPURLResponse, Data) {
         switch method {
         case "aria2.getVersion":
-            return try rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.0.1","rpcVersion":"1.1.0","enabledFeatures":["HTTPS","BitTorrent"],"mediaFeatures":[]}}"#)
+            return try rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.0.4","rpcVersion":"1.1.0","enabledFeatures":["HTTPS","BitTorrent"],"mediaFeatures":[]}}"#)
+        case "aria2.getOption":
+            return try rpcHTTPResponse(for: request, body: #"{"result":{}}"#)
+        case "aria2.tellStatus":
+            return try rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"GID not found"}}"#)
         case "aria2.tellActive", "aria2.tellWaiting", "aria2.tellStopped":
             return try rpcHTTPResponse(for: request, body: #"{"jsonrpc":"2.0","id":"tasks","result":[]}"#)
         case "aria2.getGlobalStat":

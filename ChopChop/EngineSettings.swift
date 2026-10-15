@@ -1,5 +1,53 @@
 import Foundation
 
+/// Only new tasks receive these options. Applying a suffix globally would change
+/// the interpretation of files belonging to existing sessions.
+nonisolated enum EngineDownloadFilePolicy {
+    static let newTaskOptions = ["auto-file-renaming-style": "parentheses", "incomplete-suffix": ".part", "continue": "false"]
+
+    static func preservingOwnedPaths(_ task: DownloadTask, previous: DownloadTask) -> DownloadTask {
+        var result = task
+        guard task.status == .failed else { return result }
+        for index in result.files.indices where result.files[index].storagePath != nil {
+            if let old = previous.files.first(where: { $0.index == result.files[index].index }),
+               let path = old.storagePath, !path.isEmpty {
+                result.files[index].storagePath = path
+            }
+        }
+        return result
+    }
+
+    static func applying(_ options: [String: String], to task: DownloadTask) -> DownloadTask {
+        var result = task
+        for index in result.files.indices { result.files[index].storagePath = nil }
+        guard task.media == nil, [.http, .sftp, .metalink].contains(task.protocolKind), task.status != .completed,
+              let suffix = options["incomplete-suffix"], !suffix.isEmpty,
+              !suffix.contains(where: { "/\\:*?\"<>|".contains($0) || $0.isNewline || $0 == "\0" }) else { return result }
+        for index in result.files.indices {
+            let path = result.files[index].path
+            guard DownloadTaskTrashPath.isReportedUserContentPath(path) else { continue }
+            if task.errorCode == "14" {
+                // RenameFailed can report a new final name without moving the
+                // original .part. Only a previously observed path is safe to use.
+                result.files[index].storagePath = ""
+                continue
+            }
+            if task.totalLength == 0 && task.completedLength == 0 && result.files[index].length == 0 {
+                // Before the response, RPC can echo --out without having claimed any
+                // file. A queued task must not delete someone else's same-name file.
+                result.files[index].storagePath = ""
+                continue
+            }
+            // continue=true may have adopted a preexisting unsuffixed file. Our new
+            // tasks explicitly disable adoption; restored external tasks may not.
+            if options["continue"] != "true" || FileManager.default.fileExists(atPath: path + suffix) {
+                result.files[index].storagePath = path + suffix
+            }
+        }
+        return result
+    }
+}
+
 nonisolated enum FileAllocationMode: String, CaseIterable, Codable, Identifiable, Sendable {
     case none
     case trunc

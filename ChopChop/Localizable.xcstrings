@@ -1,6 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "The download is still stopping. Wait a moment and try removing it again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The download is still stopping. Wait a moment and try removing it again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载仍在停止中，请稍等片刻后重试移除。"
+          }
+        }
+      }
+    },
     " (Development)": {
       "extractionState": "manual",
       "localizations": {
@@ -3866,53 +3882,53 @@
         }
       }
     },
-    "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically.": {
+    "ChopChop requires Aria2 Next 3.0.4 or later to download files. Install a supported engine to continue. It will start automatically.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop requires Aria2 Next 3 or later to download files. Install a supported engine to continue. It will start automatically."
+            "value": "ChopChop requires Aria2 Next 3.0.4 or later to download files. Install a supported engine to continue. It will start automatically."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop 需要 Aria2 Next 3 或更高版本来下载文件。请先安装支持的引擎，它会自动启动。"
+            "value": "ChopChop 需要 Aria2 Next 3.0.4 或更高版本来下载文件。请先安装支持的引擎，它会自动启动。"
           }
         }
       }
     },
-    "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates.": {
+    "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop requires Aria2 Next 3 or later. Install a supported engine in Settings → Updates."
+            "value": "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop 需要 Aria2 Next 3 或更高版本。请在“设置 → 更新”中安装支持的引擎。"
+            "value": "ChopChop 需要 Aria2 Next 3.0.4 或更高版本。请在“设置 → 更新”中安装支持的引擎。"
           }
         }
       }
     },
-    "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, and metalink downloads from the Add Download window.": {
+    "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, Thunder, torrent, and metalink downloads from the Add Download window.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, and metalink downloads from the Add Download window."
+            "value": "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, Thunder, torrent, and metalink downloads from the Add Download window."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可在添加下载窗口中添加 HTTP、HTTPS、SFTP、Magnet、ED2K、Torrent 和 Metalink 下载。"
+            "value": "可在添加下载窗口中添加 HTTP、HTTPS、SFTP、Magnet、ED2K、迅雷、Torrent 和 Metalink 下载。"
           }
         }
       }
@@ -17459,19 +17475,19 @@
         }
       }
     },
-    "Thunder link could not be decoded: %@": {
+    "Thunder link could not be decoded.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thunder link could not be decoded: %@"
+            "value": "Thunder link could not be decoded."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法解码迅雷链接：%@"
+            "value": "无法解码迅雷链接。"
           }
         }
       }

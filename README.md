@@ -40,6 +40,7 @@ Removing quarantine does not sign, notarize, or verify a download. Only do this 
 
 - Add individual links, batches, or mirrors; choose the destination and optional request settings.
 - HTTP/HTTPS, SFTP, BitTorrent, magnet, ED2K, Metalink, and Thunder links through Aria2 Next.
+- New HTTP/SFTP downloads use `.part` until completion; filename collisions use browser-style `name (1).ext` numbering. Existing tasks retain their saved file layout.
 - Pause, resume, inspect errors, or edit a failed download before adding it again.
 - Persistent download history and stable dates, including when the engine is offline; clear records without deleting files.
 - Engine starts automatically; restored downloads and BitTorrent seeding stay paused until you resume them.
@@ -51,14 +52,14 @@ Removing quarantine does not sign, notarize, or verify a download. Only do this 
 - Repair task authentication, retry media with its saved progress, and replace same-origin links for paused tasks that have no partial data.
 - Calculate or compare file checksums with progress and cancellation; recheck torrent pieces through the engine.
 - App Shortcuts for adding links, pausing downloads, and getting a summary; Dock progress and native sharing for downloaded files.
-- Drop download links or Torrent/Metalink files into the window; open files with ⌘O or from Finder, and receive Magnet/ED2K links. Every import opens for confirmation.
+- Drop download links or Torrent/Metalink files into the window; open files with ⌘O or from Finder, and receive Magnet/ED2K/Thunder links. Every import opens for confirmation.
 - Optional macOS notifications for completed background downloads, with persistent duplicate suppression and a shortcut back to the task.
 - Native sidebar navigation, search, task details, keyboard shortcuts, and menu bar access.
 - Configure connection limits, speed limits, proxies, trackers, and ED2K bootstrap sources.
 - Automatic engine startup, background version checks, and manual updates inside Settings.
 - Engine update progress, cancellation during download, checksum verification, and rollback if the replacement fails to start.
 
-ChopChop registers as an available handler for Torrent/Metalink files and Magnet/ED2K links; it does not change existing default apps. Finder’s Open With → ChopChop opens supported files for review. Incoming file/link types can be enabled or disabled in Settings → Integrations; completion notifications are opt-in under General.
+ChopChop registers as an available handler for Torrent/Metalink files and Magnet/ED2K/Thunder links; it does not change existing default apps. Finder’s Open With → ChopChop opens supported files for review. Incoming file/link types can be enabled or disabled in Settings → Integrations; completion notifications are opt-in under General.
 
 ## Using the new features
 
@@ -72,7 +73,7 @@ ChopChop registers as an available handler for Torrent/Metalink files and Magnet
 
 ## Engine
 
-ChopChop does not bundle an engine. On first launch it requires installation of **Aria2 Next v3 or later**, downloaded directly from the [official upstream releases](https://github.com/AnInsomniacy/aria2-next/releases). The engine runs as a separate process and is stored in ChopChop's own application data directory; there is no installation-folder chooser. Click the **Engine** area in the sidebar to open its management page. First installation and **Settings → Updates** both default to **Latest** and offer up to five newest v3+ stable releases for manual selection, including switching within supported versions. Latest is resolved again before installation; selecting a fixed version applies to that installation only. The **Updates** page brings together the app update channel, engine versions, and a shared **Check for updates at launch** switch (on by default). **Check All Updates** checks both components; each component also has its own **Check for Updates** button with the same appearance and loading feedback. Manual checks work with this switch off. Launch checks run once per app launch, and the sidebar shows an animated checking status until both checks finish. Checks never install an update automatically.
+ChopChop does not bundle an engine. On first launch it requires installation of **Aria2 Next 3.0.4 or later**, downloaded directly from the [official upstream releases](https://github.com/AnInsomniacy/aria2-next/releases). The engine runs as a separate process and is stored in ChopChop's own application data directory; there is no installation-folder chooser. Click the **Engine** area in the sidebar to open its management page. First installation and **Settings → Updates** both default to **Latest** and offer up to five newest supported stable releases for manual selection, including switching within supported versions. Latest is resolved again before installation; selecting a fixed version applies to that installation only. The **Updates** page brings together the app update channel, engine versions, and a shared **Check for updates at launch** switch (on by default). **Check All Updates** checks both components; each component also has its own **Check for Updates** button with the same appearance and loading feedback. Manual checks work with this switch off. Launch checks run once per app launch, and the sidebar shows an animated checking status until both checks finish. Checks never install an update automatically.
 
 The main app and engine use App Sandbox and Hardened Runtime. A private XPC installer service downloads, verifies, and signs official engine releases. The signed app bundle is not modified by an engine update.
 
@@ -83,10 +84,12 @@ Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are in
 Use **Xcode 27** and Swift 6 language mode. The app has no Swift Package Manager or CocoaPods dependencies.
 
 ```sh
+Scripts/check.sh release  # Personal Mac: build the fixed-path Dev app
+# Disposable CI/VM host only:
 Scripts/verify.sh
 ```
 
-The shared CI/release gate checks localization, Swift/RPC and browser tests, Chinese layout, real HTTP/HLS/DASH downloads, and the hardened Release app. It uses one temporary directory and cleans it on exit. Tool versions are fixed in `Scripts/verification-tools.json`; see [Development and Engine Architecture](Documentation/Development.md) for setup, focused checks, and system-integration limitations. Open `ChopChop.xcodeproj` and select **ChopChop Dev**. Local Debug/Release builds and tests use `com.conight.ChopChop.dev`, a separate sandbox, download directory, ports and Apple Development signing. The packaging **ChopChop** scheme uses **Distribution** for production packaging; public betas retain ad-hoc signing.
+The shared CI/release gate checks localization, Swift/RPC and browser tests, Chinese layout, real HTTP/HLS/DASH downloads, and the hardened Release app. It uses one temporary directory and cleans it on exit. Tool versions are fixed in `Scripts/verification-tools.json`; see [Development and Engine Architecture](Documentation/Development.md) for setup, focused checks, and system-integration limitations. For local use, launch only `DerivedData/Build/Products/Release/ChopChop Dev.app` from the same checkout. Hosted tests, network probes, and Xcode Run/Test belong in a disposable CI/VM host; multiple launch paths can leave duplicate Local Network records even with a development signature. Test scripts enforce this policy; `CI=true` alone does not bypass it. Debug/Release builds use `com.conight.ChopChop.dev`, a separate sandbox, download directory, ports and Apple Development signing. The packaging **ChopChop** scheme uses **Distribution** for production packaging; public betas retain ad-hoc signing.
 
 ## Release packaging
 

@@ -20,7 +20,7 @@ import urllib.request
 import uuid
 
 from engine_fixture import download_engine
-from local_signing import signing_identity
+from local_signing import signing_identity, require_disposable_test_host
 from release_config import load
 
 
@@ -83,6 +83,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    require_disposable_test_host()
     for executable in ('ffmpeg', 'ffprobe'):
         if not shutil.which(executable):
             raise SystemExit(f'{executable} is required for this test')

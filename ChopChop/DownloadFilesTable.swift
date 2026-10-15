@@ -60,7 +60,7 @@ struct DownloadFilesTable: View {
             .frame(height: min(300, max(100, CGFloat(rows.count) * (priorities == nil ? 28 : 42) + 30)))
             .contextMenu(forSelectionType: Int.self) { ids in
                 Button(String(localized: "Show in Finder"), systemImage: "folder") { reveal(ids) }
-                    .disabled(!files.contains { ids.contains($0.index) && DownloadFileLocation.existingFile($0.path) != nil })
+                    .disabled(!files.contains { ids.contains($0.index) && DownloadFileLocation.existingFile($0.diskPath) != nil })
                 if priorities != nil { priorityMenu(ids) }
             }
             .accessibilityLabel(String(localized: "Download files"))
@@ -76,7 +76,7 @@ struct DownloadFilesTable: View {
                 Spacer()
                 if priorities != nil { priorityMenu(selection) }
                 Button(String(localized: "Show in Finder"), systemImage: "folder") { reveal(selection) }
-                    .disabled(!selectedFiles.contains { DownloadFileLocation.existingFile($0.path) != nil })
+                    .disabled(!selectedFiles.contains { DownloadFileLocation.existingFile($0.diskPath) != nil })
             }.controlSize(.small)
             if selectedFiles.count == 1, let file = selectedFiles.first {
                 VStack(alignment: .leading, spacing: 8) {
@@ -112,7 +112,7 @@ struct DownloadFilesTable: View {
         }
     }
     private func reveal(_ ids: Set<Int>) {
-        NSWorkspace.shared.activateFileViewerSelecting(files.filter { ids.contains($0.index) }.compactMap { DownloadFileLocation.existingFile($0.path) })
+        NSWorkspace.shared.activateFileViewerSelecting(files.filter { ids.contains($0.index) }.compactMap { DownloadFileLocation.existingFile($0.diskPath) })
     }
     private func priorityMenu(_ ids: Set<Int>) -> some View {
         Menu(String(localized: "Set Priority")) {

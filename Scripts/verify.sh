@@ -3,6 +3,8 @@
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+. "$repo_root/Scripts/test-host-policy.sh"
+chopchop_require_disposable_test_host
 if [[ $# != 0 && !( "${1:-}" == --package && $# == 3 ) ]]; then
     echo 'Usage: Scripts/verify.sh [--package OUTPUT_DIRECTORY DMG_NAME]' >&2
     exit 2
@@ -46,6 +48,7 @@ PY
 "$PYTHON" Scripts/check-localizations.py
 "$PYTHON" Scripts/test_release_config.py
 "$PYTHON" Scripts/test_engine_fixture.py
+"$PYTHON" Scripts/test_local_test_policy.py
 node --test Scripts/test-browser-extension.mjs
 CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
 CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"

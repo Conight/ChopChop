@@ -221,8 +221,8 @@ extension DownloadStore {
             return
         }
         await performTaskMutation(alertTitle: String(localized: "Remove Failed")) { client in
-            try await DownloadTaskRPCOperations.remove(task, using: client)
-            if includingFiles { try trashFilesAfterRemoval(task, engineTaskRemoved: true) }
+            let removed = try await DownloadTaskRPCOperations.remove(task, using: client, captureFiles: includingFiles)
+            if includingFiles { try trashFilesAfterRemoval(removed, engineTaskRemoved: true) }
             try hideHistory([task.id])
         }
     }

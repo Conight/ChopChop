@@ -1175,7 +1175,7 @@ final class DownloadStore {
             await prepareBitTorrentFileSelection()
             return false
         }
-        if addDraft.resourceLines.contains(where: { AddDownloadDraft.detectProtocol(for: $0) == .ed2k }),
+        if ((try? addDraft.normalizedResources()) ?? []).contains(where: { AddDownloadDraft.detectProtocol(for: $0) == .ed2k }),
            !ed2kDownloadContext().hasBootstrapOrServer {
             postError(
                 String(localized: "Sync ED2K bootstrap files or add ED2K servers in Settings before adding ED2K downloads."),

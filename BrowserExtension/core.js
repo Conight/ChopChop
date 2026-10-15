@@ -10,9 +10,28 @@ export function normalizeLinks(values) {
   for (const value of values) {
     if (typeof value !== 'string' || new TextEncoder().encode(value).length > 8192) continue;
     try {
-      const url = new URL(value);
-      if (!['http:', 'https:', 'magnet:', 'ed2k:'].includes(url.protocol) || url.username || url.password) continue;
-      if (!links.includes(url.href)) links.push(url.href);
+      const original = value.trim();
+      const thunder = /^thunder:\/\//i.test(original);
+      let decoded = original;
+      if (thunder) {
+        let payload = decodeURIComponent(original.slice(10)).replace(/\/+$/, '');
+        payload += '='.repeat((4 - payload.length % 4) % 4);
+        const bytes = atob(payload);
+        if (!bytes.startsWith('AA') || !bytes.endsWith('ZZ') || bytes.length <= 4) continue;
+        decoded = Array.from(bytes.slice(2, -2).replace(/^[\t-\r ]+|[\t-\r ]+$/g, ''), char => {
+          const byte = char.charCodeAt(0);
+          return byte > 0x20 && byte < 0x7f ? char : '%' + byte.toString(16).toUpperCase().padStart(2, '0');
+        }).join('');
+      }
+      if (/[\r\n\0]/.test(decoded)) continue;
+      let link = original;
+      // ED2K file links use pipe-delimited fields, not a URL authority.
+      if (!/^ed2k:\/\/(?:\||%7c)file(?:\||%7c)/i.test(decoded)) {
+        const url = new URL(decoded);
+        if (!['http:', 'https:', 'sftp:', 'magnet:', 'ed2k:'].includes(url.protocol) || url.username || url.password) continue;
+        link = thunder ? original : url.href;
+      }
+      if (!links.includes(link)) links.push(link);
       if (links.length === 100) break;
     } catch { /* Ignore page strings that are not download URLs. */ }
   }

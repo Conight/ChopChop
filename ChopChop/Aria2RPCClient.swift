@@ -103,11 +103,23 @@ private actor Aria2HTTPTransport {
     }
 }
 
+/// Per-client (engine lifetime) cache. Never retain headers or authentication.
+private actor Aria2FileOptions {
+    private var fileOptions: [String: [String: String]] = [:]
+    func options(for gid: String) -> [String: String]? { fileOptions[gid] }
+    func remember(_ options: [String: String], for gid: String) {
+        fileOptions[gid] = options.filter { ["incomplete-suffix", "continue"].contains($0.key) }
+    }
+    func forget(_ gid: String) { fileOptions[gid] = nil }
+    func retain(_ gids: Set<String>) { fileOptions = fileOptions.filter { gids.contains($0.key) } }
+}
+
 nonisolated struct Aria2RPCClient: Sendable {
     private let endpoint: URL
     private let token: String
     private let http: Aria2HTTPTransport
     private let eventStream: Aria2WebSocketTransport?
+    private let downloadPolicy = Aria2FileOptions()
 
     var events: AsyncStream<EngineRPCEvent>? { eventStream?.events }
 
@@ -174,38 +186,39 @@ nonisolated struct Aria2RPCClient: Sendable {
             throw RPCError.tokenMissing
         }
         let normalized = try draft.normalizedResources()
+        let resources = try draft.engineResources()
         if normalized.count > 1, normalized.contains(where: { resource in
             URL(string: resource)?.isFileURL == true || resource.hasPrefix("/")
         }) { throw DownloadDraftError.documentRequiresSingleResource }
-        let options = try ed2kAwareOptions(
+        let options = newTaskOptions(try ed2kAwareOptions(
             draft: draft,
             resources: normalized,
             fallbackDirectory: fallbackDirectory,
             autoOrganize: autoOrganize,
             ed2kContext: ed2kContext
-        )
+        ))
         if normalized.count == 1, let resource = normalized.first,
            let document = try localDocument(resource, draft: draft), document.kind == .metalink {
             return try await call("aria2.addMetalink", params: [document.data.base64EncodedString(), options], as: [String].self)
         }
         if draft.treatLinesAsMirrors || normalized.count == 1 {
-            let gid: String = try await call("aria2.addUri", params: [normalized, options], as: String.self)
+            let gid: String = try await call("aria2.addUri", params: [resources, options], as: String.self)
             return [gid]
         }
 
         var gids: [String] = []
-        for uri in normalized {
+        for (index, uri) in normalized.enumerated() {
             var singleDraft = draft
             singleDraft.rawInput = uri
-            let singleOptions = try ed2kAwareOptions(
+            let singleOptions = newTaskOptions(try ed2kAwareOptions(
                 draft: singleDraft,
                 resources: [uri],
                 fallbackDirectory: fallbackDirectory,
                 autoOrganize: autoOrganize,
                 ed2kContext: ed2kContext
-            )
+            ))
             do {
-                let gid: String = try await call("aria2.addUri", params: [[uri], singleOptions], as: String.self)
+                let gid: String = try await call("aria2.addUri", params: [[resources[index]], singleOptions], as: String.self)
                 gids.append(gid)
             } catch {
                 guard !gids.isEmpty else { throw error }
@@ -218,10 +231,11 @@ nonisolated struct Aria2RPCClient: Sendable {
     @concurrent
     func inspectMedia(_ draft: AddDownloadDraft, fallbackDirectory: String?) async throws -> String {
         guard draft.shouldInspectMedia else { throw DownloadOperationError(String(localized: "Use one HTTP or HTTPS media source.")) }
-        var options = try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: false)
+        var options = newTaskOptions(try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: false))
         options.merge(try draft.media.engineOptions(probing: true)) { _, new in new }
         options["pause"] = "false"
-        return try await call("aria2.addUri", params: [try draft.normalizedResources(), options], as: String.self)
+        let resources = try draft.engineResources()
+        return try await call("aria2.addUri", params: [resources, options], as: String.self)
     }
 
     @concurrent
@@ -248,7 +262,9 @@ nonisolated struct Aria2RPCClient: Sendable {
 
     @concurrent
     func getOption(_ gid: String) async throws -> [String: String] {
-        try await call("aria2.getOption", params: [gid], as: [String: String].self)
+        let options = try await call("aria2.getOption", params: [gid], as: [String: String].self)
+        await downloadPolicy.remember(options, for: gid)
+        return options
     }
 
     @concurrent
@@ -265,7 +281,7 @@ nonisolated struct Aria2RPCClient: Sendable {
             throw DownloadDraftError.bitTorrentSelectionRequiresSingleResource
         }
 
-        var options = try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: autoOrganize)
+        var options = newTaskOptions(try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: autoOrganize))
         options["pause"] = "false" // Metadata must resolve even when the eventual payload should stay paused.
         options["pause-metadata"] = "true"
         options["force-save"] = "true" // Preserve active seeding in crash-recovery sessions.
@@ -278,7 +294,8 @@ nonisolated struct Aria2RPCClient: Sendable {
             return gid
         }
 
-        let gid: String = try await call("aria2.addUri", params: [[resource], options], as: String.self)
+        let resources = try draft.engineResources()
+        let gid: String = try await call("aria2.addUri", params: [resources, options], as: String.self)
         return gid
     }
 
@@ -310,7 +327,7 @@ nonisolated struct Aria2RPCClient: Sendable {
             "ed2kSearch",
             params: [
                 trimmedKeyword,
-                options.engineOptions(directory: directory, context: context)
+                newTaskOptions(options.engineOptions(directory: directory, context: context))
             ],
             as: String.self
         )
@@ -399,6 +416,7 @@ nonisolated struct Aria2RPCClient: Sendable {
     @concurrent
     func changeOption(gid: String, options: [String: String]) async throws {
         let _: String = try await call("aria2.changeOption", params: [gid, options], as: String.self)
+        if options["incomplete-suffix"] != nil || options["continue"] != nil { await downloadPolicy.forget(gid) }
     }
 
     @concurrent
@@ -415,6 +433,7 @@ nonisolated struct Aria2RPCClient: Sendable {
             "files",
             "uris",
             "errorMessage",
+            "errorCode",
             "bittorrent",
             "ed2k",
             "infoHash",
@@ -426,7 +445,9 @@ nonisolated struct Aria2RPCClient: Sendable {
             "verifyIntegrityPending"
         ]
         let dto: Aria2TaskDTO = try await call("aria2.tellStatus", params: [gid, fields], as: Aria2TaskDTO.self)
-        return dto.toSnapshot()
+        var snapshot = dto.toSnapshot()
+        snapshot.task = try await resolvingStoragePaths(snapshot.task)
+        return snapshot
     }
 
     @concurrent
@@ -539,6 +560,8 @@ nonisolated struct Aria2RPCClient: Sendable {
         let observations = try await (active + waiting + stopped)
         var tasksByID: [String: DownloadTask] = [:]
         for task in observations { tasksByID[task.id] = task }
+        await downloadPolicy.retain(Set(tasksByID.keys))
+        for (gid, task) in tasksByID { tasksByID[gid] = try await resolvingStoragePaths(task) }
         return tasksByID.values
             .sorted { lhs, rhs in
                 if lhs.status == rhs.status {
@@ -618,6 +641,20 @@ nonisolated struct Aria2RPCClient: Sendable {
             guard page.count == pageSize else { return tasks }
             offset += page.count
         }
+    }
+
+    private func newTaskOptions(_ options: [String: String]) -> [String: String] {
+        options.merging(EngineDownloadFilePolicy.newTaskOptions) { _, value in value }
+    }
+
+    private func resolvingStoragePaths(_ task: DownloadTask) async throws -> DownloadTask {
+        guard task.media == nil,
+              [.http, .sftp, .metalink].contains(task.protocolKind), task.status != .completed,
+              task.files.contains(where: { DownloadTaskTrashPath.isReportedUserContentPath($0.path) }) else { return task }
+        let options: [String: String]
+        if let cached = await downloadPolicy.options(for: task.id) { options = cached }
+        else { options = try await getOption(task.id) }
+        return EngineDownloadFilePolicy.applying(options, to: task)
     }
 
     private func ed2kAwareOptions(

@@ -4,7 +4,7 @@ import SwiftUI
 extension SettingsView {
     var protocols: some View {
         SettingsSection(title: String(localized: "Links and Files")) {
-            Text(String(localized: "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, torrent, and metalink downloads from the Add Download window."))
+            Text(String(localized: "ChopChop supports HTTP, HTTPS, SFTP, Magnet, ED2K, Thunder, torrent, and metalink downloads from the Add Download window."))
             Toggle(String(localized: "Receive Magnet links"), isOn: Bindable(store).preferences.handleMagnetLinks)
             .settingsAnchor("integrations.receive-magnet-links")
             Toggle(String(localized: "Receive ED2K links"), isOn: Bindable(store).preferences.handleED2KLinks)
