@@ -126,7 +126,8 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .pause: return ready && context.tasks.contains { $0.primaryControlAction == .pause }
         case .resume: return ready && context.tasks.contains { $0.primaryControlAction == .resume }
         case .editAgain: return !store.isUpdatingEngine && task?.canEditAndAddAgain == true
-        case .remove: return !store.isUpdatingEngine && !store.isPerformingBatchOperation && !context.tasks.isEmpty
+        case .remove: return !store.isUpdatingEngine && !store.isPerformingBatchOperation &&
+            store.inputCoordinator.owner == nil && store.removalRequest == nil && !context.tasks.isEmpty
         case .finishRecording: return ready && task?.canFinishRecording == true
         case .retryMedia: return ready && task?.canRetryMedia == true
         case .moveToTop: return ready && task?.isAvailableInEngine == true && task?.queuePosition != nil

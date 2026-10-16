@@ -670,8 +670,8 @@ struct DownloadCanvas: View {
                         }
                         .listStyle(.inset)
                         .focused($taskListFocused)
-                        .focusedValue(\.downloadListContext, DownloadActionContext(store: store,
-                            taskIDs: store.selectedTaskIDs.intersection(visibleRows.map(\.id))))
+                        .focusedValue(\.downloadListContext, listCommandContext)
+                        .onCommand(#selector(NSTableView.selectAll(_:)), perform: selectAllAction)
                         .onPasteCommand(of: [.fileURL, .url, .plainText], validator: { providers in
                             guard store.inputCoordinator.owner == nil, store.removalRequest == nil,
                                   !store.engineSetupState.requiresInstallation else { return nil }
@@ -728,6 +728,25 @@ struct DownloadCanvas: View {
     private var usesNativeReordering: Bool {
         if #available(macOS 27.0, *) { return destination == .waiting }
         return false
+    }
+
+    private var listCommandContext: DownloadActionContext? {
+        // A SwiftUI sheet can retain its owner's focused values. Never leave
+        // task removal registered while a download/confirmation sheet is open.
+        guard store.inputCoordinator.owner == nil, store.removalRequest == nil,
+              !store.engineSetupState.requiresInstallation else { return nil }
+        return DownloadActionContext(store: store,
+            taskIDs: store.selectedTaskIDs.intersection(visibleRows.map(\.id)))
+    }
+
+    private func selectAllVisibleTasks() {
+        guard listCommandContext != nil else { return }
+        store.selectedTaskIDs = Set(visibleRows.map(\.id))
+    }
+
+    private var selectAllAction: (() -> Void)? {
+        guard listCommandContext != nil else { return nil }
+        return selectAllVisibleTasks
     }
 
     private func taskRow(_ row: DownloadRowState, compact: Bool) -> some View {
