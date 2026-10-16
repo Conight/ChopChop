@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Search Downloads…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Downloads…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索下载…"
+          }
+        }
+      }
+    },
     "The download is still stopping. Wait a moment and try removing it again.": {
       "localizations": {
         "en": {

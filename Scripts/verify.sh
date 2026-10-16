@@ -52,6 +52,7 @@ PY
 node --test Scripts/test-browser-extension.mjs
 CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
 CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh keyboard -testLanguage en -testRegion US 2>&1 | tee "$validation_root/keyboard.log"
 "$PYTHON" Scripts/smoke-aria2-next.py
 "$PYTHON" Scripts/smoke-media.py
 Scripts/check.sh release

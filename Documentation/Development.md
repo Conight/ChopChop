@@ -17,6 +17,7 @@ Scripts/verify.sh           # Shared CI / pre-release gate; automatically cleans
 Scripts/check.sh unit       # Unit and RPC regression tests
 Scripts/check.sh release-unit # Optimized unit tests with test-only injection enabled
 Scripts/check.sh ui         # UI tests; requires an unlocked desktop
+Scripts/check.sh keyboard   # Focused task-list keyboard UI regressions
 Scripts/check.sh all        # Both suites
 Scripts/check.sh release    # Also allowed locally: fixed-path optimized ChopChop Dev build
 python3 Scripts/smoke-aria2-next.py
@@ -37,6 +38,14 @@ Keep a stable Apple-issued signing identity for local builds that will be launch
 `release-unit` enables testability and debugger injection and disables hardened runtime only for that test invocation. `release` keeps hardened runtime and disables debugger injection while retaining the Dev identity. Run test suites sequentially: hosted unit tests and UI tests launch the same application identifier.
 
 The Python smoke test downloads a pinned official engine into temporary storage, verifies its SHA-256, and then uses a loopback HTTP server and temporary files. It checks real engine downloads, pause, restart with the original GID and saved progress, final SHA-256, same-name file protection and clean shutdown. It re-signs a **temporary copy** of the helper for standalone execution; the opt-in integration tests verify the downloaded engine inside the app sandbox. No engine executable is tracked in the current source tree or included in build products.
+
+## Task-list keyboard commands
+
+Command–Delete invokes the existing Remove Download command for the focused task list's visible selection. It retains single/multiple selection, removal confirmation, the saved confirmation preference and file-trash safeguards. The Downloads menu registers this shortcut only while the list owns focus, so Command–Delete in a search field or sheet retains native text editing. Merely having a selected task in another window does not register the shortcut.
+
+Command–F focuses the toolbar's download search through SwiftUI `searchFocused`; the Edit menu and command search expose the same action. Command–V in the list uses native `onPasteCommand` and the existing URL/text/Torrent/Metalink import pipeline. Text editors keep native Paste. Command–A and arrow-key selection remain native List behavior; Space/Escape retain the existing details-panel behavior.
+
+UI regressions cover confirmed/cancelled keyboard removal and focus restoration, Select All in a filtered category, search-field deletion/paste isolation, and list paste followed by editing in the import sheet. `Scripts/check.sh keyboard` runs these four cases on an unlocked disposable test host; `verify.sh` includes them in both CI and release gates. The complete UI suite remains available through `Scripts/check.sh ui`. References: Apple's [keyboard guidance](https://developer.apple.com/design/human-interface-guidelines/keyboards/), [search focus](https://developer.apple.com/documentation/swiftui/view/searchfocused(_:)), and [native Paste command](https://developer.apple.com/documentation/swiftui/view/onpastecommand(of:perform:)).
 
 ## Engine startup and installation
 

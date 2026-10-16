@@ -6,7 +6,7 @@ import SwiftUI
 enum DownloadAction: String, CaseIterable, Identifiable {
     case newDownload, pasteLink, openFile, details, reveal, pause, resume, editAgain, remove
     case finishRecording, retryMedia, moveToTop, speedLimits, schedule
-    case refresh, pauseAll, forcePauseAll, resumeAll, clearFinished
+    case searchDownloads, refresh, pauseAll, forcePauseAll, resumeAll, clearFinished
     case startEngine, restartEngine, stopEngine, engineSettings, checkUpdates, diagnostics, help
     var id: String { rawValue }
 
@@ -27,6 +27,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .moveToTop: "Move to Top of Queue"
         case .speedLimits: "Set Task Speed Limits…"
         case .schedule: "Schedule Download…"
+        case .searchDownloads: "Search Downloads…"
         case .refresh: "Refresh Downloads"
         case .pauseAll: "Pause All"
         case .forcePauseAll: "Force Pause All"
@@ -57,6 +58,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .moveToTop: "arrow.up.to.line"
         case .speedLimits: "speedometer"
         case .schedule: "calendar"
+        case .searchDownloads: "magnifyingglass"
         case .engineSettings: "cpu"
         case .checkUpdates: "arrow.down.circle"
         case .diagnostics: "stethoscope"
@@ -67,7 +69,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .newDownload, .pasteLink, .openFile: L10n.key("Add Download")
         case .details, .reveal, .pause, .resume, .editAgain, .remove, .finishRecording, .retryMedia, .moveToTop, .speedLimits, .schedule:
             L10n.key("Selected Download")
-        case .refresh, .pauseAll, .forcePauseAll, .resumeAll, .clearFinished: L10n.key("Downloads")
+        case .searchDownloads, .refresh, .pauseAll, .forcePauseAll, .resumeAll, .clearFinished: L10n.key("Downloads")
         case .startEngine, .restartEngine, .stopEngine, .engineSettings: L10n.key("Engine")
         case .checkUpdates, .diagnostics, .help: "ChopChop"
         }
@@ -88,6 +90,8 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .openFile: KeyboardShortcut("o")
         case .details: KeyboardShortcut("i", modifiers: [.command, .option])
         case .reveal: KeyboardShortcut("r", modifiers: [.command, .shift])
+        case .remove: KeyboardShortcut(.delete, modifiers: .command)
+        case .searchDownloads: KeyboardShortcut("f")
         case .refresh: KeyboardShortcut("r")
         default: nil
         }
@@ -99,6 +103,8 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .openFile: "⌘O"
         case .details: "⌥⌘I"
         case .reveal: "⇧⌘R"
+        case .remove: "⌘⌫"
+        case .searchDownloads: "⌘F"
         case .refresh: "⌘R"
         default: nil
         }
@@ -114,6 +120,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         let ready = Self.engineReady(in: store) && !store.isPerformingBatchOperation
         switch self {
         case .newDownload, .pasteLink, .openFile: return context.window?.canPresentDownload == true
+        case .searchDownloads: return context.window?.searchDownloads != nil
         case .details: return task != nil && context.window?.showDetails != nil
         case .reveal: return context.tasks.contains { DownloadFileLocation.revealURL(for: $0) != nil }
         case .pause: return ready && context.tasks.contains { $0.primaryControlAction == .pause }
@@ -145,6 +152,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .newDownload: context.window?.newDownload()
         case .pasteLink: context.window?.pasteDownload()
         case .openFile: context.window?.openDownloadFile()
+        case .searchDownloads: context.window?.searchDownloads?()
         case .details: context.window?.showDetails?(nil)
         case .reveal: NSWorkspace.shared.activateFileViewerSelecting(context.tasks.compactMap { DownloadFileLocation.revealURL(for: $0) })
         case .pause: if let task { Task { await store.pause(task) } } else { Task { await store.controlSelected(context.ids, action: .pause) } }

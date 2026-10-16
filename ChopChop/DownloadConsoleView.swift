@@ -18,6 +18,7 @@ struct DownloadConsoleView: View {
     @State private var isDropTargeted = false
     @State private var suppressRemovalConfirmationAfterChoice = false
     @StateObject private var detailsPresentation = TaskDetailsPresentation()
+    @FocusState private var downloadSearchFocused: Bool
 
     init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation(), updates: AppUpdateCoordinator? = nil, supportNavigation: AppSupportNavigation? = nil) {
         self.supportNavigation = supportNavigation
@@ -111,6 +112,7 @@ struct DownloadConsoleView: View {
                 }
             }
             .searchable(text: Bindable(store).searchQuery, placement: .toolbar, prompt: String(localized: "Search downloads"))
+            .searchFocused($downloadSearchFocused)
         }
         .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $isAddPanelPresented, onDismiss: finishAddDownloadPanel) {
@@ -246,6 +248,7 @@ struct DownloadConsoleView: View {
                 }
                 presentDetails()
             }, searchCommands: presentCommandSearch,
+            searchDownloads: searchDownloadsAction,
             openEngineSettings: { store.requestEngineSettings(); openSettings() },
             checkUpdates: updates.map { updates in { @MainActor in
                 store.requestUpdateSettings()
@@ -257,6 +260,12 @@ struct DownloadConsoleView: View {
                 openWindow(id: AppWindowID.help)
             } },
             openHelp: { openWindow(id: AppWindowID.help) })
+    }
+
+    private var searchDownloadsAction: (@MainActor () -> Void)? {
+        guard currentDestination != .browserCapture, !isAddPanelPresented, presentedAlert == nil,
+              store.removalRequest == nil, !store.engineSetupState.requiresInstallation else { return nil }
+        return { downloadSearchFocused = true }
     }
 
     private func presentCommandSearch() {
@@ -661,6 +670,15 @@ struct DownloadCanvas: View {
                         }
                         .listStyle(.inset)
                         .focused($taskListFocused)
+                        .focusedValue(\.downloadListContext, DownloadActionContext(store: store,
+                            taskIDs: store.selectedTaskIDs.intersection(visibleRows.map(\.id))))
+                        .onPasteCommand(of: [.fileURL, .url, .plainText], validator: { providers in
+                            guard store.inputCoordinator.owner == nil, store.removalRequest == nil,
+                                  !store.engineSetupState.requiresInstallation else { return nil }
+                            return providers
+                        }) { providers in
+                            store.importDroppedItems(providers)
+                        }
                         .scrollContentBackground(.hidden)
                         .modifier(NativeQueueContainer(store: store, enabled: usesNativeReordering &&
                             !store.isReorderingQueue && !store.isUpdatingEngine && !store.isPerformingBatchOperation && store.engineController.isRunning))

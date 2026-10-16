@@ -113,6 +113,92 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
+    func testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask() throws {
+        let app = launchApp(withTaskFixtures: true)
+        let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
+        XCTAssertTrue(completed.waitForExistence(timeout: 8))
+        completed.click()
+        app.typeKey(.delete, modifierFlags: .command)
+
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.buttons["Remove from List"].waitForExistence(timeout: 4))
+        XCTAssertTrue(sheet.buttons["Move Files to Trash and Remove"].exists)
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(waitForNonExistence(sheet, timeout: 4))
+        XCTAssertTrue(completed.exists, "Escape cancels removal")
+
+        // Dismissing the sheet must restore the list's keyboard target.
+        app.typeKey(.delete, modifierFlags: .command)
+        XCTAssertTrue(sheet.buttons["Remove from List"].waitForExistence(timeout: 4))
+        sheet.buttons["Remove from List"].click()
+        XCTAssertTrue(waitForNonExistence(completed, timeout: 4))
+        XCTAssertTrue(staticText(in: app, id: "task-paused-fixture-name", label: "Paused.zip").exists)
+    }
+
+    @MainActor
+    func testCommandSelectAllAndDeleteRespectFilteredTaskList() throws {
+        let app = launchApp(withTaskFixtures: true)
+        let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
+        XCTAssertTrue(completed.waitForExistence(timeout: 8))
+        completed.click()
+        sidebarDestination(in: app, id: "sidebar-destination-waiting", label: "Waiting").click()
+        let paused = staticText(in: app, id: "task-paused-fixture-name", label: "Paused.zip")
+        XCTAssertTrue(paused.waitForExistence(timeout: 4))
+        paused.click()
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey(.delete, modifierFlags: .command)
+
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.staticTexts["Remove 2 selected downloads? You can keep downloaded files or move the files reported by Aria2 Next to Trash."].waitForExistence(timeout: 4))
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(waitForNonExistence(sheet, timeout: 4))
+    }
+
+    @MainActor
+    func testCommandFindAndTextDeletionDoNotRemoveSelectedDownload() throws {
+        let app = launchApp(withTaskFixtures: true)
+        let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
+        XCTAssertTrue(completed.waitForExistence(timeout: 8))
+        completed.click()
+        app.typeKey("f", modifierFlags: .command)
+        app.typeText("Finished")
+        let search = searchField(in: app)
+        XCTAssertTrue(waitForTextValue(search, "Finished", timeout: 4))
+        XCTAssertTrue(completed.exists)
+        app.typeKey(.delete, modifierFlags: .command)
+        XCTAssertTrue(waitForTextValue(search, "", timeout: 4), "Command-Delete remains native text editing")
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+        XCTAssertTrue(completed.exists)
+
+        paste("Paused", into: search)
+        XCTAssertTrue(waitForTextValue(search, "Paused", timeout: 4))
+        XCTAssertFalse(app.sheets.firstMatch.exists, "Pasting into search must not open an import sheet")
+    }
+
+    @MainActor
+    func testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts() throws {
+        let app = launchApp(withTaskFixtures: true)
+        let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
+        XCTAssertTrue(completed.waitForExistence(timeout: 8))
+        let url = "https://example.com/keyboard-download.iso"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url, forType: .string)
+        completed.click()
+        app.typeKey("v", modifierFlags: .command)
+        let urlField = addDownloadURLField(in: app)
+        XCTAssertTrue(urlField.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForTextValue(urlField, url, timeout: 4))
+
+        urlField.click()
+        urlField.typeKey("a", modifierFlags: .command)
+        urlField.typeKey(.delete, modifierFlags: .command)
+        XCTAssertTrue(waitForTextValue(urlField, "", timeout: 4))
+        XCTAssertFalse(app.buttons["Remove from List"].exists)
+        app.buttons["add-download-cancel-button"].click()
+        XCTAssertTrue(completed.exists)
+    }
+
+    @MainActor
     func testSearchFiltersFixtureTasks() throws {
         let app = launchApp(withTaskFixtures: true)
 

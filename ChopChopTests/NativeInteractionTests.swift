@@ -136,11 +136,13 @@ final class NativeInteractionTests: XCTestCase {
         store.tasks = [task]; store.runtime.phase = .running(pid: 1)
         var section: TaskDetailSection?
         var opened = false
+        var searched = false
         var window = DownloadWindowActions(newDownload: { opened = true }, pasteDownload: {}, openDownloadFile: {},
             toggleDetails: {}, detailsPresented: false, hasSelection: true, canPresentDownload: true,
-            showDetails: { section = $0 })
+            showDetails: { section = $0 }, searchDownloads: { searched = true })
         var context = DownloadActionContext(store: store, taskID: task.id, window: window)
         XCTAssertTrue(DownloadAction.newDownload.perform(in: context)); XCTAssertTrue(opened)
+        XCTAssertTrue(DownloadAction.searchDownloads.perform(in: context)); XCTAssertTrue(searched)
         XCTAssertTrue(DownloadAction.speedLimits.perform(in: context)); XCTAssertEqual(section, .speedLimits)
         XCTAssertTrue(DownloadAction.schedule.perform(in: context)); XCTAssertEqual(section, .schedule)
         XCTAssertTrue(DownloadAction.resume.isEnabled(in: context))
@@ -151,6 +153,9 @@ final class NativeInteractionTests: XCTestCase {
         XCTAssertNil(store.removalRequest)
         window.canPresentDownload = false; context.window = window
         XCTAssertFalse(DownloadAction.newDownload.perform(in: context))
+        window.searchDownloads = nil; context.window = window; searched = false
+        XCTAssertFalse(DownloadAction.searchDownloads.perform(in: context))
+        XCTAssertFalse(searched)
     }
 
     @MainActor

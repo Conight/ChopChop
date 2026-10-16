@@ -42,9 +42,14 @@ case "$mode" in
     release-unit) set -- test -configuration Release -only-testing:ChopChopTests \
         ENABLE_TESTABILITY=YES CODE_SIGN_INJECT_BASE_ENTITLEMENTS=YES ENABLE_HARDENED_RUNTIME=NO "$@" ;;
     ui) set -- test -only-testing:ChopChopUITests "$@" ;;
+    keyboard) set -- test \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandSelectAllAndDeleteRespectFilteredTaskList \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindAndTextDeletionDoNotRemoveSelectedDownload \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts "$@" ;;
     all) set -- test "$@" ;;
     release) set -- build -configuration Release "$@" ;;
-    *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|all|release] [xcodebuild options...]' >&2; exit 2 ;;
+    *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|keyboard|all|release] [xcodebuild options...]' >&2; exit 2 ;;
 esac
 . "$repo_root/Scripts/xcode-environment.sh"
 . "$repo_root/Scripts/local-signing.sh"
