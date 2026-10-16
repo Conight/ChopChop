@@ -2276,6 +2276,9 @@ final class DownloadStore {
     }
 
     private func seedUITestFixtures() {
+        // Model an installed, stopped engine. Imported links wait for setup to
+        // finish; fixture-only UI tests deliberately never launch the engine.
+        engineSetupState = .ready
         selectedDestination = .all
         tasks = [
             DownloadTask(

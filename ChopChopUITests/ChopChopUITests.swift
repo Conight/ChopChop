@@ -142,16 +142,24 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         completed.click()
         sidebarDestination(in: app, id: "sidebar-destination-waiting", label: "Waiting").click()
+        XCTAssertTrue(app.windows["Waiting"].waitForExistence(timeout: 4))
         let paused = staticText(in: app, id: "task-paused-fixture-name", label: "Paused.zip")
         XCTAssertTrue(paused.waitForExistence(timeout: 4))
         paused.click()
         app.typeKey("a", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 4), app.debugDescription)
         app.typeKey(.delete, modifierFlags: .command)
 
         let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.staticTexts["Remove 2 selected downloads? You can keep downloaded files or move the files reported by Aria2 Next to Trash."].waitForExistence(timeout: 4))
-        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(sheet.buttons["Remove from List"].waitForExistence(timeout: 4), app.debugDescription)
+        sheet.buttons["Remove from List"].click()
         XCTAssertTrue(waitForNonExistence(sheet, timeout: 4))
+        XCTAssertTrue(waitForNonExistence(paused, timeout: 4))
+        sidebarDestination(in: app, id: "sidebar-destination-all", label: "All").click()
+        XCTAssertTrue(completed.waitForExistence(timeout: 4), "The previously selected hidden task must be retained")
+        XCTAssertTrue(staticText(in: app, id: "task-active-fixture-name", label: "Ubuntu.iso").exists)
+        XCTAssertFalse(staticText(in: app, id: "task-waiting-fixture-name", label: "Queue.mov").exists)
+        XCTAssertFalse(paused.exists)
     }
 
     @MainActor
@@ -186,7 +194,7 @@ final class ChopChopUITests: XCTestCase {
         completed.click()
         app.typeKey("v", modifierFlags: .command)
         let urlField = addDownloadURLField(in: app)
-        XCTAssertTrue(urlField.waitForExistence(timeout: 4))
+        XCTAssertTrue(urlField.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(waitForTextValue(urlField, url, timeout: 4))
 
         urlField.click()
