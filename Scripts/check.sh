@@ -51,7 +51,8 @@ case "$mode" in
         -only-testing:ChopChopUITests/ChopChopUITests/testShowDownloadsRestoresClosedAndMinimizedMainWindow \
         -only-testing:ChopChopUITests/ChopChopUITests/testDoubleClickOpensDetailsWithoutPausingOrResuming \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindSearchesSettingsAndSelectsExistingQuery \
-        -only-testing:ChopChopUITests/ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow "$@" ;;
+        -only-testing:ChopChopUITests/ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow \
+        -only-testing:ChopChopUITests/ChopChopUITests/testEmptyClipboardShowsFeedbackInAboutWindow "$@" ;;
     all) set -- test "$@" ;;
     release) set -- build -configuration Release "$@" ;;
     *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|keyboard|all|release] [xcodebuild options...]' >&2; exit 2 ;;

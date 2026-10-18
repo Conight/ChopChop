@@ -292,6 +292,23 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
+    func testEmptyClipboardShowsFeedbackInAboutWindow() throws {
+        let app = launchApp(withTaskFixtures: true)
+        app.typeKey("w", modifierFlags: .command)
+        app.menuBars.menuBarItems["ChopChop Dev"].click()
+        app.menuItems["About ChopChop Dev"].click()
+        XCTAssertTrue(app.windows["About ChopChop Dev"].waitForExistence(timeout: 4))
+        NSPasteboard.general.clearContents()
+        app.typeKey("v", modifierFlags: [.command, .shift])
+        let message = app.staticTexts["Clipboard does not contain a download link."]
+        XCTAssertTrue(message.waitForExistence(timeout: 4), app.debugDescription)
+        app.buttons["OK"].click()
+        XCTAssertTrue(waitForNonExistence(message, timeout: 4))
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(addDownloadURLField(in: app).waitForExistence(timeout: 4), "Import commands must work again after dismissing the alert")
+    }
+
+    @MainActor
     func testSearchFiltersFixtureTasks() throws {
         let app = launchApp(withTaskFixtures: true)
 

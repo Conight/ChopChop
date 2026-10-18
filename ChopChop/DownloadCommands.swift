@@ -14,7 +14,8 @@ import UniformTypeIdentifiers
     }
 
     private func canBegin(in store: DownloadStore) -> Bool {
-        canPresent(in: store) && NSApp.keyWindow?.attachedSheet == nil && NSApp.keyWindow?.sheetParent == nil
+        canPresent(in: store) && NSApp.modalWindow == nil &&
+            NSApp.keyWindow?.attachedSheet == nil && NSApp.keyWindow?.sheetParent == nil
     }
 
     func newDownload(in store: DownloadStore) {
@@ -26,7 +27,13 @@ import UniformTypeIdentifiers
         guard canBegin(in: store) else { return }
         let inputs = Self.clipboardInputs(from: .general)
         guard !inputs.isEmpty else {
-            store.postError(String(localized: "Clipboard does not contain a download link."), title: String(localized: "Paste Failed"))
+            // Auxiliary windows do not subscribe to the download store's alerts.
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Paste Failed")
+            alert.informativeText = String(localized: "Clipboard does not contain a download link.")
+            alert.addButton(withTitle: String(localized: "OK"))
+            if let window = NSApp.keyWindow { alert.beginSheetModal(for: window) }
+            else { alert.runModal() }
             return
         }
         store.importDownloads(inputs)
