@@ -25,7 +25,9 @@ struct ChopChopApp: App {
     }
 
     var body: some Scene {
-        Window(AppIdentity.displayName, id: AppWindowID.downloads) {
+        // A value-identified group reuses one workspace while retaining normal
+        // background-app behavior when its last window closes.
+        WindowGroup(AppIdentity.displayName, id: AppWindowID.downloads, for: String.self) { _ in
             ContentView(updates: updates, supportNavigation: supportNavigation, inputPresentation: inputPresentation)
                 .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
@@ -37,6 +39,8 @@ struct ChopChopApp: App {
                     store.startEngineOnAppLaunch()
                 }
             .environment(store)
+        } defaultValue: {
+            AppWindowID.downloads
         }
         .defaultSize(width: 1100, height: 740)
         .windowResizability(.contentMinSize)
