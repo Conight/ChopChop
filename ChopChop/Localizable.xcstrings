@@ -20141,6 +20141,38 @@
           }
         }
       }
+    },
+    "Show Downloads": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Downloads"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示下载列表"
+          }
+        }
+      }
+    },
+    "Search Settings…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Settings…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索设置…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

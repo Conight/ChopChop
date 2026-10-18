@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 struct MenuBarPanel: View {
@@ -52,6 +53,14 @@ struct MenuBarPanel: View {
             }
 
             Divider()
+
+            Button {
+                store.downloadWindowRequests.send()
+            } label: {
+                Label(String(localized: "Show Downloads"), systemImage: "macwindow")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
 
             HStack {
                 Button(String(localized: "Settings")) {

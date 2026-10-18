@@ -54,6 +54,7 @@ struct SettingsView: View {
     var body: some View {
         settingsNavigation
             .frame(minWidth: 860, idealWidth: 940, minHeight: 560, idealHeight: 640)
+        .focusedSceneValue(\.settingsSearchAction, settingsSearchAction)
         .onChange(of: settingsSearch.navigationRequest) { _, request in
             if let request { selectedPane = request.entry.pane }
         }
@@ -111,10 +112,16 @@ struct SettingsView: View {
         }
     }
 
+    private var settingsSearchAction: (@MainActor () -> Void)? {
+        guard presentedAlert == nil, peerLimitConfirmation == nil else { return nil }
+        return { settingsSearch.focus() }
+    }
+
     private var settingsNavigation: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
             VStack(spacing: 0) {
                 SettingsSearchField(model: settingsSearch)
+                    .accessibilityIdentifier("settings-global-search")
                     .frame(height: 28)
                     .padding(12)
                 List(SettingsPane.allCases, selection: sidebarSelection) { pane in
@@ -124,10 +131,10 @@ struct SettingsView: View {
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
+                .accessibilityIdentifier("settings-sidebar")
             }
             .toolbar(removing: .sidebarToggle)
             .navigationSplitViewColumnWidth(min: 210, ideal: 210, max: 210)
-            .accessibilityIdentifier("settings-sidebar")
         } detail: {
             SettingsPaneHost(content: settingsPage
                 .environment(store)

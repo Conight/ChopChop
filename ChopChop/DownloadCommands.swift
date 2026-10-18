@@ -1,4 +1,72 @@
+import AppKit
+import Combine
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// App-wide import actions remain available when an auxiliary window is frontmost.
+/// The main window owns the draft sheet; this object only owns the file chooser.
+@MainActor final class DownloadInputPresentation: ObservableObject {
+    @Published private(set) var isChoosingFile = false
+
+    func canPresent(in store: DownloadStore) -> Bool {
+        store.engineSetupState == .ready && store.inputCoordinator.owner == nil &&
+            store.removalRequest == nil && !isChoosingFile
+    }
+
+    private func canBegin(in store: DownloadStore) -> Bool {
+        canPresent(in: store) && NSApp.modalWindow == nil &&
+            NSApp.keyWindow?.attachedSheet == nil && NSApp.keyWindow?.sheetParent == nil
+    }
+
+    func newDownload(in store: DownloadStore) {
+        guard canBegin(in: store) else { return }
+        store.requestAddPanel()
+    }
+
+    func pasteDownload(in store: DownloadStore) {
+        guard canBegin(in: store) else { return }
+        let inputs = Self.clipboardInputs(from: .general)
+        guard !inputs.isEmpty else {
+            // Auxiliary windows do not subscribe to the download store's alerts.
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Paste Failed")
+            alert.informativeText = String(localized: "Clipboard does not contain a download link.")
+            alert.addButton(withTitle: String(localized: "OK"))
+            if let window = NSApp.keyWindow { alert.beginSheetModal(for: window) }
+            else { alert.runModal() }
+            return
+        }
+        store.importDownloads(inputs)
+        store.downloadWindowRequests.send()
+    }
+
+    static func clipboardInputs(from pasteboard: NSPasteboard) -> [DownloadImportInput] {
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
+            return urls.map(DownloadImportInput.url)
+        }
+        guard let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        return [.text(text)]
+    }
+
+    func openDownloadFile(in store: DownloadStore) {
+        guard canBegin(in: store) else { return }
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Open Download File")
+        panel.prompt = String(localized: "Open")
+        panel.allowedContentTypes = ["torrent", "metalink", "meta4"].compactMap { UTType(filenameExtension: $0) }
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        isChoosingFile = true
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            self.isChoosingFile = false
+            guard response == .OK else { return }
+            store.importDownloads(panel.urls.map(DownloadImportInput.url))
+            store.downloadWindowRequests.send()
+        }
+        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
+        else { panel.begin(completionHandler: completion) }
+    }
+}
 
 struct DownloadWindowActions {
     var newDownload: @MainActor () -> Void = {}
@@ -25,7 +93,15 @@ private struct DownloadListContextKey: FocusedValueKey {
     typealias Value = DownloadActionContext
 }
 
+private struct SettingsSearchActionKey: FocusedValueKey {
+    typealias Value = @MainActor () -> Void
+}
+
 extension FocusedValues {
+    var settingsSearchAction: (@MainActor () -> Void)? {
+        get { self[SettingsSearchActionKey.self] }
+        set { self[SettingsSearchActionKey.self] = newValue }
+    }
     var downloadWindowActions: DownloadWindowActions? {
         get { self[DownloadWindowActionsKey.self] }
         set { self[DownloadWindowActionsKey.self] = newValue }
@@ -38,21 +114,47 @@ extension FocusedValues {
 
 struct DownloadCommands: Commands {
     let store: DownloadStore
+    @ObservedObject var inputPresentation: DownloadInputPresentation
+    @ObservedObject var inputCoordinator: DownloadInputCoordinator
     @FocusedValue(\.downloadWindowActions) private var actions
     @FocusedValue(\.downloadListContext) private var listContext
+    @FocusedValue(\.settingsSearchAction) private var searchSettings
+
+    init(store: DownloadStore, inputPresentation: DownloadInputPresentation) {
+        self.store = store
+        self.inputPresentation = inputPresentation
+        self.inputCoordinator = store.inputCoordinator
+    }
+
+    private var inputContext: DownloadActionContext {
+        DownloadActionContext(store: store, window: DownloadWindowActions(
+            newDownload: { inputPresentation.newDownload(in: store) },
+            pasteDownload: { inputPresentation.pasteDownload(in: store) },
+            openDownloadFile: { inputPresentation.openDownloadFile(in: store) },
+            canPresentDownload: inputPresentation.canPresent(in: store)))
+    }
 
     private var context: DownloadActionContext {
         DownloadActionContext(store: store, taskID: actions == nil ? nil : store.selectedTaskID, window: actions, taskIDs: actions == nil ? [] : store.selectedTaskIDs)
     }
 
     var body: some Commands {
-        CommandGroup(after: .newItem) {
-            DownloadActionButton(action: .newDownload, context: context, usesShortcut: true)
-            DownloadActionButton(action: .openFile, context: context, usesShortcut: true)
-            DownloadActionButton(action: .pasteLink, context: context, usesShortcut: true)
+        CommandGroup(replacing: .newItem) {
+            DownloadActionButton(action: .newDownload, context: inputContext, usesShortcut: true)
+            DownloadActionButton(action: .openFile, context: inputContext, usesShortcut: true)
+            DownloadActionButton(action: .pasteLink, context: inputContext, usesShortcut: true)
         }
         CommandGroup(after: .textEditing) {
-            DownloadActionButton(action: .searchDownloads, context: context, usesShortcut: true)
+            Button(searchSettings == nil ? DownloadAction.searchDownloads.title : String(localized: "Search Settings…")) {
+                if let searchSettings { searchSettings() }
+                else { actions?.searchDownloads?() }
+            }
+            .keyboardShortcut("f")
+            .disabled(searchSettings == nil && actions?.searchDownloads == nil)
+        }
+        CommandGroup(before: .windowList) {
+            Button(String(localized: "Show Downloads")) { store.downloadWindowRequests.send() }
+                .keyboardShortcut("0", modifiers: .command)
         }
         CommandGroup(replacing: .sidebar) {
             Button(actions?.detailsPresented == true ? String(localized: "Hide Details") : String(localized: "Show Details")) {
@@ -68,7 +170,7 @@ struct DownloadCommands: Commands {
             DownloadActionButton(action: .refresh, context: context, usesShortcut: true)
             Divider()
             DownloadActionButton(action: .reveal, context: context, usesShortcut: true)
-            ForEach([DownloadAction.pause, .resume, .speedLimits, .schedule, .editAgain, .remove]) { action in
+            ForEach([DownloadAction.pause, .resume, .speedLimits, .schedule, .finishRecording, .retryMedia, .moveToTop, .editAgain, .remove]) { action in
                 // Text editors retain Command-Delete (delete to the start of the line).
                 // Only the focused task list registers the removal shortcut.
                 DownloadActionButton(action: action, context: action == .remove ? listContext ?? context : context,

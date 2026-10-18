@@ -17,7 +17,7 @@ Scripts/verify.sh           # Shared CI / pre-release gate; automatically cleans
 Scripts/check.sh unit       # Unit and RPC regression tests
 Scripts/check.sh release-unit # Optimized unit tests with test-only injection enabled
 Scripts/check.sh ui         # UI tests; requires an unlocked desktop
-Scripts/check.sh keyboard   # Focused task-list keyboard UI regressions
+Scripts/check.sh keyboard   # Task-list, settings search, import and window keyboard UI regressions
 Scripts/check.sh all        # Both suites
 Scripts/check.sh release    # Also allowed locally: fixed-path optimized ChopChop Dev build
 python3 Scripts/smoke-aria2-next.py
@@ -931,3 +931,12 @@ Monospaced digits alone did not keep rate labels stationary: changing digit coun
 The shared components are used in download rows, sidebar activity, details headers, Network summaries and peer detail cards, and menu-bar metrics. Width-based compact layouts continue to adapt to the window without changing their layout merely because a speed value grows. Native offscreen checks cover zero, byte/KB/MB boundaries, large values, percentage digit changes, four list widths, two font sizes, and selection/progress-view identity. The English layout/interaction run passed 41 tests with one opt-in skip; six Chinese transfer-layout tests and a final English coordinate regression also passed. Rendered previews were inspected alongside actual native view-coordinate assertions.
 
 The verified Release was rebuilt and reopened at the same Dev path with the existing Bundle ID and signing team. The full local-network preferences record remained equal. The live task list was already empty before this check and remained empty afterward; no sample downloads were added to user history. Active metric transitions were exercised in the isolated native layout fixtures, and the running app's idle sidebar rendering was checked.
+
+
+## Native interaction follow-up (2026-10-18)
+
+The download workspace uses a `WindowGroup` with a constant value identity and tabbing disabled. Opening that identity reuses the workspace while preserving the preference to keep running after its last window closes; a primary `Window` scene would otherwise default to quitting. Command-N creates a download instead of a duplicate workspace. A shared `DownloadInputPresentation` owns the native file chooser and routes new/open/paste commands from auxiliary windows back to the workspace; Finder clipboard URLs retain their original URL for the existing sandbox import path. Draft ownership and file-chooser state prevent overlapping imports. Command-0 and the status popover reveal the workspace, including after it was closed or minimized; Dock reopening checks the download window rather than the presence of any auxiliary window.
+
+Double-click opens details for active, paused, completed and historical tasks without changing transfer state. Settings publishes a focused Command-F action to its native search control, selecting an existing query for replacement. Finish recording, retry with saved progress and queue priority also appear in the Downloads menu. The keyboard CI gate covers the existing text-editing/removal boundary and the new window/import/search paths; hosted tests still require a disposable host.
+
+References: Apple's [menu bar](https://developer.apple.com/design/human-interface-guidelines/the-menu-bar), [context menus](https://developer.apple.com/design/human-interface-guidelines/context-menus), and [windows](https://developer.apple.com/design/human-interface-guidelines/windows) guidance; Transmission's [task-list double-click implementation](https://github.com/transmission/transmission/blob/main/macosx/TorrentTableView.mm).

@@ -237,6 +237,6 @@ struct DownloadWindowRegistration: ViewModifier {
     @Environment(\.openWindow) private var openWindow
     let delegate: ChopChopAppDelegate
     func body(content: Content) -> some View {
-        content.onAppear { delegate.openDownloadWindow = { openWindow(id: AppWindowID.downloads) } }
+        content.onAppear { delegate.openDownloadWindow = { openWindow(id: AppWindowID.downloads, value: AppWindowID.downloads) } }
     }
 }

@@ -68,25 +68,46 @@ final class NativeInteractionTests: XCTestCase {
     }
 
     @MainActor
-    func testNativeListPrimaryActionOnlyTogglesOneResumableTask() throws {
-        var task = try fixture("double-click")
-        for (status, expected) in [(DownloadStatus.paused, DownloadAction.resume), (.active, .pause), (.waiting, .pause)] {
+    func testNativeListPrimaryActionInspectsEveryTaskWithoutChangingTransferState() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        var inspected = 0
+        for status in DownloadStatus.allCases {
+            var task = try fixture("double-click")
             task.status = status
-            XCTAssertEqual(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]), expected)
+            task.isAvailableInEngine = false
+            store.tasks = [task]
+            let action = try XCTUnwrap(DownloadListPresentation.primaryAction(for: [task.id], tasks: store.tasks))
+            action.perform(in: DownloadActionContext(store: store, taskID: task.id,
+                window: DownloadWindowActions(showDetails: { _ in inspected += 1 })))
+            XCTAssertEqual(store.tasks.first?.status, status)
         }
-        for status in [DownloadStatus.completed, .failed, .removed] {
-            task.status = status
-            XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
-        }
-        task.status = .paused
-        XCTAssertNil(DownloadListPresentation.primaryAction(for: [], tasks: [task]))
-        XCTAssertNil(DownloadListPresentation.primaryAction(for: ["missing"], tasks: [task]))
-        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id, "second"], tasks: [task, try fixture("second")]))
-        task.isAvailableInEngine = false
-        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
-        task.isAvailableInEngine = true
-        task.media = MediaTaskProgress(state: "finalizing")
-        XCTAssertNil(DownloadListPresentation.primaryAction(for: [task.id], tasks: [task]))
+        XCTAssertEqual(inspected, DownloadStatus.allCases.count)
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: [], tasks: store.tasks))
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: ["missing"], tasks: store.tasks))
+        XCTAssertNil(DownloadListPresentation.primaryAction(for: ["double-click", "second"], tasks: store.tasks))
+    }
+
+    @MainActor
+    func testClipboardImportKeepsFinderFileURLsAndMultilineLinks() throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let file = URL(fileURLWithPath: "/tmp/Example Download.torrent")
+        pasteboard.writeObjects([file as NSURL])
+        let fileInputs = DownloadInputPresentation.clipboardInputs(from: pasteboard)
+        XCTAssertEqual(fileInputs.count, 1)
+        guard case .url(let imported) = try XCTUnwrap(fileInputs.first) else { return XCTFail("Keep Finder's file URL instead of its display name") }
+        XCTAssertEqual(imported, file)
+        pasteboard.clearContents()
+        let links = "https://example.com/one.zip\nhttps://example.com/two.zip"
+        pasteboard.setString(links, forType: .string)
+        let textInputs = DownloadInputPresentation.clipboardInputs(from: pasteboard)
+        XCTAssertEqual(textInputs.count, 1)
+        guard case .text(let text) = try XCTUnwrap(textInputs.first) else { return XCTFail("Keep all pasted links") }
+        XCTAssertEqual(text, links)
+        pasteboard.clearContents()
+        pasteboard.setString("  \n", forType: .string)
+        XCTAssertTrue(DownloadInputPresentation.clipboardInputs(from: pasteboard).isEmpty)
     }
 
     func testListProgressDistinguishesUnknownSizeAndFinishedTransfers() throws {

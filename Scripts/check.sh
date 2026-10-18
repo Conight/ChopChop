@@ -46,7 +46,13 @@ case "$mode" in
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandSelectAllAndDeleteRespectFilteredTaskList \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindAndTextDeletionDoNotRemoveSelectedDownload \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts "$@" ;;
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandNewFromSettingsUsesOneDownloadWindow \
+        -only-testing:ChopChopUITests/ChopChopUITests/testShowDownloadsRestoresClosedAndMinimizedMainWindow \
+        -only-testing:ChopChopUITests/ChopChopUITests/testDoubleClickOpensDetailsWithoutPausingOrResuming \
+        -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindSearchesSettingsAndSelectsExistingQuery \
+        -only-testing:ChopChopUITests/ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow \
+        -only-testing:ChopChopUITests/ChopChopUITests/testEmptyClipboardShowsFeedbackInAboutWindow "$@" ;;
     all) set -- test "$@" ;;
     release) set -- build -configuration Release "$@" ;;
     *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|keyboard|all|release] [xcodebuild options...]' >&2; exit 2 ;;
