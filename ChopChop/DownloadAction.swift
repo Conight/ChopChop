@@ -85,7 +85,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     }
     var shortcut: KeyboardShortcut? {
         switch self {
-        case .newDownload: KeyboardShortcut("n", modifiers: [.command, .shift])
+        case .newDownload: KeyboardShortcut("n")
         case .pasteLink: KeyboardShortcut("v", modifiers: [.command, .shift])
         case .openFile: KeyboardShortcut("o")
         case .details: KeyboardShortcut("i", modifiers: [.command, .option])
@@ -98,7 +98,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     }
     var shortcutLabel: String? {
         switch self {
-        case .newDownload: "⇧⌘N"
+        case .newDownload: "⌘N"
         case .pasteLink: "⇧⌘V"
         case .openFile: "⌘O"
         case .details: "⌥⌘I"

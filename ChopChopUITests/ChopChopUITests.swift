@@ -209,6 +209,88 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
+    func testCommandNewFromSettingsUsesOneDownloadWindow() throws {
+        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        app.typeKey("n", modifierFlags: .command)
+        let input = addDownloadURLField(in: app)
+        XCTAssertTrue(input.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertEqual(app.sheets.count, 1, "Repeated New must not replace the draft or open another window")
+        app.buttons["add-download-cancel-button"].click()
+        XCTAssertTrue(waitForNonExistence(input, timeout: 4))
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
+        app.buttons["add-download-cancel-button"].click()
+    }
+
+    @MainActor
+    func testShowDownloadsRestoresClosedAndMinimizedMainWindow() throws {
+        let app = launchApp(withTaskFixtures: true)
+        let list = app.descendants(matching: .any).matching(identifier: "download-task-list").firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 8))
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(waitForNonExistence(list, timeout: 4), "Closing the window must keep the background app running")
+        XCTAssertNotEqual(app.state, .notRunning)
+        app.typeKey(",", modifierFlags: .command)
+        XCTAssertTrue(app.searchFields["settings-global-search"].waitForExistence(timeout: 4))
+        app.typeKey("0", modifierFlags: .command)
+        XCTAssertTrue(list.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
+        app.typeKey("m", modifierFlags: .command)
+        app.typeKey("0", modifierFlags: .command)
+        XCTAssertTrue(actionButton(in: app, id: "toolbar-add-button", label: "Add").waitForExistence(timeout: 4))
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(addDownloadURLField(in: app).waitForExistence(timeout: 4), "The restored main window must receive commands")
+    }
+
+    @MainActor
+    func testDoubleClickOpensDetailsWithoutPausingOrResuming() throws {
+        let app = launchApp(withTaskFixtures: true)
+        for (id, name, control) in [("active", "Ubuntu.iso", "pause"), ("paused", "Paused.zip", "resume"), ("completed", "Finished.dmg", "")] {
+            let row = staticText(in: app, id: "task-\(id)-fixture-name", label: name)
+            XCTAssertTrue(row.waitForExistence(timeout: 8))
+            row.doubleClick()
+            let details = app.windows["Download Details"]
+            XCTAssertTrue(details.waitForExistence(timeout: 4), app.debugDescription)
+            app.typeKey(.escape, modifierFlags: [])
+            XCTAssertTrue(waitForNonExistence(details, timeout: 4))
+            if !control.isEmpty {
+                XCTAssertTrue(app.buttons["task-\(id)-fixture-\(control)-button"].exists, "Inspecting a task must not change its transfer state")
+            }
+        }
+    }
+
+    @MainActor
+    func testCommandFindSearchesSettingsAndSelectsExistingQuery() throws {
+        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        let search = app.searchFields["settings-global-search"]
+        app.typeKey("f", modifierFlags: .command)
+        app.typeText("proxy")
+        XCTAssertTrue(waitForTextValue(search, "proxy", timeout: 4), app.debugDescription)
+        app.typeKey("f", modifierFlags: .command)
+        app.typeText("upload")
+        XCTAssertTrue(waitForTextValue(search, "upload", timeout: 4), "Find should select the existing search query")
+        app.typeKey(.delete, modifierFlags: .command)
+        XCTAssertTrue(waitForTextValue(search, "", timeout: 4))
+        XCTAssertFalse(app.buttons["Remove from List"].exists)
+    }
+
+    @MainActor
+    func testPasteDownloadFromSettingsReturnsToMainWindow() throws {
+        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        let url = "https://example.com/from-settings.zip"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url, forType: .string)
+        app.typeKey("v", modifierFlags: [.command, .shift])
+        let input = addDownloadURLField(in: app)
+        XCTAssertTrue(input.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(waitForTextValue(input, url, timeout: 4))
+        XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
+    }
+
+    @MainActor
     func testSearchFiltersFixtureTasks() throws {
         let app = launchApp(withTaskFixtures: true)
 

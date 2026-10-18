@@ -163,6 +163,8 @@ struct AppKeyboardShortcutsView: View {
                     }
                 }
                 shortcutRow(String(localized: "Search Commands…"), keys: "⇧⌘P")
+                shortcutRow(String(localized: "Show Downloads"), keys: "⌘0")
+                shortcutRow(String(localized: "Search Settings…"), keys: "⌘F")
             }
             Section(String(localized: "In the Task List")) {
                 shortcutRow(String(localized: "Select All Visible Downloads"), keys: "⌘A")

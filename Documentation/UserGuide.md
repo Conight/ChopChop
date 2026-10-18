@@ -66,6 +66,12 @@ ChopChop Dev 使用独立的数据和权限，禁用应用自身更新，引擎�
 
 界面跟随 macOS 的应用语言，扩展跟随浏览器语言。支持简体中文和英语，其余语言回退英语。
 
+### 窗口和常用操作
+
+`⌘N` 新建下载，`⌘O` 打开 Torrent／Metalink，`⇧⌘V` 粘贴下载链接或 Finder 复制的文件。这些命令也能从设置、关于等窗口使用，并回到同一个下载主窗口。`⌘0`、“窗口 → 显示下载列表”和菜单栏图标内的“显示下载列表”可恢复已关闭或最小化的主窗口。
+
+双击任务查看详情；暂停／继续使用行内按钮或“下载”菜单。`⌘F` 在下载窗口搜索任务，在设置窗口搜索设置，再次按下会选中现有设置查询，方便直接替换。右键菜单中的完成录制、保留进度重试和移至队列顶部，也可在“下载”菜单找到。
+
 ### 关于、快捷键与许可证
 
 在 **ChopChop → 关于 ChopChop** 查看应用版本、构建号和实际安装或运行的 Aria2 Next 版本。“复制版本信息”可复制应用、引擎和 macOS 版本，方便反馈问题；不包含下载任务。窗口提供项目与 Engine 的 GitHub、当前版本更新日志、检查更新、帮助和反馈入口。开发版的更新日志打开所有发布记录。
@@ -141,6 +147,12 @@ Completion notifications are opt-in in General settings. Saved history remains a
 Help → ChopChop Help lets you preview and export diagnostics. The report contains versions, capabilities, task counts and issue codes, excluding names, URLs, paths, credentials and raw logs. Nothing is uploaded automatically. Review the report before optionally attaching it to a [GitHub issue](https://github.com/Conight/ChopChop/issues/new/choose), along with reproduction steps and expected/actual behavior.
 
 The app follows the macOS app language, and the extension follows the browser language. Simplified Chinese and English are supported, with English as the fallback.
+
+### Windows and common actions
+
+Use `⌘N` for a new download, `⌘O` to open Torrent/Metalink files, and `⇧⌘V` to paste download links or files copied in Finder. These commands also work from Settings and About, returning to the same Downloads window. `⌘0`, **Window → Show Downloads**, and **Show Downloads** in the menu bar popover restore the closed or minimized main window.
+
+Double-click a task to inspect its details; use its row button or the Downloads menu to pause or resume. `⌘F` searches downloads in the main window and settings in Settings; pressing it again selects the existing settings query. Finish recording, retry with saved progress, and move to the top of the queue are available in both the context menu and the Downloads menu.
 
 ### About, keyboard shortcuts, and licenses
 

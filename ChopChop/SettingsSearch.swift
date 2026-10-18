@@ -112,7 +112,10 @@ enum SettingsSearchIndex {
     @Published var isPresented = false
     @Published var selection: String?
     @Published private(set) var navigationRequest: NavigationRequest?
+    @Published private(set) var focusRevision = 0
     var results: [SettingSearchEntry] { SettingsSearchIndex.results(for: query) }
+
+    func focus() { focusRevision += 1 }
 
     func select(_ entry: SettingSearchEntry) {
         query = ""
@@ -160,6 +163,10 @@ struct SettingsSearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSSearchField, context: Context) {
         if field.stringValue != model.query { field.stringValue = model.query }
+        if context.coordinator.focusRevision != model.focusRevision {
+            context.coordinator.focusRevision = model.focusRevision
+            field.selectText(nil)
+        }
         context.coordinator.schedulePresentation()
     }
 
@@ -173,6 +180,7 @@ struct SettingsSearchField: NSViewRepresentable {
         let model: SettingsSearchModel
         weak var field: NSSearchField?
         let popover = NSPopover()
+        var focusRevision = 0
         private var presentationTask: Task<Void, Never>?
 
         init(model: SettingsSearchModel) {

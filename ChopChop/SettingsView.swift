@@ -54,6 +54,7 @@ struct SettingsView: View {
     var body: some View {
         settingsNavigation
             .frame(minWidth: 860, idealWidth: 940, minHeight: 560, idealHeight: 640)
+        .focusedSceneValue(\.settingsSearchAction, settingsSearchAction)
         .onChange(of: settingsSearch.navigationRequest) { _, request in
             if let request { selectedPane = request.entry.pane }
         }
@@ -109,6 +110,11 @@ struct SettingsView: View {
         } message: { confirmation in
             Text(String(localized: "Max peers is set to \(confirmation.value). The recommended limit is 128 because higher values can increase memory and connection pressure."))
         }
+    }
+
+    private var settingsSearchAction: (@MainActor () -> Void)? {
+        guard presentedAlert == nil, peerLimitConfirmation == nil else { return nil }
+        return { settingsSearch.focus() }
     }
 
     private var settingsNavigation: some View {

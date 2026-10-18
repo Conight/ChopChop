@@ -10,9 +10,10 @@ import SwiftUI
 struct ContentView: View {
     var updates: AppUpdateCoordinator? = nil
     var supportNavigation: AppSupportNavigation? = nil
+    @StateObject var inputPresentation = DownloadInputPresentation()
     @Environment(DownloadStore.self) private var store
     var body: some View {
-        DownloadConsoleView(inputCoordinator: store.inputCoordinator, updates: updates, supportNavigation: supportNavigation)
+        DownloadConsoleView(inputCoordinator: store.inputCoordinator, updates: updates, supportNavigation: supportNavigation, inputPresentation: inputPresentation)
             .sheet(isPresented: Binding(
                 get: { store.engineSetupState.requiresInstallation },
                 set: { _ in }

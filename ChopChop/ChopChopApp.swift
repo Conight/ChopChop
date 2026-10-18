@@ -14,6 +14,7 @@ struct ChopChopApp: App {
     @NSApplicationDelegateAdaptor(ChopChopAppDelegate.self) private var appDelegate
     @State private var store: DownloadStore
     @StateObject private var supportNavigation = AppSupportNavigation()
+    @StateObject private var inputPresentation = DownloadInputPresentation()
     @State private var updates = AppUpdateCoordinator()
 
     init() {
@@ -24,8 +25,8 @@ struct ChopChopApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(AppIdentity.displayName, id: AppWindowID.downloads) {
-            ContentView(updates: updates, supportNavigation: supportNavigation)
+        Window(AppIdentity.displayName, id: AppWindowID.downloads) {
+            ContentView(updates: updates, supportNavigation: supportNavigation, inputPresentation: inputPresentation)
                 .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
                     guard !AppLaunchConfiguration.isTestAutomation else { return }
@@ -42,7 +43,7 @@ struct ChopChopApp: App {
         .defaultLaunchBehavior(.presented)
         .restorationBehavior(.disabled)
         .commands {
-            DownloadCommands(store: store)
+            DownloadCommands(store: store, inputPresentation: inputPresentation)
             AppSupportCommands(updates: updates, store: store, navigation: supportNavigation)
         }
 
@@ -163,8 +164,9 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            presentMainWindowIfNeeded()
+        if downloadWindow?.isVisible != true || downloadWindow?.isMiniaturized == true {
+            revealDownloadWindow()
+            return false
         }
         return true
     }
@@ -193,10 +195,13 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var downloadWindow: NSWindow? {
+        NSApp.windows.first { $0.identifier?.rawValue == AppWindowID.downloadsWindow }
+    }
+
     private func revealDownloadWindow() {
-        guard !AppLaunchConfiguration.isTestAutomation else { return }
         // Identifies a download window even when Settings is the current main window.
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == AppWindowID.downloadsWindow }) {
+        if let window = downloadWindow {
             if window.isMiniaturized { window.deminiaturize(nil) }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -209,14 +214,12 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentMainWindowIfNeeded() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            let hasVisibleWindow = NSApp.windows.contains { window in
-                window.isVisible &&
-                    !window.isMiniaturized &&
-                    window.identifier?.rawValue == AppWindowID.downloadsWindow
+            guard self.downloadWindow?.isVisible != true || self.downloadWindow?.isMiniaturized == true else { return }
+            if self.downloadWindow != nil { self.revealDownloadWindow() }
+            else {
+                self.openDownloadWindow?()
+                NSApp.activate(ignoringOtherApps: true)
             }
-            guard !hasVisibleWindow else { return }
-            self.openDownloadWindow?()
-            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

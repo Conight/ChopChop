@@ -9,6 +9,7 @@ struct DownloadConsoleView: View {
     @Environment(\.openWindow) private var openWindow
     @StateObject private var commandSearch = CommandSearchPresentation()
     @ObservedObject var inputCoordinator: DownloadInputCoordinator
+    @ObservedObject var inputPresentation: DownloadInputPresentation
     @Environment(DownloadStore.self) private var store
     @Environment(\.controlActiveState) private var controlActiveState
     @State private var presentedAlert: UserFacingAlert?
@@ -20,9 +21,10 @@ struct DownloadConsoleView: View {
     @StateObject private var detailsPresentation = TaskDetailsPresentation()
     @FocusState private var downloadSearchFocused: Bool
 
-    init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation(), updates: AppUpdateCoordinator? = nil, supportNavigation: AppSupportNavigation? = nil) {
+    init(inputCoordinator: DownloadInputCoordinator, presentation: TaskDetailsPresentation = TaskDetailsPresentation(), updates: AppUpdateCoordinator? = nil, supportNavigation: AppSupportNavigation? = nil, inputPresentation: DownloadInputPresentation = DownloadInputPresentation()) {
         self.supportNavigation = supportNavigation
         self.updates = updates
+        self.inputPresentation = inputPresentation
         _inputCoordinator = ObservedObject(wrappedValue: inputCoordinator)
         _detailsPresentation = StateObject(wrappedValue: presentation)
     }
@@ -67,6 +69,7 @@ struct DownloadConsoleView: View {
                     .labelStyle(.iconOnly)
                     .help(String(localized: "Add Download"))
                     .accessibilityIdentifier("toolbar-add-button")
+                    .disabled(!inputPresentation.canPresent(in: store))
 
                     Button {
                         pasteClipboardIntoDraft()
@@ -76,6 +79,7 @@ struct DownloadConsoleView: View {
                     .labelStyle(.iconOnly)
                     .help(String(localized: "Paste Download Link"))
                     .accessibilityIdentifier("toolbar-paste-button")
+                    .disabled(!inputPresentation.canPresent(in: store))
 
                 }
 
@@ -238,8 +242,8 @@ struct DownloadConsoleView: View {
         DownloadWindowActions(newDownload: scheduleAddDownloadPanelPresentation,
             pasteDownload: pasteClipboardIntoDraft, openDownloadFile: openDownloadFile,
             toggleDetails: toggleDetails, detailsPresented: detailsPresentation.isPresented,
-            hasSelection: store.selectedTaskRow != nil,
-            canPresentDownload: inputCoordinator.owner == nil && !store.engineSetupState.requiresInstallation,
+            hasSelection: store.selectedTaskRow != nil && canUseWindowCommands,
+            canPresentDownload: inputPresentation.canPresent(in: store) && canUseWindowCommands,
             showDetails: { section in
                 detailsPresentation.selectionChanged(to: store.selectedTaskID)
                 if let section {
@@ -266,6 +270,10 @@ struct DownloadConsoleView: View {
         guard currentDestination != .browserCapture, !isAddPanelPresented, presentedAlert == nil,
               store.removalRequest == nil, !store.engineSetupState.requiresInstallation else { return nil }
         return { downloadSearchFocused = true }
+    }
+
+    private var canUseWindowCommands: Bool {
+        !isAddPanelPresented && presentedAlert == nil && store.removalRequest == nil && !store.engineSetupState.requiresInstallation
     }
 
     private func presentCommandSearch() {
@@ -297,9 +305,7 @@ struct DownloadConsoleView: View {
     }
 
     private func scheduleAddDownloadPanelPresentation() {
-        DispatchQueue.main.async {
-            presentAddDownloadPanel()
-        }
+        inputPresentation.newDownload(in: store)
     }
 
     private func presentAddDownloadPanel() {
@@ -332,17 +338,7 @@ struct DownloadConsoleView: View {
     }
 
     private func openDownloadFile() {
-        let panel = NSOpenPanel()
-        panel.title = String(localized: "Open Download File")
-        panel.prompt = String(localized: "Open")
-        panel.allowedContentTypes = ["torrent", "metalink", "meta4"].compactMap { UTType(filenameExtension: $0) }
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = true
-        guard let window = NSApp.keyWindow else { return }
-        panel.beginSheetModal(for: window) { response in
-            guard response == .OK else { return }
-            store.importDownloads(panel.urls.map(DownloadImportInput.url))
-        }
+        inputPresentation.openDownloadFile(in: store)
     }
 
     private func dismissAddDownloadPanel() {
@@ -356,12 +352,7 @@ struct DownloadConsoleView: View {
     }
 
     private func pasteClipboardIntoDraft() {
-        guard let pasted = NSPasteboard.general.string(forType: .string),
-              !pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            store.postError(String(localized: "Clipboard does not contain a download link."), title: String(localized: "Paste Failed"))
-            return
-        }
-        store.importDownloads([.text(pasted)])
+        inputPresentation.pasteDownload(in: store)
     }
 }
 
@@ -689,8 +680,8 @@ struct DownloadCanvas: View {
                             }
                         } primaryAction: { ids in
                             if let action = DownloadListPresentation.primaryAction(for: ids, tasks: store.tasks),
-                               let id = ids.first {
-                                action.perform(in: DownloadActionContext(store: store, taskID: id))
+                               let task = store.tasks.first(where: { ids.contains($0.id) }) {
+                                action.perform(in: context(for: task, ids: ids))
                             }
                         }
                         .onKeyPress(.space, phases: .down) { key in
@@ -899,6 +890,7 @@ private struct DownloadWindowIdentity: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             window?.identifier = NSUserInterfaceItemIdentifier(AppWindowID.downloadsWindow)
+            window?.tabbingMode = .disallowed
         }
     }
 }

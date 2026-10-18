@@ -62,8 +62,8 @@ nonisolated struct DownloadRowPresentation: Equatable {
 final class DownloadListPresentation {
     static func primaryAction(for ids: Set<String>, tasks: [DownloadTask]) -> DownloadAction? {
         guard ids.count == 1, let id = ids.first,
-              let task = tasks.first(where: { $0.id == id }), let action = task.primaryControlAction else { return nil }
-        return action == .pause ? .pause : .resume
+              tasks.contains(where: { $0.id == id }) else { return nil }
+        return .details
     }
     @ObservationIgnored private var rows: [String: DownloadRowState] = [:]
     private(set) var orderedRows: [DownloadRowState] = []
