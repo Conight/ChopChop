@@ -295,8 +295,9 @@ final class ChopChopUITests: XCTestCase {
     func testEmptyClipboardShowsFeedbackInAboutWindow() throws {
         let app = launchApp(withTaskFixtures: true)
         app.typeKey("w", modifierFlags: .command)
-        app.menuBars.menuBarItems["ChopChop Dev"].click()
-        app.menuItems["About ChopChop Dev"].click()
+        let appMenu = app.menuBars.menuBarItems["ChopChop Dev"]
+        appMenu.click()
+        appMenu.menuItems["About ChopChop Dev"].click()
         XCTAssertTrue(app.windows["About ChopChop Dev"].waitForExistence(timeout: 4))
         NSPasteboard.general.clearContents()
         app.typeKey("v", modifierFlags: [.command, .shift])
