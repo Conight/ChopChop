@@ -252,12 +252,13 @@ final class ChopChopUITests: XCTestCase {
             let row = staticText(in: app, id: "task-\(id)-fixture-name", label: name)
             XCTAssertTrue(row.waitForExistence(timeout: 8))
             row.doubleClick()
-            let details = app.windows["Download Details"]
+            let details = app.dialogs["ChopChop.TaskDetails"]
             XCTAssertTrue(details.waitForExistence(timeout: 4), app.debugDescription)
             app.typeKey(.escape, modifierFlags: [])
             XCTAssertTrue(waitForNonExistence(details, timeout: 4))
             if !control.isEmpty {
-                XCTAssertTrue(app.buttons["task-\(id)-fixture-\(control)-button"].exists, "Inspecting a task must not change its transfer state")
+                XCTAssertTrue(actionButton(in: app, id: "task-\(id)-fixture-\(control)-button",
+                    label: "\(control == "pause" ? "Pause" : "Resume") \(name)").exists, "Inspecting a task must not change its transfer state")
             }
         }
     }
@@ -623,7 +624,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     private func openSettingsWindowFromAppMenu(in app: XCUIApplication) {
-        let appMenu = app.menuBars.menuBarItems["ChopChop"]
+        let appMenu = app.menuBars.menuBarItems[app.label]
         guard appMenu.waitForExistence(timeout: 4) else { return }
         appMenu.click()
 

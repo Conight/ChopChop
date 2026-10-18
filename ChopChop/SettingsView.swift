@@ -121,6 +121,7 @@ struct SettingsView: View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
             VStack(spacing: 0) {
                 SettingsSearchField(model: settingsSearch)
+                    .accessibilityIdentifier("settings-global-search")
                     .frame(height: 28)
                     .padding(12)
                 List(SettingsPane.allCases, selection: sidebarSelection) { pane in
