@@ -876,6 +876,7 @@ private struct BrowserCaptureView: View {
                 BrowserIntegrationView(server: store.browserCapture)
             }
         }.formStyle(.grouped)
+            .scrollContentBackground(.hidden)
             .frame(maxWidth: AppLayout.settingsWidth)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
