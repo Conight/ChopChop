@@ -41,13 +41,18 @@ nonisolated struct ReleaseConfiguration: Equatable, Sendable {
 
     var repositoryURL: URL { URL(string: "https://github.com/\(repository)")! }
     var releasesAPI: URL { URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=100")! }
-    var userGuideURL: URL { URL(string: repositoryURL.absoluteString + "#install")! }
+    var userGuideURL: URL { repositoryURL.appendingPathComponent("blob/HEAD/Documentation/UserGuide.md") }
+    var releasesURL: URL { repositoryURL.appendingPathComponent("releases") }
     var issuesURL: URL { repositoryURL.appendingPathComponent("issues/new/choose") }
     var installerIdentifier: String { bundleIdentifier + ".EngineInstaller" }
     var signingKeychainService: String { bundleIdentifier + ".update-signing" }
 
     func releaseURL(version: AppVersion) -> URL {
         repositoryURL.appendingPathComponent("releases/tag/v\(version)")
+    }
+
+    func notesURL(for version: AppVersion?) -> URL {
+        version.map { releaseURL(version: $0) } ?? releasesURL
     }
 
     func assetURL(version: AppVersion, name: String) -> URL {

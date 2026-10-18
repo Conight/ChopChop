@@ -66,6 +66,12 @@ ChopChop Dev 使用独立的数据和权限，禁用应用自身更新，引擎�
 
 界面跟随 macOS 的应用语言，扩展跟随浏览器语言。支持简体中文和英语，其余语言回退英语。
 
+### 关于、快捷键与许可证
+
+在 **ChopChop → 关于 ChopChop** 查看应用版本、构建号和实际安装或运行的 Aria2 Next 版本。“复制版本信息”可复制应用、引擎和 macOS 版本，方便反馈问题；不包含下载任务。窗口提供项目与 Engine 的 GitHub、当前版本更新日志、检查更新、帮助和反馈入口。开发版的更新日志打开所有发布记录。
+
+**帮助 → 键盘快捷键** 列出常用操作，以及任务列表中的 `⌘A`、`⌘V`、`⌘⌫` 和空格行为。**帮助 → 致谢与许可** 可离线阅读引擎声明和完整 GPL 许可证。ChopChop 本身目前未授予整体开源许可；Aria2 Next 保留 GPL-2.0-or-later 许可。
+
 ## English
 
 ### Install and add your first download
@@ -135,6 +141,12 @@ Completion notifications are opt-in in General settings. Saved history remains a
 Help → ChopChop Help lets you preview and export diagnostics. The report contains versions, capabilities, task counts and issue codes, excluding names, URLs, paths, credentials and raw logs. Nothing is uploaded automatically. Review the report before optionally attaching it to a [GitHub issue](https://github.com/Conight/ChopChop/issues/new/choose), along with reproduction steps and expected/actual behavior.
 
 The app follows the macOS app language, and the extension follows the browser language. Simplified Chinese and English are supported, with English as the fallback.
+
+### About, keyboard shortcuts, and licenses
+
+**ChopChop → About ChopChop** shows the app version, build number, and the installed or running Aria2 Next version. **Copy Version Information** copies app, engine, and macOS versions for a problem report, without download tasks. The window links to both GitHub projects, release notes for the current version, update checks, help, and feedback. Development builds link to the full release history.
+
+**Help → Keyboard Shortcuts** lists common commands and task-list behavior for `⌘A`, `⌘V`, `⌘⌫`, and Space. **Help → Acknowledgments** includes offline engine notices and the full GPL text. ChopChop has no project-wide open-source license; Aria2 Next retains its GPL-2.0-or-later license.
 
 ### Settings search, multiple selection, and compact details
 

@@ -117,4 +117,6 @@ Release files use names such as `ChopChop-v0.0.1-beta.2-macos-arm64.dmg` and `Ch
 
 ## Copyright and third-party licenses
 
+Use **ChopChop → About ChopChop** for app/build and Engine versions, project links, release notes, and copyable version information. **Help** also provides the user guide, keyboard shortcuts, issue reporting, diagnostic export, and offline acknowledgments and Engine license text.
+
 Copyright © 2026 Conight. No project-wide open-source license has been granted for ChopChop at this time. Third-party components retain their own licenses; see [Aria2 Next's license](Vendor/Aria2Next/Aria2Next-COPYING.txt) and [notices](Vendor/Aria2Next/Aria2Next-NOTICE.txt).

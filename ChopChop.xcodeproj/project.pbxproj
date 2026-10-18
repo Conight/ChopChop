@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7C1000000000000000000001 /* AppAbout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1000000000000000000002 /* AppAbout.swift */; };
 		63D000000000000000000001 /* TorrentDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D000000000000000000002 /* TorrentDiscovery.swift */; };
 		7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */; };
 		7BB000000000000000000001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7BA000000000000000000001 /* AppIcon.icon */; };
@@ -151,6 +152,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		7C1000000000000000000002 /* AppAbout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAbout.swift; sourceTree = "<group>"; };
 		63D000000000000000000002 /* TorrentDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDiscovery.swift; sourceTree = "<group>"; };
 		15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUpdatesPage.swift; sourceTree = "<group>"; };
 		7BA000000000000000000001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
@@ -368,6 +370,7 @@
 				62A00000000000000000000E /* DownloadAction.swift */,
 				62A00000000000000000000B /* TaskDetailsPresentation.swift */,
 				62A000000000000000000002 /* AppSupport.swift */,
+				7C1000000000000000000002 /* AppAbout.swift */,
 				D9A3971C5FDB489BB85F1070 /* AppTermination.swift */,
 				62A000000000000000000001 /* AppUpdate.swift */,
                 63A000000000000000000001 /* AppUpdateRecovery.swift */,
@@ -646,6 +649,7 @@
 				62B00000000000000000000E /* DownloadAction.swift in Sources */,
 				62B00000000000000000000B /* TaskDetailsPresentation.swift in Sources */,
 				62B000000000000000000002 /* AppSupport.swift in Sources */,
+				7C1000000000000000000001 /* AppAbout.swift in Sources */,
 				7876D49725374E5ABA394515 /* AppTermination.swift in Sources */,
 				62B000000000000000000001 /* AppUpdate.swift in Sources */,
                 63B000000000000000000001 /* AppUpdateRecovery.swift in Sources */,
@@ -875,7 +879,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -915,7 +919,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1157,7 +1161,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

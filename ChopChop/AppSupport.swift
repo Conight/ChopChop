@@ -109,6 +109,7 @@ final class AppSupportNavigation: ObservableObject {
 struct AppSupportView: View {
     @ObservedObject var navigation: AppSupportNavigation
     @Environment(DownloadStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
     @State private var report: String?
     @State private var exportStatus: String?
 
@@ -128,6 +129,14 @@ struct AppSupportView: View {
                     Label(String(localized: "Browser capture and completion notifications are optional. Enable them in Settings when you need them."), systemImage: "gearshape")
                         .fixedSize(horizontal: false, vertical: true)
                     Link(String(localized: "Read the User Guide"), destination: ReleaseConfiguration.current.userGuideURL)
+                    Button(String(localized: "Keyboard Shortcuts")) { openWindow(id: AppWindowID.shortcuts) }
+                }
+                Section(String(localized: "Project and Updates")) {
+                    Link(String(localized: "ChopChop on GitHub"), destination: ReleaseConfiguration.current.repositoryURL)
+                    Link(String(localized: "Engine on GitHub"), destination: EngineDistribution.repositoryURL)
+                    Link(String(localized: "Release Notes"), destination: ReleaseConfiguration.current.notesURL(for: AppBuild().version))
+                    Button(String(localized: "About \(AppIdentity.displayName)")) { openWindow(id: AppWindowID.about) }
+                    Button(String(localized: "Acknowledgments")) { openWindow(id: AppWindowID.acknowledgments) }
                 }
                 Section(String(localized: "Report a Problem")) {
                     Text(String(localized: "Describe what you expected and what happened. You can preview and export a small diagnostic report to attach yourself."))
@@ -190,12 +199,25 @@ struct AppSupportCommands: Commands {
             }, openHelp: { openWindow(id: AppWindowID.help) }))
     }
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button(String(localized: "About \(AppIdentity.displayName)")) { openWindow(id: AppWindowID.about) }
+        }
         CommandGroup(after: .appInfo) {
             DownloadActionButton(action: .checkUpdates, context: context)
         }
         CommandGroup(replacing: .help) {
             DownloadActionButton(action: .help, context: context)
+                .keyboardShortcut("?", modifiers: .command)
+            Link(String(localized: "Read the User Guide"), destination: ReleaseConfiguration.current.userGuideURL)
+            Button(String(localized: "Keyboard Shortcuts")) { openWindow(id: AppWindowID.shortcuts) }
+            Divider()
+            Link(String(localized: "ChopChop on GitHub"), destination: ReleaseConfiguration.current.repositoryURL)
+            Link(String(localized: "Engine on GitHub"), destination: EngineDistribution.repositoryURL)
+            Link(String(localized: "Release Notes"), destination: ReleaseConfiguration.current.notesURL(for: updates.build.version))
+            Divider()
+            Link(String(localized: "Report a Problem…"), destination: ReleaseConfiguration.current.issuesURL)
             DownloadActionButton(action: .diagnostics, context: context)
+            Button(String(localized: "Acknowledgments")) { openWindow(id: AppWindowID.acknowledgments) }
         }
     }
 }
@@ -204,6 +226,9 @@ enum AppWindowID {
     static let downloadsWindow = "ChopChop.Downloads"
     static let downloads = "downloads"
     static let help = "help"
+    static let about = "about"
+    static let acknowledgments = "acknowledgments"
+    static let shortcuts = "keyboard-shortcuts"
     static let updates = "updates"
 }
 

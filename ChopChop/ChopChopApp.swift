@@ -46,9 +46,35 @@ struct ChopChopApp: App {
             AppSupportCommands(updates: updates, store: store, navigation: supportNavigation)
         }
 
+        Window(String(localized: "About \(AppIdentity.displayName)"), id: AppWindowID.about) {
+            AppAboutView(updates: updates).environment(store)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window(String(localized: "Acknowledgments"), id: AppWindowID.acknowledgments) {
+            AppAcknowledgmentsView()
+        }
+        .defaultSize(width: 620, height: 580)
+        .windowResizability(.contentMinSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window(String(localized: "Keyboard Shortcuts"), id: AppWindowID.shortcuts) {
+            AppKeyboardShortcutsView()
+        }
+        .defaultSize(width: 520, height: 620)
+        .windowResizability(.contentMinSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
         Window(String(localized: "ChopChop Help"), id: AppWindowID.help) {
             AppSupportView(navigation: supportNavigation).environment(store)
         }
+        .defaultSize(width: 600, height: 640)
+        .windowResizability(.contentMinSize)
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
