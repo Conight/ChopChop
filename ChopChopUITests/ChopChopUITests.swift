@@ -234,7 +234,7 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(waitForNonExistence(list, timeout: 4), "Closing the window must keep the background app running")
         XCTAssertNotEqual(app.state, .notRunning)
         app.typeKey(",", modifierFlags: .command)
-        XCTAssertTrue(app.searchFields["settings-global-search"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.searchFields["Search settings"].waitForExistence(timeout: 4))
         app.typeKey("0", modifierFlags: .command)
         XCTAssertTrue(list.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
@@ -266,7 +266,7 @@ final class ChopChopUITests: XCTestCase {
     @MainActor
     func testCommandFindSearchesSettingsAndSelectsExistingQuery() throws {
         let app = launchApp(withTaskFixtures: true, openSettings: true)
-        let search = app.searchFields["settings-global-search"]
+        let search = app.searchFields["Search settings"]
         app.typeKey("f", modifierFlags: .command)
         app.typeText("proxy")
         XCTAssertTrue(waitForTextValue(search, "proxy", timeout: 4), app.debugDescription)
@@ -624,7 +624,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     private func openSettingsWindowFromAppMenu(in app: XCUIApplication) {
-        let appMenu = app.menuBars.menuBarItems[app.label]
+        let appMenu = app.menuBars.menuBarItems["ChopChop Dev"]
         guard appMenu.waitForExistence(timeout: 4) else { return }
         appMenu.click()
 

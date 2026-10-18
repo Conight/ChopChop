@@ -131,10 +131,10 @@ struct SettingsView: View {
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
+                .accessibilityIdentifier("settings-sidebar")
             }
             .toolbar(removing: .sidebarToggle)
             .navigationSplitViewColumnWidth(min: 210, ideal: 210, max: 210)
-            .accessibilityIdentifier("settings-sidebar")
         } detail: {
             SettingsPaneHost(content: settingsPage
                 .environment(store)
