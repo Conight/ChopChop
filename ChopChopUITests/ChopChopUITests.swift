@@ -226,6 +226,38 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
+    func testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch() throws {
+        // Simulate a saved-state launch that doesn't automatically create Downloads.
+        // Do not press Show Downloads or erase saved state to rescue the launch.
+        let app = launchApp(withTaskFixtures: true, suppressDefaultWindow: true)
+        for state in 0..<4 {
+            if state == 0 {
+                openSettingsWindow(in: app)
+            } else if state == 1 {
+                app.typeKey("w", modifierFlags: .command)
+                openSettingsWindow(in: app)
+            } else if state == 2 {
+                app.typeKey("m", modifierFlags: .command)
+                openSettingsWindow(in: app)
+            } else {
+                app.typeKey("n", modifierFlags: .command)
+                XCTAssertTrue(addDownloadURLField(in: app).waitForExistence(timeout: 4))
+            }
+            if state < 3 {
+                app.typeKey("q", modifierFlags: .command)
+            } else {
+                app.terminate() // Interrupted exit while a sheet owns the workspace.
+            }
+            XCTAssertTrue(app.wait(for: .notRunning, timeout: 8))
+            app.launch()
+            app.activate()
+            assertDownloadWorkspace(in: app)
+            XCTAssertTrue(app.staticTexts["task-completed-fixture-name"].waitForExistence(timeout: 8))
+            XCTAssertEqual(app.windows.matching(identifier: "All").count, 1)
+        }
+    }
+
+    @MainActor
     func testShowDownloadsRestoresClosedAndMinimizedMainWindow() throws {
         let app = launchApp(withTaskFixtures: true)
         let list = app.descendants(matching: .any).matching(identifier: "download-task-list").firstMatch
@@ -599,27 +631,46 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchApp(withTaskFixtures: Bool = false, openSettings: Bool = false, autoStart: Bool = false) -> XCUIApplication {
+    private func launchApp(withTaskFixtures: Bool = false, openSettings: Bool = false, autoStart: Bool = false, suppressDefaultWindow: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CHOPCHOP_UI_TESTING"] = "1"
         if autoStart { app.launchEnvironment["CHOPCHOP_UI_AUTO_START"] = "1" }
         if withTaskFixtures {
             app.launchEnvironment["CHOPCHOP_UI_FIXTURE_TASKS"] = "1"
         }
+        if suppressDefaultWindow { app.launchEnvironment["CHOPCHOP_UI_SUPPRESS_DEFAULT_WINDOW"] = "1" }
         app.launchArguments = ["--reset-preferences"]
-        app.launch()
-        app.activate()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 8))
-        if openSettings {
-            openSettingsWindow(in: app)
-        }
-        addTeardownBlock { @MainActor in
+        // Register cleanup before any assertion so a failed launch is also captured.
+        addTeardownBlock { @MainActor [self] in
+            if (testRun?.failureCount ?? 0) > 0, app.state != .notRunning {
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.name = "Application accessibility hierarchy"
+                hierarchy.lifetime = .keepAlways
+                add(hierarchy)
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.name = "Application at failure"
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+            }
             if app.state != .notRunning {
                 app.terminate()
                 XCTAssertTrue(app.wait(for: .notRunning, timeout: 8))
             }
         }
+        app.launch()
+        app.activate()
+        assertDownloadWorkspace(in: app)
+        if openSettings {
+            openSettingsWindow(in: app)
+        }
         return app
+    }
+
+    @MainActor
+    private func assertDownloadWorkspace(in app: XCUIApplication) {
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 8))
+        XCTAssertTrue(app.buttons["toolbar-add-button"].waitForExistence(timeout: 8),
+                      "Launch must present Downloads before testing commands. " + app.debugDescription)
     }
 
     @MainActor

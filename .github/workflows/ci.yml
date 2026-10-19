@@ -15,7 +15,9 @@ concurrency:
 jobs:
   test:
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      CHOPCHOP_TEST_RESULTS_DIR: ${{ runner.temp }}/chopchop-test-results
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,3 +30,11 @@ jobs:
       - uses: ./.github/actions/verification-tools
       - name: Verify Swift, browser, real engine, media, and Release
         run: Scripts/verify.sh
+      - name: Preserve test logs, screenshots, and results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CHOPCHOP_TEST_RESULTS_DIR }}
+          if-no-files-found: ignore
+          retention-days: 7

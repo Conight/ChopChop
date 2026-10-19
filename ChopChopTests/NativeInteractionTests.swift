@@ -8,6 +8,30 @@ import XCTest
 
 final class NativeInteractionTests: XCTestCase {
     @MainActor
+    func testWindowLaunchRequestSurvivesLateSwiftUIRegistration() {
+        let presentation = DownloadWindowPresentation()
+        var opened = 0
+        presentation.request() // AppKit launch/reopen before SwiftUI is ready.
+        presentation.request()
+        presentation.register { opened += 1 }
+        XCTAssertEqual(opened, 1, "Pending requests coalesce and must not be discarded")
+        presentation.register { opened += 1 }
+        XCTAssertEqual(opened, 1, "Scene activation alone must not reopen a closed window")
+        presentation.request()
+        XCTAssertEqual(opened, 2, "Explicit reopen must continue working after registration")
+    }
+
+    @MainActor
+    func testWindowRegistrationBeforeLaunchWaitsForAnExplicitRequest() {
+        let presentation = DownloadWindowPresentation()
+        var opened = 0
+        presentation.register { opened += 1 }
+        XCTAssertEqual(opened, 0)
+        presentation.request()
+        XCTAssertEqual(opened, 1)
+    }
+
+    @MainActor
     func testTransferUpdatesAreIsolatedFromEditingNavigationAndOtherTaskDetails() throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }

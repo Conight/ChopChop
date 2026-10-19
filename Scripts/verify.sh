@@ -34,6 +34,9 @@ export CHOPCHOP_DERIVED_DATA="$validation_root/DerivedData"
 test_derived_data="$CHOPCHOP_DERIVED_DATA"
 if [[ "${CI:-false}" != true ]]; then test_derived_data="$repo_root/DerivedData"; fi
 mkdir -p "$TMPDIR"
+# CI keeps these outside the disposable build tree, including on a failing exit.
+test_results="${CHOPCHOP_TEST_RESULTS_DIR:-$validation_root/results}"
+mkdir -p "$test_results"
 "$PYTHON" - <<'PY'
 import json, re, subprocess, sys
 from pathlib import Path
@@ -50,9 +53,9 @@ PY
 "$PYTHON" Scripts/test_engine_fixture.py
 "$PYTHON" Scripts/test_local_test_policy.py
 node --test Scripts/test-browser-extension.mjs
-CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh keyboard -testLanguage en -testRegion US 2>&1 | tee "$validation_root/keyboard.log"
-CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh unit -testLanguage en -testRegion US 2>&1 | tee "$validation_root/unit.log"
-CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN 2>&1 | tee "$validation_root/layout.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh keyboard -testLanguage en -testRegion US -parallel-testing-enabled NO -test-iterations 2 -resultBundlePath "$test_results/keyboard.xcresult" 2>&1 | tee "$validation_root/keyboard.log" "$test_results/keyboard.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh unit -testLanguage en -testRegion US -resultBundlePath "$test_results/unit.xcresult" 2>&1 | tee "$validation_root/unit.log" "$test_results/unit.log"
+CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN -resultBundlePath "$test_results/layout.xcresult" 2>&1 | tee "$validation_root/layout.log" "$test_results/layout.log"
 "$PYTHON" Scripts/smoke-aria2-next.py
 "$PYTHON" Scripts/smoke-media.py
 Scripts/check.sh release

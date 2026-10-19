@@ -12,6 +12,8 @@ import SwiftUI
 @main
 struct ChopChopApp: App {
     @NSApplicationDelegateAdaptor(ChopChopAppDelegate.self) private var appDelegate
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.scenePhase) private var scenePhase
     @State private var store: DownloadStore
     @StateObject private var supportNavigation = AppSupportNavigation()
     @StateObject private var inputPresentation = DownloadInputPresentation()
@@ -29,13 +31,11 @@ struct ChopChopApp: App {
         // background-app behavior when its last window closes.
         WindowGroup(AppIdentity.displayName, id: AppWindowID.downloads, for: String.self) { _ in
             ContentView(updates: updates, supportNavigation: supportNavigation, inputPresentation: inputPresentation)
-                .modifier(DownloadWindowRegistration(delegate: appDelegate))
                 .task {
                     guard !AppLaunchConfiguration.isTestAutomation else { return }
                     await updates.checkAtLaunch(using: store)
                 }
                 .onAppear {
-                    appDelegate.configureMenuBar(store: store)
                     store.startEngineOnAppLaunch()
                 }
             .environment(store)
@@ -44,8 +44,15 @@ struct ChopChopApp: App {
         }
         .defaultSize(width: 1100, height: 740)
         .windowResizability(.contentMinSize)
-        .defaultLaunchBehavior(.presented)
+        .defaultLaunchBehavior(AppLaunchConfiguration.suppressesDefaultDownloadWindow ? .suppressed : .presented)
         .restorationBehavior(.disabled)
+        .onChange(of: scenePhase, initial: true) { _, _ in
+            // Register from the app, even when restoration did not create a window.
+            appDelegate.configureMenuBar(store: store)
+            appDelegate.registerDownloadWindowOpener {
+                openWindow(id: AppWindowID.downloads, value: AppWindowID.downloads)
+            }
+        }
         .commands {
             DownloadCommands(store: store, inputPresentation: inputPresentation)
             AppSupportCommands(updates: updates, store: store, navigation: supportNavigation)
@@ -99,6 +106,8 @@ struct ChopChopApp: App {
         .defaultSize(width: 940, height: 640)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
     }
 }
 
@@ -112,6 +121,11 @@ enum AppLaunchConfiguration {
 
     nonisolated static var isUITesting: Bool {
         ProcessInfo.processInfo.environment["CHOPCHOP_UI_TESTING"] == "1"
+    }
+
+    // Exercise the cold-launch fallback without depending on saved system state.
+    nonisolated static var suppressesDefaultDownloadWindow: Bool {
+        isUITesting && ProcessInfo.processInfo.environment["CHOPCHOP_UI_SUPPRESS_DEFAULT_WINDOW"] == "1"
     }
 
     nonisolated static var testsAutomaticEngineStartup: Bool {
@@ -136,7 +150,7 @@ enum AppLaunchConfiguration {
 }
 
 final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
-    var openDownloadWindow: (() -> Void)?
+    private let downloadWindowPresentation = DownloadWindowPresentation()
     private let menuBarController = MenuBarStatusController()
     private let dockProgressController = DockDownloadProgressController()
     private weak var store: DownloadStore?
@@ -147,7 +161,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     private var downloadNavigation: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        presentMainWindowIfNeeded()
+        revealDownloadWindow()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -203,28 +217,25 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.windows.first { $0.identifier?.rawValue == AppWindowID.downloadsWindow }
     }
 
-    private func revealDownloadWindow() {
-        // Identifies a download window even when Settings is the current main window.
-        if let window = downloadWindow {
-            if window.isMiniaturized { window.deminiaturize(nil) }
-            window.makeKeyAndOrderFront(nil)
+    func registerDownloadWindowOpener(_ open: @escaping () -> Void) {
+        downloadWindowPresentation.register { [weak self] in
+            // Reuse the existing workspace, including a closed/minimized window.
+            if let window = self?.downloadWindow {
+                if window.isMiniaturized { window.deminiaturize(nil) }
+                window.makeKeyAndOrderFront(nil)
+            } else {
+                open()
+            }
             NSApp.activate(ignoringOtherApps: true)
-        } else { presentMainWindowIfNeeded() }
+        }
+    }
+
+    private func revealDownloadWindow() {
+        downloadWindowPresentation.request()
     }
 
     func removeMenuBarStatusItem() {
         menuBarController.remove()
-    }
-
-    private func presentMainWindowIfNeeded() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            guard self.downloadWindow?.isVisible != true || self.downloadWindow?.isMiniaturized == true else { return }
-            if self.downloadWindow != nil { self.revealDownloadWindow() }
-            else {
-                self.openDownloadWindow?()
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
     }
 
 

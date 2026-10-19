@@ -48,6 +48,7 @@ case "$mode" in
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindAndTextDeletionDoNotRemoveSelectedDownload \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandNewFromSettingsUsesOneDownloadWindow \
+        -only-testing:ChopChopUITests/ChopChopUITests/testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch \
         -only-testing:ChopChopUITests/ChopChopUITests/testShowDownloadsRestoresClosedAndMinimizedMainWindow \
         -only-testing:ChopChopUITests/ChopChopUITests/testDoubleClickOpensDetailsWithoutPausingOrResuming \
         -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindSearchesSettingsAndSelectsExistingQuery \

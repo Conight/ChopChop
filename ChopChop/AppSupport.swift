@@ -227,11 +227,24 @@ enum AppWindowID {
     static let updates = "updates"
 }
 
-/// Bind SwiftUI's scene action once; window reopening never depends on translated menu labels.
-struct DownloadWindowRegistration: ViewModifier {
-    @Environment(\.openWindow) private var openWindow
-    let delegate: ChopChopAppDelegate
-    func body(content: Content) -> some View {
-        content.onAppear { delegate.openDownloadWindow = { openWindow(id: AppWindowID.downloads, value: AppWindowID.downloads) } }
+/// Launch/reopen events can arrive before SwiftUI installs its environment actions.
+/// Keep one pending request; registration alone must never reopen a closed window.
+@MainActor
+final class DownloadWindowPresentation {
+    private var open: (() -> Void)?
+    private var pending = false
+
+    func register(open: @escaping () -> Void) {
+        self.open = open
+        if pending { request() }
+    }
+
+    func request() {
+        guard let open else {
+            pending = true
+            return
+        }
+        pending = false
+        open()
     }
 }
