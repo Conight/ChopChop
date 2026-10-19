@@ -80,7 +80,10 @@ nonisolated struct AppUpdateManifest: Codable, Equatable, Sendable {
 }
 
 nonisolated struct AppUpdateProgress: Codable, Equatable, Sendable {
-    enum Stage: String, Codable, Sendable { case connecting, downloading, verifying, preparing }
+    enum Stage: String, Codable, Sendable {
+        case connecting, downloading, verifying
+        case openingInstaller, checkingApplication, copyingApplication, closingInstaller
+    }
     let stage: Stage
     var completedBytes: Int64 = 0
     var totalBytes: Int64? = nil

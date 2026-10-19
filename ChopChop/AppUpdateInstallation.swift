@@ -2,11 +2,20 @@ import AppKit
 import CryptoKit
 import Darwin
 import Foundation
+import OSLog
 import Security
 
 /// Shared by the authenticated XPC service and its detached installation worker.
 /// Jobs are staged beside the installed app so replacement is an atomic filesystem exchange.
 nonisolated enum AppUpdateInstallation {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ChopChop", category: "AppUpdate")
+
+    private static func report(_ stage: AppUpdateProgress.Stage,
+                               progress: @Sendable (AppUpdateProgress) -> Void) {
+        logger.info("Update preparation stage: \(stage.rawValue, privacy: .public)")
+        progress(.init(stage: stage))
+    }
+
     struct Job: Codable, Sendable {
         let target: URL
         let directory: URL
@@ -47,7 +56,7 @@ nonisolated enum AppUpdateInstallation {
         let publicKey = configuration.publicKey
         if let tag = current.object(forInfoDictionaryKey: "ChopChopReleaseVersion") as? String,
            let installed = AppVersion(tag), version <= installed { throw AppUpdateError.invalidApplication }
-        progress(.init(stage: .connecting))
+        report(.connecting, progress: progress)
         let session = URLSession(configuration: EngineDownload.configuration(timeout: 30))
         defer { session.invalidateAndCancel() }
         let (data, response) = try await session.data(from: configuration.assetURL(version: version, name: AppUpdateManifest.manifestName(for: version)))
@@ -63,30 +72,38 @@ nonisolated enum AppUpdateInstallation {
         try await AppUpdateTransfer(destination: archive, expectedSize: manifest.size, progress: progress)
             .receive(from: configuration.assetURL(version: version, name: manifest.filename))
         try Task.checkCancellation()
-        progress(.init(stage: .verifying))
+        report(.verifying, progress: progress)
         try manifest.verifyArchive(archive)
         try Task.checkCancellation()
-        progress(.init(stage: .preparing))
+        report(.openingInstaller, progress: progress)
         let mount = directory.appendingPathComponent("mount")
         try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: false)
         _ = try await EngineDownload.runTool("/usr/bin/hdiutil", arguments: ["attach", archive.path, "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mount.path], timeoutInterval: 60)
         do {
             let source = mount.appendingPathComponent(AppUpdateStorage.applicationName)
+            report(.checkingApplication, progress: progress)
             try validateBundle(source, manifest: manifest, publicKey: publicKey, current: target)
+            try Task.checkCancellation()
+            report(.copyingApplication, progress: progress)
             _ = try await EngineDownload.runTool("/usr/bin/ditto", arguments: [source.path, directory.appendingPathComponent(AppUpdateStorage.applicationName).path], timeoutInterval: 120)
         } catch {
             _ = try? run("/usr/bin/hdiutil", ["detach", mount.path], timeout: 20)
             throw error
         }
+        // Disk Arbitration can wait for other apps before allowing the unmount.
+        report(.closingInstaller, progress: progress)
         _ = try run("/usr/bin/hdiutil", ["detach", mount.path], timeout: 20)
         try Task.checkCancellation()
         let job = Job(target: target, directory: directory, manifest: manifest, signedManifest: data,
                       publicKey: publicKey, originalInode: try inode(target), parentPID: parentPID)
+        report(.checkingApplication, progress: progress)
         try validateBundle(job.candidate, manifest: manifest, publicKey: publicKey, current: target)
+        try Task.checkCancellation()
         try JSONEncoder().encode(job).write(to: directory.appendingPathComponent(AppUpdateStorage.jobFile), options: .atomic)
         try FileManager.default.removeItem(at: archive)
         try? FileManager.default.removeItem(at: mount)
         complete = true
+        logger.info("Update preparation complete")
         return job
     }
 

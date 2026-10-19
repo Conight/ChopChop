@@ -710,6 +710,12 @@ struct DownloadCanvas: View {
         .onChange(of: destination) { _, _ in clearHiddenSelection() }
         .onChange(of: store.searchQuery) { _, _ in clearHiddenSelection() }
         .background(DownloadWorkspaceBackdrop())
+        .transaction(value: destination) { transaction in
+            // Navigation replaces the filter in place. Row insertion/removal
+            // animations are only useful while staying in the same destination.
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+        }
     }
 
     private var connectionIssue: String? {
@@ -772,7 +778,11 @@ struct DownloadCanvas: View {
                 Label {
                     Text(emptyTitle)
                 } icon: {
-                    Image(systemName: destination.symbolName).foregroundStyle(.tint)
+                    Image(systemName: destination.symbolName)
+                        .foregroundStyle(.tint)
+                        // SF Symbols have different natural heights. Keep the
+                        // empty-state title and actions anchored when filtering.
+                        .frame(width: 48, height: 48)
                 }
             } description: {
                 Text(emptyDescription).frame(maxWidth: 360)
@@ -812,7 +822,11 @@ struct DownloadCanvas: View {
     }
 
     private func clearHiddenSelection() {
-        store.selectedTaskIDs.formIntersection(visibleRows.map(\.id))
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            store.selectedTaskIDs.formIntersection(visibleRows.map(\.id))
+        }
     }
 }
 

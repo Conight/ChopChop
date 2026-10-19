@@ -11939,23 +11939,6 @@
         }
       }
     },
-    "Preparing update…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparing update…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在准备更新…"
-          }
-        }
-      }
-    },
     "Prevent Sleep Failed": {
       "extractionState": "manual",
       "localizations": {
@@ -20170,6 +20153,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索设置…"
+          }
+        }
+      }
+    },
+    "Opening update installer…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening update installer…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在打开更新安装映像…"
+          }
+        }
+      }
+    },
+    "Checking the new app…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking the new app…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查新版应用…"
+          }
+        }
+      }
+    },
+    "Copying the new app…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying the new app…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在复制新版应用…"
+          }
+        }
+      }
+    },
+    "Closing update installer…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closing update installer…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在关闭更新安装映像…"
+          }
+        }
+      }
+    },
+    "macOS is closing the installer. This can take a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is closing the installer. This can take a moment."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 正在关闭安装映像，可能需要一点时间。"
+          }
+        }
+      }
+    },
+    "Time in this step: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time in this step: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此步骤已用时：%@"
           }
         }
       }

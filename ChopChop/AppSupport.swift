@@ -86,12 +86,7 @@ struct AppUpdateSettingsView: View {
         case .current: return String(localized: "Up to date")
         case .failed(let error): return error.localizedDescription
         case .preparing(_, let progress):
-            switch progress.stage {
-            case .connecting: return String(localized: "Connecting to GitHub…")
-            case .downloading: return String(localized: "Downloading update…")
-            case .verifying: return String(localized: "Verifying update…")
-            case .preparing: return String(localized: "Preparing update…")
-            }
+            return progress.stage.title
         case .ready: return String(localized: "Ready to install")
         case .downloaded: return String(localized: "Installer downloaded")
         case .installing: return String(localized: "Saving downloads and restarting…")

@@ -119,29 +119,34 @@ struct AppUpdateWindow: View {
         case .preparing(_, let progress):
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(progressTitle(progress.stage)).font(.headline).contentTransition(.opacity)
+                    Text(progress.stage.title).font(.headline).contentTransition(.opacity)
                     Spacer()
                     Text(progress.fraction ?? 1, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit().foregroundStyle(.secondary)
                         .opacity(progress.stage == .downloading && progress.fraction != nil ? 1 : 0)
                         .accessibilityHidden(progress.stage != .downloading || progress.fraction == nil)
                 }
-                ProgressView(value: progress.stage == .downloading ? progress.fraction : nil)
-                    .progressViewStyle(.linear)
-                    .accessibilityLabel(progressTitle(progress.stage))
-                ViewThatFits(in: .horizontal) {
-                    HStack {
-                        Text(progress.byteSummary)
-                        Spacer(minLength: 12)
-                        if let speed = progress.speedSummary { Text(speed) }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(progress.byteSummary)
-                        if let speed = progress.speedSummary { Text(speed) }
-                    }
-                }.font(.callout).monospacedDigit().foregroundStyle(.secondary)
-                    .opacity(progress.stage == .downloading ? 1 : 0)
-                    .accessibilityHidden(progress.stage != .downloading)
+                AppUpdateProgressIndicator(fraction: progress.stage == .downloading ? progress.fraction : nil)
+                    .accessibilityLabel(progress.stage.title)
+                if progress.stage == .downloading {
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            Text(progress.byteSummary)
+                            Spacer(minLength: 12)
+                            if let speed = progress.speedSummary { Text(speed) }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(progress.byteSummary)
+                            if let speed = progress.speedSummary { Text(speed) }
+                        }
+                    }.font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                } else {
+                    AppUpdateStageElapsedTime(startedAt: updates.stageStartedAt)
+                }
+                if progress.stage == .closingInstaller {
+                    Text("macOS is closing the installer. This can take a moment.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
                 Text("You can hide this window. The update will continue.")
                     .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
             }
@@ -189,16 +194,54 @@ struct AppUpdateWindow: View {
     private func phaseProgress(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title).font(.headline)
-            ProgressView(value: nil as Double?).progressViewStyle(.linear)
+            AppUpdateProgressIndicator(fraction: nil)
                 .accessibilityLabel(Text(title))
+            AppUpdateStageElapsedTime(startedAt: updates.stageStartedAt)
         }
     }
-    private func progressTitle(_ stage: AppUpdateProgress.Stage) -> String {
-        switch stage {
+}
+
+extension AppUpdateProgress.Stage {
+    var title: String {
+        switch self {
         case .connecting: String(localized: "Connecting to GitHub…")
         case .downloading: String(localized: "Downloading update…")
         case .verifying: String(localized: "Verifying update…")
-        case .preparing: String(localized: "Preparing update…")
+        case .openingInstaller: String(localized: "Opening update installer…")
+        case .checkingApplication: String(localized: "Checking the new app…")
+        case .copyingApplication: String(localized: "Copying the new app…")
+        case .closingInstaller: String(localized: "Closing update installer…")
+        }
+    }
+}
+
+/// Give work with no measurable fraction its own native activity indicator.
+/// Do not reuse the completed download bar as a zero-looking preparation bar.
+private struct AppUpdateProgressIndicator: View {
+    let fraction: Double?
+
+    var body: some View {
+        Group {
+            if let fraction {
+                ProgressView(value: fraction).progressViewStyle(.linear)
+            } else {
+                ProgressView().progressViewStyle(.circular).controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 20)
+    }
+}
+
+private struct AppUpdateStageElapsedTime: View {
+    let startedAt: TimeInterval
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            let seconds = max(0, Int(ProcessInfo.processInfo.systemUptime - startedAt))
+            let elapsed = String(format: "%d:%02d", seconds / 60, seconds % 60)
+            Text("Time in this step: \(elapsed)")
+                .font(.callout).monospacedDigit().foregroundStyle(.secondary)
         }
     }
 }
@@ -233,13 +276,16 @@ extension AppUpdateCoordinator.State {
             case .connecting: 4
             case .downloading: 5
             case .verifying: 6
-            case .preparing: 7
+            case .openingInstaller: 7
+            case .checkingApplication: 8
+            case .copyingApplication: 9
+            case .closingInstaller: 10
             }
-        case .ready: 8
-        case .downloaded: 9
-        case .installing: 10
-        case .waitingToQuit: 11
-        case .failed: 12
+        case .ready: 11
+        case .downloaded: 12
+        case .installing: 13
+        case .waitingToQuit: 14
+        case .failed: 15
         }
     }
 }

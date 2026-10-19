@@ -94,7 +94,15 @@ final class AppUpdateCoordinator {
         case downloaded(AppRelease, DownloadedAppUpdateArchive)
         case waitingToQuit(AppRelease)
     }
-    private(set) var state: State = .idle
+    private(set) var state: State = .idle {
+        didSet {
+            // Byte updates and hiding/reopening the window must not reset the stage timer.
+            if case .preparing(_, let previous) = oldValue,
+               case .preparing(_, let current) = state, previous.stage == current.stage { return }
+            stageStartedAt = ProcessInfo.processInfo.systemUptime
+        }
+    }
+    private(set) var stageStartedAt = ProcessInfo.processInfo.systemUptime
     private(set) var isCheckingAll = false
     var automaticallyChecks: Bool { didSet { defaults.set(automaticallyChecks, forKey: Self.automaticKey) } }
     private var selectedChannel: AppUpdateChannel

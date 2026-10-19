@@ -228,6 +228,8 @@ final class AppUpdaterTests: XCTestCase {
             signingConfigured: true, makeInstaller: { installer })
         await coordinator.check(); coordinator.download()
         await wait { installer.isPreparing }
+        installer.report(.init(stage: .closingInstaller))
+        await wait { if case .preparing(_, let progress) = coordinator.state { return progress.stage == .closingInstaller }; return false }
         coordinator.cancel()
         XCTAssertTrue(installer.cancelled)
         installer.report(.init(stage: .verifying))
@@ -237,6 +239,29 @@ final class AppUpdaterTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
         let reopened = AppUpdateCoordinator(build: .init(version: "1.0.0-beta.1"), defaults: isolated)
         XCTAssertEqual(reopened.channel, .stable)
+    }
+
+    @MainActor func testPreparationTimerChangesOnlyWhenTheStageChanges() async throws {
+        let suite = "updater-stage-timer-\(UUID())"
+        let isolated = UserDefaults(suiteName: suite)!
+        defer { isolated.removePersistentDomain(forName: suite) }
+        let installer = ControlledUpdateInstaller()
+        let coordinator = AppUpdateCoordinator(build: .init(version: "1.0.0-beta.1"), client: UpdateReleaseFixture(),
+            defaults: isolated, signingConfigured: true, makeInstaller: { installer })
+        defer { coordinator.cancel() }
+        await coordinator.check(); coordinator.download()
+        await wait { installer.isPreparing }
+        let download = AppUpdateProgress(stage: .downloading, completedBytes: 10, totalBytes: 100)
+        installer.report(download)
+        await wait { if case .preparing(_, let progress) = coordinator.state { return progress == download }; return false }
+        let startedAt = coordinator.stageStartedAt
+        let advanced = AppUpdateProgress(stage: .downloading, completedBytes: 100, totalBytes: 100)
+        installer.report(advanced)
+        await wait { if case .preparing(_, let progress) = coordinator.state { return progress == advanced }; return false }
+        XCTAssertEqual(coordinator.stageStartedAt, startedAt, "Byte reports must not restart the timer")
+        installer.report(.init(stage: .closingInstaller))
+        await wait { if case .preparing(_, let progress) = coordinator.state { return progress.stage == .closingInstaller }; return false }
+        XCTAssertGreaterThan(coordinator.stageStartedAt, startedAt)
     }
     func testAuthenticatedInstallerRejectsInvalidVersionAndUnknownToken() async throws {
         let installer = AppUpdateInstallerRequest()
@@ -392,7 +417,10 @@ final class AppUpdaterTests: XCTestCase {
                 .init(stage: .connecting),
                 .init(stage: .downloading, completedBytes: 524_288, totalBytes: 1_048_576, bytesPerSecond: 262_144),
                 .init(stage: .downloading, completedBytes: 524_288),
-                .init(stage: .verifying), .init(stage: .preparing)
+                .init(stage: .downloading, completedBytes: 1_048_576, totalBytes: 1_048_576),
+                .init(stage: .verifying), .init(stage: .openingInstaller),
+                .init(stage: .checkingApplication), .init(stage: .copyingApplication),
+                .init(stage: .closingInstaller), .init(stage: .checkingApplication)
             ]
             for (index, sample) in samples.enumerated() {
                 installer.report(sample)
@@ -400,9 +428,10 @@ final class AppUpdaterTests: XCTestCase {
                 try await Task.sleep(for: .milliseconds(200))
                 host.view.layoutSubtreeIfNeeded()
                 let indicator = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSProgressIndicator }.first)
-                XCTAssertEqual(indicator.style, .bar)
-                XCTAssertEqual(indicator.isIndeterminate, sample.stage != .downloading || sample.fraction == nil)
-                XCTAssertGreaterThan(indicator.bounds.width, 300)
+                let hasFraction = sample.stage == .downloading && sample.fraction != nil
+                XCTAssertEqual(indicator.style, hasFraction ? .bar : .spinning)
+                XCTAssertEqual(indicator.isIndeterminate, !hasFraction)
+                if hasFraction { XCTAssertGreaterThan(indicator.bounds.width, 300) }
                 XCTAssertGreaterThan(indicator.visibleRect.height, 0)
                 XCTAssertTrue(host.view.bounds.contains(indicator.convert(indicator.bounds, to: host.view)))
                 var parent = indicator.superview
@@ -423,7 +452,7 @@ final class AppUpdaterTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(200))
             host.view.layoutSubtreeIfNeeded()
             let installing = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSProgressIndicator }.first)
-            XCTAssertEqual(installing.style, .bar); XCTAssertTrue(installing.isIndeterminate)
+            XCTAssertEqual(installing.style, .spinning); XCTAssertTrue(installing.isIndeterminate)
             XCTAssertEqual(window.frame, frame)
             installer.finishInstall()
         }
