@@ -23,7 +23,7 @@ jobs:
         shell: bash
     env:
       OUTPUT_DIR: build/distribution
-      CHOPCHOP_TEST_RESULTS_DIR: ${{ runner.temp }}/chopchop-test-results
+      CHOPCHOP_TEST_RESULTS_DIR: build/test-results
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
