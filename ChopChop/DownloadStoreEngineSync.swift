@@ -27,6 +27,7 @@ extension DownloadStore {
             pollTask = nil
             runtime = EngineRuntimeSnapshot(phase: .failed(error.localizedDescription),
                 lastLaunchArguments: runtime.lastLaunchArguments, lastError: error.localizedDescription)
+            engineCapabilities = nil
             tasks = tasks.map(\.disconnectedSnapshot)
             connectionIssue = String(localized: "Engine stopped. Your saved downloads are still available. Restart it in Engine settings.")
             return error

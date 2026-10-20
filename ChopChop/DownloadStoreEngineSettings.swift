@@ -46,6 +46,8 @@ extension DownloadStore {
     }
 
     func retryEngineSettingsApplication() {
+        guard case .running = runtime.phase, engineController.isRunning,
+              !isUpdatingEngine, !isShuttingDown else { return }
         engineSettingsIssue = nil
         scheduleEngineSettingsApplication()
     }

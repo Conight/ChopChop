@@ -232,7 +232,7 @@ struct SettingsView: View {
                         Button(String(localized: "Retry")) {
                             store.retryEngineSettingsApplication()
                             runStoreTask { await store.runDownloadPlans() }
-                        }.disabled(store.isUpdatingEngine || store.runtimeSettingsFeedback == .working)
+                        }.disabled(!DownloadAction.engineReady(in: store) || store.runtimeSettingsFeedback == .working)
                     }
                 } else {
                     Text(store.runtimeSettingsFeedback == .working

@@ -5324,6 +5324,10 @@ final class ChopChopTests: XCTestCase {
         let worker = store.engineSettingsTask
         await store.stopEngine()
         await worker?.value
+        store.engineSettingsIssue = "Pending change"
+        store.retryEngineSettingsApplication()
+        XCTAssertEqual(store.engineSettingsIssue, "Pending change", "An unavailable engine cannot acknowledge a retry")
+        XCTAssertNil(store.engineSettingsTask)
         XCTAssertTrue(calls.value().isEmpty)
         XCTAssertEqual(store.runtime.phase, .stopped)
         XCTAssertEqual(controller.startCallCount, 0)

@@ -944,6 +944,7 @@ final class DownloadStore {
         scheduleRequests.removeAll()
         lastBandwidthOptions = nil
         engineSessionID = sessionID
+        engineCapabilities = nil
         sessionProtectedTorrentIDs.removeAll()
         notifications.resetBaseline()
         var launchArguments: [String] = []
