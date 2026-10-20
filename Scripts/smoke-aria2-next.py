@@ -66,7 +66,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         payload = SECOND_PAYLOAD if self.path.startswith("/second") else PAYLOAD
         start, end = 0, len(payload) - 1
-        requested_range = self.headers.get("Range")
+        requested_range = None if self.path.startswith("/no-range") else self.headers.get("Range")
         if requested_range:
             first, last = requested_range.removeprefix("bytes=").split("-", 1)
             start = int(first)
@@ -74,7 +74,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 end = min(end, int(last))
         self.send_response(206 if requested_range else 200)
         self.send_header("Content-Length", str(end - start + 1))
-        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Accept-Ranges", "none" if self.path.startswith("/no-range") else "bytes")
         if requested_range:
             self.send_header("Content-Range", f"bytes {start}-{end}/{len(payload)}")
         self.end_headers()
@@ -309,6 +309,7 @@ def main():
 
             result = wait_for(ready)
             assert result["version"] == version, result
+            assert {"filename-hints", "filename-resolution"} <= set(result["downloadFeatures"]), result
             if not resume:
                 print("Engine capabilities:", json.dumps(result))
 
@@ -339,6 +340,19 @@ def main():
             # Removing the visible error does not reset v3's last failure exit status.
             rpc("removeDownloadResult", stalled)
             print("PASS bounded retries: stalled zero-byte request fails after three attempts with a timeout reason")
+            # 3.0.7 rejects adopting a nonempty file when the origin ignores ranges.
+            original = downloads / "existing.bin"
+            original_bytes = b"original user content" * 128
+            original.write_bytes(original_bytes)
+            refused = rpc("addUri", [f"http://127.0.0.1:{server.server_port}/no-range"],
+                          {"out": original.name, "pause": "false", "continue": "true", "incomplete-suffix": ".part"})
+            failure = wait_for(lambda: (s if (s := rpc("tellStatus", refused))["status"] == "error" else None))
+            assert failure["errorCode"] == "8", failure
+            assert original.read_bytes() == original_bytes
+            assert not original.with_name(original.name + ".part").exists()
+            rpc("removeDownloadResult", refused)
+            assert original.read_bytes() == original_bytes
+            print("PASS CannotResume: non-range server refuses adoption, original bytes unchanged")
             url = f"http://127.0.0.1:{server.server_port}/payload.bin"
             file_options = {"incomplete-suffix": ".part", "auto-file-renaming-style": "parentheses", "continue": "false"}
             gid = rpc("addUri", [url], {**file_options, "out": "payload.bin", "pause": "false"})
@@ -352,7 +366,7 @@ def main():
             assert pathlib.Path(rpc("getFiles", gid)[0]["path"]).name == "payload.bin", "RPC exposes the final name, not the physical partial file"
             rpc("saveSession")
             assert f"gid={gid}" in session.read_text()
-            stop(expected_status=2)  # V3 retains the controlled timeout as its process exit status.
+            stop(expected_status=8)  # V3 retains the last controlled failure as its process exit status.
             launch(resume=True)
             resumed = rpc("tellStatus", gid)
             assert int(resumed["completedLength"]) >= progress, resumed
@@ -483,6 +497,11 @@ def main():
             rpc("unpause", seeder)
             wait_for(lambda: rpc("tellStatus", seeder)["seeder"] == "true")
             assert isinstance(rpc("getBtTrackers", seeder), list)
+            before_announce = rpc("getOption", seeder)
+            assert rpc("forceBtAnnounce", seeder) == seeder
+            assert rpc("tellStatus", seeder)["status"] == "active"
+            assert rpc("getOption", seeder) == before_announce
+            print("PASS BT announce: same active task, priorities and sharing limits preserved")
             assert rpc("forceBtRecheck", seeder) == seeder
             wait_for(lambda: rpc("tellStatus", seeder)["seeder"] == "true")
             assert rpc("tellStatus", seeder)["status"] == "active"

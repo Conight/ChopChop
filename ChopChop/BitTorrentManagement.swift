@@ -115,6 +115,9 @@ struct BitTorrentManagementView: View {
                 Button(String(localized: "Apply to This Torrent")) { apply() }.buttonStyle(.borderedProminent)
                 Text(String(localized: "Priority and sharing changes take effect when you apply them."))
                     .font(.caption).foregroundStyle(.secondary)
+                DownloadActionButton(action: .findTorrentSources, context: DownloadActionContext(store: store, taskID: task.id))
+                Text(String(localized: "Ask trackers, DHT and local peers for sources while keeping current connections. Trackers may enforce a minimum announce interval."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Button(String(localized: "Recheck Downloaded Pieces")) { Task { await store.recheckTorrent(task) } }
                     .disabled(task.status != .active || task.torrentFileIssue != nil)
                 Text(String(localized: "Rechecking requires an active torrent and uses its piece hashes. Paused downloads stay paused until you resume them."))

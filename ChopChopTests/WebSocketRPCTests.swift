@@ -65,7 +65,7 @@ final class WebSocketRPCTests: XCTestCase {
         await client.startEvents()
         try await eventually { socket.requests.count == 1 }
         let version = try await client.getVersion()
-        XCTAssertEqual(version.version, "3.0.4")
+        XCTAssertEqual(version.version, "3.0.8")
         try await client.pause("gid")
         try await client.changeGlobalOption(["bt-tracker": "https://tracker.example/announce"])
         try await client.replaceTorrentTrackers("gid", trackers: [.init(url: "https://tracker.example/announce", tier: 3)])
@@ -123,12 +123,12 @@ final class WebSocketRPCTests: XCTestCase {
         let cancelled = Task { try await client.pause("cancel") }
         try await eventually { calls.value == 1 }
         let concurrentVersion = try await client.getVersion()
-        XCTAssertEqual(concurrentVersion.version, "3.0.4", "A stalled HTTP request must not block other requests")
+        XCTAssertEqual(concurrentVersion.version, "3.0.8", "A stalled HTTP request must not block other requests")
         cancelled.cancel()
         do { try await cancelled.value; XCTFail("Expected cancellation") }
         catch { XCTAssertTrue(error is CancellationError || (error as? URLError)?.code == .cancelled) }
         let version = try await client.getVersion()
-        XCTAssertEqual(version.version, "3.0.4", "Cancelling one request must leave HTTP usable")
+        XCTAssertEqual(version.version, "3.0.8", "Cancelling one request must leave HTTP usable")
         let waiting = Task { try await client.pause("close") }
         try await eventually { calls.value == 4 }
         await client.close()
@@ -303,7 +303,7 @@ private final class HybridURLProtocol: URLProtocol {
 }
 
 private final class StubRPCSocket: RPCWebSocketConnection, @unchecked Sendable {
-    static var capabilities: [String: Any] { ["product": "aria2-next", "version": "3.0.4", "rpcVersion": "1.1.0",
+    static var capabilities: [String: Any] { ["product": "aria2-next", "version": "3.0.8", "rpcVersion": "1.1.0",
         "enabledFeatures": ["BitTorrent"], "mediaFeatures": []] }
     private let messages: AsyncThrowingStream<URLSessionWebSocketTask.Message, any Error>
     let incoming: AsyncThrowingStream<URLSessionWebSocketTask.Message, any Error>.Continuation

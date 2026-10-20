@@ -3899,36 +3899,36 @@
         }
       }
     },
-    "ChopChop requires Aria2 Next 3.0.4 or later to download files. Install a supported engine to continue. It will start automatically.": {
+    "ChopChop requires Aria2 Next 3.0.8 or later to download files. Install a supported engine to continue. It will start automatically.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop requires Aria2 Next 3.0.4 or later to download files. Install a supported engine to continue. It will start automatically."
+            "value": "ChopChop requires Aria2 Next 3.0.8 or later to download files. Install a supported engine to continue. It will start automatically."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop 需要 Aria2 Next 3.0.4 或更高版本来下载文件。请先安装支持的引擎，它会自动启动。"
+            "value": "ChopChop 需要 Aria2 Next 3.0.8 或更高版本来下载文件。请先安装支持的引擎，它会自动启动。"
           }
         }
       }
     },
-    "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates.": {
+    "ChopChop requires Aria2 Next 3.0.8 or later. Install a supported engine in Settings → Updates.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates."
+            "value": "ChopChop requires Aria2 Next 3.0.8 or later. Install a supported engine in Settings → Updates."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ChopChop 需要 Aria2 Next 3.0.4 或更高版本。请在“设置 → 更新”中安装支持的引擎。"
+            "value": "ChopChop 需要 Aria2 Next 3.0.8 或更高版本。请在“设置 → 更新”中安装支持的引擎。"
           }
         }
       }
@@ -20255,6 +20255,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "此步骤已用时：%@"
+          }
+        }
+      }
+    },
+    "Ask trackers, DHT and local peers for sources while keeping current connections. Trackers may enforce a minimum announce interval.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask trackers, DHT and local peers for sources while keeping current connections. Trackers may enforce a minimum announce interval."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向 Tracker、DHT 和局域网节点重新查找来源，并保留现有连接。Tracker 可能设有最短请求间隔。"
+          }
+        }
+      }
+    },
+    "Find Sources Again": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find Sources Again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新寻找来源"
+          }
+        }
+      }
+    },
+    "Find Sources Failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find Sources Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新寻源失败"
+          }
+        }
+      }
+    },
+    "This download cannot safely resume. The server may not support byte ranges, or the remote file or saved progress may have changed. Use Edit and Add Again to download a separate copy without overwriting an existing file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This download cannot safely resume. The server may not support byte ranges, or the remote file or saved progress may have changed. Use Edit and Add Again to download a separate copy without overwriting an existing file."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此下载无法安全续传：服务器可能不支持分段请求，或远程文件、已保存的进度发生了变化。请使用“编辑并重新添加”下载一份新副本，不会覆盖已有文件。"
           }
         }
       }

@@ -9,6 +9,9 @@ nonisolated enum EngineDownloadFilePolicy {
         var result = task
         guard task.status == .failed else { return result }
         for index in result.files.indices where result.files[index].storagePath != nil {
+            // A refused adoption is not ownership, even if an earlier poll saw a
+            // same-name partial file. Never recover that path as a Trash target.
+            if task.errorCode == "8", result.files[index].storagePath == "" { continue }
             if let old = previous.files.first(where: { $0.index == result.files[index].index }),
                let path = old.storagePath, !path.isEmpty {
                 result.files[index].storagePath = path
@@ -20,6 +23,13 @@ nonisolated enum EngineDownloadFilePolicy {
     static func applying(_ options: [String: String], to task: DownloadTask) -> DownloadTask {
         var result = task
         for index in result.files.indices { result.files[index].storagePath = nil }
+        if task.status == .failed, task.errorCode == "8", task.media == nil,
+           [.http, .metalink, .thunder].contains(task.protocolKind), options["continue"] != "false" {
+            // CannotResume can reject a preexisting unsuffixed file before opening
+            // it, or stop an adopted file after a server changes. Neither is ours.
+            for index in result.files.indices { result.files[index].storagePath = "" }
+            return result
+        }
         guard task.media == nil, [.http, .sftp, .metalink].contains(task.protocolKind), task.status != .completed,
               let suffix = options["incomplete-suffix"], !suffix.isEmpty,
               !suffix.contains(where: { "/\\:*?\"<>|".contains($0) || $0.isNewline || $0 == "\0" }) else { return result }

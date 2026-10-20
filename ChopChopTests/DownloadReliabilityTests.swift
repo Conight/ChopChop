@@ -4,6 +4,42 @@ import XCTest
 @testable import ChopChop
 
 final class DownloadReliabilityTests: XCTestCase {
+    func testCannotResumeProtectsAdoptedFilesEvenWithoutSuffixOptions() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let original = directory.appendingPathComponent("existing.bin")
+        let bytes = Data([9, 8, 7])
+        try bytes.write(to: original)
+        var value = try task(#"{"gid":"refused","status":"error","totalLength":"100","completedLength":"3","errorCode":"8","errorMessage":"The server ignores byte ranges"}"#)
+        value.files = [DownloadFile(index: 1, path: original.path, length: 100, completedLength: 3, isSelected: true)]
+        for options in [[:], ["continue": "true"], ["continue": "true", "incomplete-suffix": ".part"]] {
+            let failed = EngineDownloadFilePolicy.applying(options, to: value)
+            XCTAssertFalse(failed.hasReportedTrashableFiles)
+            XCTAssertTrue(DownloadTaskFileTrash.plan(for: failed).primaryTargets.isEmpty)
+            try DownloadTaskFileTrash.moveTaskFilesToTrash(failed)
+            XCTAssertEqual(try Data(contentsOf: original), bytes)
+            var previous = value
+            previous.files[0].storagePath = original.path + ".part"
+            let refreshed = EngineDownloadFilePolicy.preservingOwnedPaths(failed, previous: previous)
+            XCTAssertEqual(refreshed.files[0].storagePath, "")
+            let restored = try JSONDecoder().decode(DownloadTask.self, from: JSONEncoder().encode(refreshed))
+            XCTAssertTrue(DownloadTaskFileTrash.plan(for: restored).primaryTargets.isEmpty)
+        }
+        XCTAssertTrue(try XCTUnwrap(value.failureExplanation).contains("Edit and Add Again"))
+        XCTAssertEqual(value.errorMessage, "The server ignores byte ranges", "Keep the engine diagnosis for logs")
+        XCTAssertEqual(DownloadRowPresentation(value).errorMessage, value.failureExplanation)
+    }
+
+    func testCannotResumeStillAllowsCleanupOfOurSeparatePartialFile() throws {
+        var value = try task(#"{"gid":"owned","status":"error","totalLength":"100","completedLength":"40","errorCode":"8"}"#)
+        value.files = [DownloadFile(index: 1, path: "/tmp/owned.bin", length: 100, completedLength: 40, isSelected: true)]
+        let failed = EngineDownloadFilePolicy.applying(EngineDownloadFilePolicy.newTaskOptions, to: value)
+        XCTAssertEqual(DownloadTaskFileTrash.plan(for: failed).primaryTargets.map(\.path), ["/tmp/owned.bin.part"])
+        let plan = DownloadTaskFileTrash.plan(for: failed)
+        XCTAssertFalse((plan.primaryTargets + plan.companionTargets).map(\.path).contains("/tmp/owned.bin"))
+    }
+
     func testThunderBytePreservationAndNativeSubmission() throws {
         let bytes = Data("AAhttps://example.com/".utf8) + Data([0xd6, 0xd0]) + Data(".zipZZ".utf8)
         let link = "thunder://" + bytes.base64EncodedString()

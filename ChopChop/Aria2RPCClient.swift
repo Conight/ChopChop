@@ -490,6 +490,11 @@ nonisolated struct Aria2RPCClient: Sendable {
     }
 
     @concurrent
+    func announceTorrent(_ gid: String) async throws {
+        let _: String = try await call("aria2.forceBtAnnounce", params: [gid], as: String.self)
+    }
+
+    @concurrent
     func recheckTorrent(_ gid: String) async throws {
         let _: String = try await call("aria2.forceBtRecheck", params: [gid], as: String.self)
     }

@@ -92,6 +92,15 @@ extension DownloadStore {
         _ = await refreshTasks(reportErrors: false)
     }
 
+    func findTorrentSources(_ task: DownloadTask) async {
+        guard let current = tasks.first(where: { $0.id == task.id }), current.canFindTorrentSources,
+              DownloadAction.engineReady(in: self), !isPerformingBatchOperation,
+              engineCapabilities?.supportsTorrentManagement == true else { return }
+        await performTaskMutation(alertTitle: String(localized: "Find Sources Failed")) { client in
+            try await client.announceTorrent(current.id)
+        }
+    }
+
     func recheckTorrent(_ task: DownloadTask) async {
         guard let current = tasks.first(where: { $0.id == task.id }),
               current.isTorrentLike, current.isAvailableInEngine, current.status == .active,

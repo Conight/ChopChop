@@ -2007,31 +2007,31 @@ final class DownloadStore {
             guard isCurrentBitTorrentSelection(requestID) else { throw CancellationError() }
         }
         try checkCurrent()
-        var snapshot = try await client.tellStatus(gid)
+        let snapshot = try await client.tellStatus(gid)
         try checkCurrent()
         // Metadata may arrive while the user presses Retry. Never resume a task
         // that is already waiting for file selection, or bypass its queue position.
         if TorrentFileTree.isResolved(snapshot, source: source, followed: followed) || snapshot.task.status == .waiting { return }
         if snapshot.task.status == .active {
-            try await client.forcePause(gid)
-        }
-        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
-        while snapshot.task.status != .paused {
+            // Keep existing metadata connections and the pause-metadata selection gate.
+            do {
+                try await client.announceTorrent(gid)
+            } catch {
+                try checkCurrent()
+                // Metadata can complete and pause the handle between tellStatus
+                // and announce. A ready file-selection sheet is still success.
+                let latest = try await client.tellStatus(gid)
+                try checkCurrent()
+                if TorrentFileTree.isResolved(latest, source: source, followed: followed) { return }
+                throw error
+            }
+        } else if snapshot.task.status == .paused {
+            try await client.changeOption(gid: gid, options: ["pause-metadata": "true"])
             try checkCurrent()
-            if snapshot.task.status == .failed || snapshot.task.status == .removed {
-                throw DownloadOperationError(snapshot.task.errorMessage ?? String(localized: "The engine could not retrieve this torrent. Check the source or open a local torrent file."))
-            }
-            guard ContinuousClock.now < deadline else {
-                throw DownloadOperationError(String(localized: "The engine did not pause the task in time. Try again to check its current state."))
-            }
-            try await Task.sleep(for: .milliseconds(250))
-            snapshot = try await client.tellStatus(gid)
+            try await client.resume(gid)
+        } else {
+            throw DownloadOperationError(snapshot.task.errorMessage ?? String(localized: "The engine could not retrieve this torrent. Check the source or open a local torrent file."))
         }
-        try checkCurrent()
-        if TorrentFileTree.isResolved(snapshot, source: source, followed: followed) { return }
-        try await client.changeOption(gid: gid, options: ["pause-metadata": "true"])
-        try checkCurrent()
-        try await client.resume(gid)
         try checkCurrent()
         updateBitTorrentSelectionSession {
             $0.startedAt = Date(); $0.discovery = nil; $0.isPaused = false

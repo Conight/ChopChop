@@ -89,7 +89,7 @@ nonisolated struct EngineVersion: Comparable, Hashable, Codable, Sendable, Custo
 
     var description: String { "\(major).\(minor).\(patch)" }
     private static func isSupported(major: Int, minor: Int, patch: Int) -> Bool {
-        minor >= 0 && patch >= 0 && (major, minor, patch) >= (3, 0, 4)
+        minor >= 0 && patch >= 0 && (major, minor, patch) >= (3, 0, 8)
     }
     // Validate persisted versions too: synthesized Codable would bypass the version floor.
     init(from decoder: any Decoder) throws {
@@ -146,7 +146,7 @@ nonisolated enum EngineInstallationError: LocalizedError {
         case .invalidRelease: String(localized: "This release does not contain a supported Apple Silicon engine.")
         case .invalidChecksum: String(localized: "The downloaded engine did not match its official SHA-256 checksum. Please retry.")
         case .invalidExecutable: String(localized: "The downloaded file is not a supported Apple Silicon Aria2 Next executable.")
-        case .unsupportedVersion: String(localized: "ChopChop requires Aria2 Next 3.0.4 or later. Install a supported engine in Settings → Updates.")
+        case .unsupportedVersion: String(localized: "ChopChop requires Aria2 Next 3.0.8 or later. Install a supported engine in Settings → Updates.")
         case .unexpectedResponse(let code): String(localized: "The download server returned HTTP \(code). Please try again later.")
         case .installationFailed(let message): String(localized: "Could not install Aria2 Next. \(message)")
         }

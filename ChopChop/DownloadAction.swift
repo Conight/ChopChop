@@ -5,7 +5,7 @@ import SwiftUI
 /// Display strings never identify a command or locate a window.
 enum DownloadAction: String, CaseIterable, Identifiable {
     case newDownload, pasteLink, openFile, details, reveal, pause, resume, editAgain, remove
-    case finishRecording, retryMedia, moveToTop, speedLimits, schedule
+    case finishRecording, retryMedia, findTorrentSources, moveToTop, speedLimits, schedule
     case searchDownloads, refresh, pauseAll, forcePauseAll, resumeAll, clearFinished
     case startEngine, restartEngine, stopEngine, engineSettings, checkUpdates, diagnostics, help
     var id: String { rawValue }
@@ -24,6 +24,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .remove: "Remove Download…"
         case .finishRecording: "Finish Recording and Save"
         case .retryMedia: "Retry with Saved Progress"
+        case .findTorrentSources: "Find Sources Again"
         case .moveToTop: "Move to Top of Queue"
         case .speedLimits: "Set Task Speed Limits…"
         case .schedule: "Schedule Download…"
@@ -55,6 +56,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .remove, .clearFinished: "trash"
         case .finishRecording, .stopEngine: "stop"
         case .retryMedia, .refresh, .restartEngine: "arrow.clockwise"
+        case .findTorrentSources: "antenna.radiowaves.left.and.right"
         case .moveToTop: "arrow.up.to.line"
         case .speedLimits: "speedometer"
         case .schedule: "calendar"
@@ -67,7 +69,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     var group: String {
         switch self {
         case .newDownload, .pasteLink, .openFile: L10n.key("Add Download")
-        case .details, .reveal, .pause, .resume, .editAgain, .remove, .finishRecording, .retryMedia, .moveToTop, .speedLimits, .schedule:
+        case .details, .reveal, .pause, .resume, .editAgain, .remove, .finishRecording, .retryMedia, .findTorrentSources, .moveToTop, .speedLimits, .schedule:
             L10n.key("Selected Download")
         case .searchDownloads, .refresh, .pauseAll, .forcePauseAll, .resumeAll, .clearFinished: L10n.key("Downloads")
         case .startEngine, .restartEngine, .stopEngine, .engineSettings: L10n.key("Engine")
@@ -130,6 +132,8 @@ enum DownloadAction: String, CaseIterable, Identifiable {
             store.inputCoordinator.owner == nil && store.removalRequest == nil && !context.tasks.isEmpty
         case .finishRecording: return ready && task?.canFinishRecording == true
         case .retryMedia: return ready && task?.canRetryMedia == true
+        case .findTorrentSources:
+            return ready && task?.canFindTorrentSources == true && store.engineCapabilities?.supportsTorrentManagement == true
         case .moveToTop: return ready && task?.isAvailableInEngine == true && task?.queuePosition != nil
         case .speedLimits, .schedule:
             return ready && context.window?.showDetails != nil && task?.isAvailableInEngine == true && task?.primaryControlAction != nil && task?.requiresFileSelection == false
@@ -162,6 +166,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .remove: store.beginRemoveSelected(context.ids)
         case .finishRecording: if let task { Task { await store.finishRecording(task) } }
         case .retryMedia: if let task { Task { await store.retryMedia(task) } }
+        case .findTorrentSources: if let task { Task { await store.findTorrentSources(task) } }
         case .moveToTop: if let task { Task { await store.moveQueuedTask(task.id) } }
         case .speedLimits: context.window?.showDetails?(.speedLimits)
         case .schedule: context.window?.showDetails?(.schedule)

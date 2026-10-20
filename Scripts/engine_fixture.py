@@ -11,8 +11,8 @@ CONFIGURATION = Path(__file__).resolve().parent / "engine-test-release.json"
 def download_engine(destination):
     config = json.loads(CONFIGURATION.read_text())
     version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", config["version"])
-    if not version or tuple(map(int, version.groups())) < (3, 0, 4):
-        raise ValueError("Integration tests require a stable Aria2 Next 3.0.4 or later release")
+    if not version or tuple(map(int, version.groups())) < (3, 0, 8):
+        raise ValueError("Integration tests require a stable Aria2 Next 3.0.8 or later release")
     destination = Path(destination)
     try:
         subprocess.run(["curl", "--fail", "--location", "--silent", "--show-error", "--retry", "2",

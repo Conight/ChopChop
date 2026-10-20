@@ -61,6 +61,16 @@ nonisolated enum DownloadProgressState: Equatable, Sendable {
 }
 
 nonisolated extension DownloadTask {
+    var canFindTorrentSources: Bool {
+        isTorrentLike && isAvailableInEngine && status == .active && torrentFileIssue == nil
+    }
+
+    var failureExplanation: String? {
+        guard status == .failed, errorCode == "8", media == nil,
+              [.http, .metalink, .thunder].contains(protocolKind) else { return errorMessage }
+        return String(localized: "This download cannot safely resume. The server may not support byte ranges, or the remote file or saved progress may have changed. Use Edit and Add Again to download a separate copy without overwriting an existing file.")
+    }
+
     var progressState: DownloadProgressState {
         if status == .completed { return .determinate(1) }
         if isChecking || isFetchingMetadata { return .indeterminate }

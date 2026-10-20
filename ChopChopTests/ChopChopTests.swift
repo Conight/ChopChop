@@ -77,8 +77,74 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(reads.value(), 2)
     }
 
-    func testRPCRejectsEveryEngineBefore304() async throws {
-        for version in ["2.8.6", "3.0.0", "3.0.1", "3.0.2", "3.0.3"] {
+    @MainActor
+    func testFindSourcesOnlyAnnouncesTheCurrentActiveTorrent() async throws {
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            if method == "aria2.forceBtAnnounce" {
+                let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+                XCTAssertEqual(body["params"] as? [String], ["token:secret", "torrent"])
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"torrent"}"#)
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.runtime.phase = .running(pid: 1)
+        store.engineCapabilities = EngineCapabilities(version: "3.0.8", enabledFeatures: ["BitTorrent"])
+        let active = makeTask(id: "torrent", protocolKind: .bitTorrent, status: .active)
+        let context = DownloadActionContext(store: store, taskID: active.id)
+        for status in DownloadStatus.allCases where status != .active {
+            var current = active; current.status = status
+            store.tasks = [current]
+            XCTAssertFalse(DownloadAction.findTorrentSources.isEnabled(in: context))
+            await store.findTorrentSources(active) // A stale menu must not resume this task.
+        }
+        var offline = active; offline.isAvailableInEngine = false
+        store.tasks = [offline]
+        XCTAssertFalse(DownloadAction.findTorrentSources.isEnabled(in: context))
+        await store.findTorrentSources(active)
+        store.tasks = [makeTask(id: "torrent", status: .active)]
+        XCTAssertFalse(DownloadAction.findTorrentSources.isEnabled(in: context))
+        await store.findTorrentSources(active)
+        XCTAssertTrue(calls.value().isEmpty)
+        store.tasks = [active]
+        XCTAssertTrue(DownloadAction.findTorrentSources.isEnabled(in: context))
+        store.runtime.phase = .stopped
+        XCTAssertFalse(DownloadAction.findTorrentSources.isEnabled(in: context))
+        await store.findTorrentSources(active)
+        store.runtime.phase = .running(pid: 1)
+        await store.findTorrentSources(active)
+        XCTAssertEqual(calls.value().filter { $0 == "aria2.forceBtAnnounce" }.count, 1)
+        XCTAssertFalse(calls.value().contains("aria2.forcePause"))
+        XCTAssertFalse(calls.value().contains("aria2.unpause"))
+    }
+
+    func testRemovingCannotResumeResultDoesNotClaimTheExistingFile() async throws {
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            switch method {
+            case "aria2.tellStatus":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"refused","status":"error","errorCode":"8","totalLength":"100","completedLength":"0","files":[{"index":"1","path":"/tmp/existing.bin","length":"100","completedLength":"0","selected":"true"}]}}"#)
+            case "aria2.getOption":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"continue":"true","incomplete-suffix":".part"}}"#)
+            default:
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+            }
+        }
+        let task = makeTask(id: "refused", status: .failed, files: [
+            DownloadFile(path: "/tmp/existing.bin", length: 100, completedLength: 0, isSelected: true)
+        ])
+        let removed = try await DownloadTaskRPCOperations.remove(task, using: client, captureFiles: true)
+        XCTAssertEqual(removed.files.first?.storagePath, "")
+        XCTAssertTrue(DownloadTaskFileTrash.plan(for: removed).primaryTargets.isEmpty)
+        XCTAssertEqual(calls.value().last, "aria2.removeDownloadResult")
+    }
+
+    func testRPCRejectsEveryEngineBefore308() async throws {
+        for version in ["2.8.6", "3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "3.0.5", "3.0.6", "3.0.7"] {
             let client = try makeRPCClient { request in
                 try Self.rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"\#(version)","rpcVersion":"1.1.0","enabledFeatures":[],"mediaFeatures":[]}}"#)
             }
@@ -2086,22 +2152,27 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testMagnetDiscoveryShowsPartialDiagnosticsAndReconnectsSameTask() async throws {
-        try await verifyDiscoveryRetry(metadataDuringPause: false, cancelDuringPause: false)
+    func testMagnetDiscoveryShowsPartialDiagnosticsAndAnnouncesWithoutDisconnecting() async throws {
+        try await verifyDiscoveryRetry(metadataDuringAnnounce: false, cancelAfterAnnounce: false)
     }
 
     @MainActor
-    func testMagnetDiscoveryRetryDoesNotResumeMetadataArrivingDuringPause() async throws {
-        try await verifyDiscoveryRetry(metadataDuringPause: true, cancelDuringPause: false)
+    func testMagnetDiscoveryRetryDoesNotResumeMetadataArrivingDuringAnnounce() async throws {
+        try await verifyDiscoveryRetry(metadataDuringAnnounce: true, cancelAfterAnnounce: false)
     }
 
     @MainActor
-    func testMagnetDiscoveryCancelledRetryCannotResumeOrRestoreSheet() async throws {
-        try await verifyDiscoveryRetry(metadataDuringPause: false, cancelDuringPause: true)
+    func testMagnetDiscoveryCancelledAnnounceCannotResumeOrRestoreSheet() async throws {
+        try await verifyDiscoveryRetry(metadataDuringAnnounce: false, cancelAfterAnnounce: true)
     }
 
     @MainActor
-    private func verifyDiscoveryRetry(metadataDuringPause: Bool, cancelDuringPause: Bool) async throws {
+    func testPausedMetadataRetryResumesWithSelectionGate() async throws {
+        try await verifyDiscoveryRetry(metadataDuringAnnounce: false, cancelAfterAnnounce: false, initialStatus: "paused")
+    }
+
+    @MainActor
+    private func verifyDiscoveryRetry(metadataDuringAnnounce: Bool, cancelAfterAnnounce: Bool, initialStatus: String = "active") async throws {
         let methods = LockedBox<[String]>([])
         let state = LockedBox((status: "active", resolved: false))
         let client = try makeRPCClient { request in
@@ -2122,8 +2193,11 @@ final class ChopChopTests: XCTestCase {
                     : #"{"state":"downloadingMetadata","numPeers":"2"}"#
                 let files = current.resolved ? #"[{"index":"1","path":"/tmp/Fixture/file.bin","length":"123","completedLength":"0","selected":"true"}]"# : "[]"
                 return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"discovery-gid\",\"status\":\"\(current.status)\",\"bittorrent\":\(bt),\"files\":\(files)}}")
-            case "aria2.forcePause":
-                if !cancelDuringPause { state.withValue { $0 = ("paused", metadataDuringPause) } }
+            case "aria2.forceBtAnnounce":
+                if metadataDuringAnnounce {
+                    state.withValue { $0 = ("paused", true) }
+                    return try Self.rpcHTTPResponse(for: request, body: #"{"error":{"code":1,"message":"Torrent is not running"}}"#)
+                }
             case "aria2.unpause":
                 state.withValue { $0.status = "active" }
             case "aria2.changeOption":
@@ -2150,18 +2224,19 @@ final class ChopChopTests: XCTestCase {
         XCTAssertNil(store.bitTorrentSelectionSession?.discovery?.dhtNodes)
         XCTAssertEqual(store.bitTorrentSelectionSession?.discoveryStage, .handshaking)
         store.bitTorrentSelectionSession?.startedAt = Date().addingTimeInterval(-120)
+        state.withValue { $0.status = initialStatus }
         store.retryBitTorrentDiscovery()
-        store.retryBitTorrentDiscovery() // A double click must not enqueue another reconnect.
+        store.retryBitTorrentDiscovery() // A double click must not enqueue another request.
         XCTAssertTrue(store.isRetryingBitTorrentDiscovery)
-        if cancelDuringPause {
-            let pausing = await waitForMainActorCondition(timeout: 3) { methods.value().contains("aria2.forcePause") }
-            XCTAssertTrue(pausing)
+        if cancelAfterAnnounce {
+            let announcing = await waitForMainActorCondition(timeout: 3) { methods.value().contains("aria2.forceBtAnnounce") }
+            XCTAssertTrue(announcing)
             await store.cancelBitTorrentFileSelection()
             await waiting.value
             XCTAssertNil(store.bitTorrentSelectionSession)
             XCTAssertFalse(store.isRetryingBitTorrentDiscovery)
             XCTAssertFalse(methods.value().contains("aria2.unpause"))
-        } else if metadataDuringPause {
+        } else if metadataDuringAnnounce {
             let ready = await waitForMainActorCondition(timeout: 3) { store.bitTorrentSelectionSession?.phase == .ready }
             XCTAssertTrue(ready)
             await waiting.value
@@ -2171,14 +2246,16 @@ final class ChopChopTests: XCTestCase {
         } else {
             let retried = await waitForMainActorCondition(timeout: 3) { !store.isRetryingBitTorrentDiscovery }
             XCTAssertTrue(retried)
-            XCTAssertEqual(methods.value().filter { $0 == "aria2.unpause" }.count, 1)
+            XCTAssertEqual(methods.value().filter { $0 == "aria2.unpause" }.count, initialStatus == "paused" ? 1 : 0)
             XCTAssertEqual(store.bitTorrentSelectionSession?.phase, .loading)
             XCTAssertFalse(store.bitTorrentSelectionSession?.isDiscoverySlow(at: Date()) ?? true)
             XCTAssertEqual(store.bitTorrentSelectionSession?.metadataTaskID, "discovery-gid")
         }
         XCTAssertEqual(methods.value().filter { $0 == "aria2.addUri" }.count, 1)
-        XCTAssertEqual(methods.value().filter { $0 == "aria2.forcePause" }.count, 1)
-        if !cancelDuringPause {
+        XCTAssertFalse(methods.value().contains("aria2.forcePause"))
+        XCTAssertEqual(methods.value().filter { $0 == "aria2.forceBtAnnounce" }.count, initialStatus == "active" ? 1 : 0)
+        if initialStatus == "active" { XCTAssertFalse(methods.value().contains("aria2.changeOption")) }
+        if !cancelAfterAnnounce {
             XCTAssertFalse(methods.value().contains("aria2.forceRemove"))
             await store.cancelBitTorrentFileSelection()
             await waiting.value
@@ -5331,7 +5408,7 @@ final class ChopChopTests: XCTestCase {
     ) throws -> (HTTPURLResponse, Data) {
         switch method {
         case "aria2.getVersion":
-            return try rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.0.4","rpcVersion":"1.1.0","enabledFeatures":["HTTPS","BitTorrent"],"mediaFeatures":[]}}"#)
+            return try rpcHTTPResponse(for: request, body: #"{"result":{"product":"aria2-next","version":"3.0.8","downloadFeatures":["filename-hints","filename-resolution"],"rpcVersion":"1.1.0","enabledFeatures":["HTTPS","BitTorrent"],"mediaFeatures":[]}}"#)
         case "aria2.getOption":
             return try rpcHTTPResponse(for: request, body: #"{"result":{}}"#)
         case "aria2.tellStatus":

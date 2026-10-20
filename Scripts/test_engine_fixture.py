@@ -10,21 +10,21 @@ from engine_fixture import download_engine
 class EngineFixtureTests(unittest.TestCase):
     def test_only_verified_fixture_is_executable_and_returned(self):
         data = b"isolated engine fixture"
-        configuration = {"version": "3.0.4", "url": "https://example.invalid/engine", "sha256": hashlib.sha256(data).hexdigest()}
+        configuration = {"version": "3.0.8", "url": "https://example.invalid/engine", "sha256": hashlib.sha256(data).hexdigest()}
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "engine"
             def transfer(_command, **_kwargs):
                 destination.write_bytes(data)
             with patch("engine_fixture.json.loads", return_value=configuration), patch("engine_fixture.subprocess.run", side_effect=transfer):
-                self.assertEqual(download_engine(destination), "3.0.4")
+                self.assertEqual(download_engine(destination), "3.0.8")
                 self.assertEqual(destination.stat().st_mode & 0o777, 0o755)
                 configuration["sha256"] = "0" * 64
                 with self.assertRaises(AssertionError):
                     download_engine(destination)
                 self.assertFalse(destination.exists(), "A corrupt engine must not remain available to tests")
 
-    def test_engines_before_304_are_rejected_before_network_access(self):
-        for version in ["2.8.6", "3.0.0", "3.0.1", "3.0.2", "3.0.3"]:
+    def test_engines_before_308_are_rejected_before_network_access(self):
+        for version in ["2.8.6", "3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "3.0.5", "3.0.6", "3.0.7"]:
             with patch("engine_fixture.json.loads", return_value={"version": version}), patch("engine_fixture.subprocess.run") as run:
                 with self.assertRaises(ValueError):
                     download_engine("/unused/engine")

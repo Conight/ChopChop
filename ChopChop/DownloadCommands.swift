@@ -170,7 +170,7 @@ struct DownloadCommands: Commands {
             DownloadActionButton(action: .refresh, context: context, usesShortcut: true)
             Divider()
             DownloadActionButton(action: .reveal, context: context, usesShortcut: true)
-            ForEach([DownloadAction.pause, .resume, .speedLimits, .schedule, .finishRecording, .retryMedia, .moveToTop, .editAgain, .remove]) { action in
+            ForEach([DownloadAction.pause, .resume, .speedLimits, .schedule, .finishRecording, .retryMedia, .findTorrentSources, .moveToTop, .editAgain, .remove]) { action in
                 // Text editors retain Command-Delete (delete to the start of the line).
                 // Only the focused task list registers the removal shortcut.
                 DownloadActionButton(action: action, context: action == .remove ? listContext ?? context : context,

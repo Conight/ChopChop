@@ -202,7 +202,7 @@ struct TaskInspectorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }.contentPanel()
             }
-            if let error = task.errorMessage, task.status == .failed {
+            if let error = task.failureExplanation, task.status == .failed {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.red).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)

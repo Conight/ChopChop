@@ -293,6 +293,7 @@ struct DownloadTaskContextMenu: View {
             DownloadActionButton(action: .schedule, context: context)
         }
         if task.canFinishRecording { DownloadActionButton(action: .finishRecording, context: context) }
+        if task.isTorrentLike { DownloadActionButton(action: .findTorrentSources, context: context) }
         if task.canRetryMedia { DownloadActionButton(action: .retryMedia, context: context) }
         if task.canEditAndAddAgain { DownloadActionButton(action: .editAgain, context: context) }
         if task.queuePosition != nil { DownloadActionButton(action: .moveToTop, context: context) }

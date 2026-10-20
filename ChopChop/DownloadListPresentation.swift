@@ -47,7 +47,7 @@ nonisolated struct DownloadRowPresentation: Equatable {
         let display = DownloadListTaskDisplay(task: task)
         id = task.id; name = task.name; protocolKind = task.protocolKind
         status = task.status; phaseLabel = task.phaseLabel; statusSymbol = display.statusSymbol
-        errorMessage = task.errorMessage; torrentFileIssue = task.torrentFileIssue
+        errorMessage = task.failureExplanation; torrentFileIssue = task.torrentFileIssue
         scheduledStart = task.scheduledStart; isTorrentLike = task.isTorrentLike
         showsTransferRates = display.showsTransferRates; canReorderInQueue = task.canReorderInQueue
         primaryControlAction = task.primaryControlAction; canEditAndAddAgain = task.canEditAndAddAgain
