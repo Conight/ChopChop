@@ -12,7 +12,7 @@ final class SettingsAndTablesTests: XCTestCase {
         XCTAssertTrue(SettingsSearchIndex.results(for: "上传 限速").contains { $0.id == "network.global-upload-limit" })
         XCTAssertEqual(SettingsSearchIndex.results(for: "RPC port").map(\.id), ["engine.rpc-port"])
         XCTAssertTrue(SettingsSearchIndex.results(for: "RPC token").isEmpty)
-        XCTAssertTrue(SettingsSearchIndex.results(for: "Start Engine").isEmpty)
+        XCTAssertFalse(entries.contains { $0.id == "engine.start-engine" })
         XCTAssertEqual(SettingsSearchIndex.results(for: "重启").map(\.id), ["engine.advanced"])
         XCTAssertTrue(SettingsSearchIndex.results(for: "nothing matches this").isEmpty)
         let model = SettingsSearchModel()
