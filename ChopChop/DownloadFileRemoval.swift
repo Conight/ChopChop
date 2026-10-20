@@ -20,7 +20,7 @@ nonisolated enum DownloadTaskFileTrash {
             ? nil
             : URL(fileURLWithPath: task.destination).standardizedFileURL
         let reportedURLs = uniqueURLs(
-            task.files
+            task.reportedTrashableFiles
                 .map(\.diskPath)
                 .filter(DownloadTaskTrashPath.isReportedUserContentPath)
                 .map { URL(fileURLWithPath: $0).standardizedFileURL }

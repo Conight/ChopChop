@@ -242,7 +242,13 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
     }
 
     var hasReportedTrashableFiles: Bool {
-        files.contains { DownloadTaskTrashPath.isReportedUserContentPath($0.diskPath) }
+        reportedTrashableFiles.contains { DownloadTaskTrashPath.isReportedUserContentPath($0.diskPath) }
+    }
+
+    var reportedTrashableFiles: [DownloadFile] {
+        // History or an absent engine result may have no ownership information.
+        // A CannotResume path alone never authorizes deleting an existing file.
+        files.filter { !cannotResumeHTTPDownload || $0.storagePath != nil }
     }
 
     var progress: Double {

@@ -13,6 +13,10 @@ final class DownloadReliabilityTests: XCTestCase {
         try bytes.write(to: original)
         var value = try task(#"{"gid":"refused","status":"error","totalLength":"100","completedLength":"3","errorCode":"8","errorMessage":"The server ignores byte ranges"}"#)
         value.files = [DownloadFile(index: 1, path: original.path, length: 100, completedLength: 3, isSelected: true)]
+        XCTAssertFalse(value.hasReportedTrashableFiles, "An old record without ownership data cannot authorize file deletion")
+        XCTAssertTrue(DownloadTaskFileTrash.plan(for: value).primaryTargets.isEmpty)
+        XCTAssertThrowsError(try DownloadTaskFileTrash.moveTaskFilesToTrash(value))
+        XCTAssertEqual(try Data(contentsOf: original), bytes)
         for options in [[:], ["continue": "true"], ["continue": "true", "incomplete-suffix": ".part"]] {
             let failed = EngineDownloadFilePolicy.applying(options, to: value)
             XCTAssertFalse(failed.hasReportedTrashableFiles)

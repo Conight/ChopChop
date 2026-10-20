@@ -65,9 +65,12 @@ nonisolated extension DownloadTask {
         isTorrentLike && isAvailableInEngine && status == .active && torrentFileIssue == nil
     }
 
+    var cannotResumeHTTPDownload: Bool {
+        status == .failed && errorCode == "8" && media == nil && [.http, .metalink, .thunder].contains(protocolKind)
+    }
+
     var failureExplanation: String? {
-        guard status == .failed, errorCode == "8", media == nil,
-              [.http, .metalink, .thunder].contains(protocolKind) else { return errorMessage }
+        guard cannotResumeHTTPDownload else { return errorMessage }
         return String(localized: "This download cannot safely resume. The server may not support byte ranges, or the remote file or saved progress may have changed. Use Edit and Add Again to download a separate copy without overwriting an existing file.")
     }
 

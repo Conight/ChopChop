@@ -23,8 +23,7 @@ nonisolated enum EngineDownloadFilePolicy {
     static func applying(_ options: [String: String], to task: DownloadTask) -> DownloadTask {
         var result = task
         for index in result.files.indices { result.files[index].storagePath = nil }
-        if task.status == .failed, task.errorCode == "8", task.media == nil,
-           [.http, .metalink, .thunder].contains(task.protocolKind), options["continue"] != "false" {
+        if task.cannotResumeHTTPDownload, options["continue"] != "false" {
             // CannotResume can reject a preexisting unsuffixed file before opening
             // it, or stop an adopted file after a server changes. Neither is ours.
             for index in result.files.indices { result.files[index].storagePath = "" }
