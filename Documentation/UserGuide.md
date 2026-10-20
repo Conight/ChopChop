@@ -130,15 +130,17 @@ Keep ChopChop running when sending links. If the extension cannot connect, open 
 
 ### Updates, notifications and feedback
 
-Settings has eight top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations, Engine and Updates. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Network, BitTorrent and ED2K keep Apply Settings at the bottom.
+Settings has eight top-level categories: General, Downloads, Network, BitTorrent, ED2K, Integrations, Engine and Updates. Each category contains grouped, scrollable controls on one page. Edit tracker sources and lists directly in BitTorrent, with no nested settings pages. Changes save automatically, and supported settings apply to the running engine. Download defaults apply to new tasks; global bandwidth limits apply to all transfers, including scheduled limits. If an update fails, the footer keeps the error visible and offers Retry.
 
-Tracker lists are stored and sent in full without length truncation. Sync Trackers combines and deduplicates the selected sources, updates the engine's global list, and merges new addresses into downloading or seeding BT tasks while preserving their existing trackers and tiers. Apply Settings also updates active tasks after manual edits. Paused tasks are never resumed automatically for a tracker update.
+Tracker lists are stored and sent in full without length truncation. Sync Trackers combines and deduplicates the selected sources, updates the engine's global list, and merges new addresses into downloading or seeding BT tasks while preserving their existing trackers and tiers. Manual edits apply automatically through the same update process. Paused tasks are never resumed automatically for a tracker update.
 
 Automatic synchronization runs at the selected interval while the app remains open, including in the background, and checks overdue work after waking. Every Startup runs at startup. Failed syncs preserve cached entries and retry after five minutes; partial failures are shown in Tracker settings. Quitting the app stops scheduled network activity.
 
 **App updates:** use ChopChop → Check All Updates… or Settings → Updates. Use Check All Updates for both components, or Check for Updates in the ChopChop or Engine section to check just that component. The shared Check for updates at launch option controls app and Engine checks; manual checks remain available when it is off. Choose Download Update to download directly in ChopChop; the update window shows progress and installation options. Existing tasks, settings and the engine are kept outside the app bundle.
 
 **Engine updates:** open Settings → Updates, or click the sidebar’s New badge. Choose Latest or one of the five newest compatible versions. The sidebar shows a spinner while either component is checking, then returns to the engine runtime status.
+
+**Engine settings:** ChopChop starts and manages its engine automatically. Settings → Engine shows its status, installed version, and links to updates and the Engine’s GitHub project. Retry Connection appears when recovery is needed. Advanced contains the local connection port and troubleshooting information; connection authentication is managed automatically. Changes that require restarting show Restart to Apply… in the footer. Restarting pauses downloads and seeding while preserving progress; resume tasks when ready.
 
 Development builds require manual app-update checks. Stable builds check stable releases; beta builds also include newer prereleases. Checking failures do not stop downloads.
 
@@ -162,7 +164,7 @@ Double-click a task to inspect its details; use its row button or the Downloads 
 
 ### Settings search, multiple selection, and compact details
 
-Use the single **Search settings** field above the sidebar to find a control in English or Simplified Chinese. Results appear below the field without pushing the settings page down. Choose a result, or use Up/Down and Return, to open its category and scroll to the control; no outlines or flashing highlights are added. Escape dismisses the search. The seven categories remain one level deep. Numeric settings explain their units, defaults and scope. Network changes still require **Apply Settings**; listening-port changes require an engine restart.
+Use the single **Search settings** field above the sidebar to find a control in English or Simplified Chinese. Results appear below the field without pushing the settings page down. Choose a result, or use Up/Down and Return, to open its category and scroll to the control; no outlines or flashing highlights are added. Escape dismisses the search. The eight categories remain one level deep. Numeric settings explain their units, defaults and scope. Search opens Advanced when navigating to the engine’s local connection port. Listening-port changes require a confirmed engine restart.
 
 Use Command-click to select individual tasks and Shift-click for a range. The selection bar and Downloads menu can pause, resume or remove selected tasks. Right-clicking inside the selection operates on that selection; right-clicking another task operates on that task. Removal confirms the captured selection once. Batch Resume and Resume All leave tasks requiring torrent-file or media-track selection paused; resume those tasks individually to finish choosing content. Partial failures appear in the download page.
 
