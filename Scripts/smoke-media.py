@@ -49,6 +49,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     requests = []
     denied = False
     live_epoch = None
+    payload_gate = None
 
     def do_GET(self):
         Handler.requests.append(self.path)
@@ -67,10 +68,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if Handler.denied and '.ts' in self.path and self.headers.get('Authorization') != 'Bearer updated':
             self.send_error(403)
             return
-        # Leave time to pause an actual payload transfer.
-        if '.ts' in self.path:
-            time.sleep(.15)
-        super().do_GET()
+        gate = Handler.payload_gate
+        if gate is not None and not gate.permits(self.path):
+            self.send_error(504, 'Test did not release the media payload gate')
+            return
+        try:
+            super().do_GET()
+        except (BrokenPipeError, ConnectionResetError):
+            # Pausing cancels outstanding segment requests, including gated ones.
+            pass
 
     def copyfile(self, source, output):
         try:
@@ -80,6 +86,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, *_):
         pass
+
+
+class PayloadGate:
+    """Withhold selected fixture segments until the test confirms a paused task."""
+    def __init__(self, paths):
+        self.paths = frozenset(paths)
+        self.reached = threading.Event()
+        self.released = threading.Event()
+
+    def permits(self, path, timeout=60):
+        if path.split('?', 1)[0] not in self.paths:
+            return True
+        self.reached.set()
+        return self.released.wait(timeout)
 
 
 def main():
@@ -188,12 +208,24 @@ def main():
             assert len(videos) == 2, snapshot
             choice = next(track for track in videos if track['height'] == '180')
             rpc('changeOption', gid, {'media-video': choice['id'], 'media-audio': choice['id'], 'media-format': 'mkv', 'media-pause-after-probe': 'false'})
-            rpc('unpause', gid)
-            wait(lambda: int(status(gid).get('media', {}).get('completedDuration', '0')) >= 2000)
-            rpc('pause', gid)
-            wait(lambda: status(gid)['status'] == 'paused')
+            # Serve two segments so there is real progress to preserve, then hold
+            # the rest. A fast runner cannot finish between polling and pause.
+            gate = PayloadGate(f'/low-{index:03d}.ts' for index in range(2, 12))
+            Handler.payload_gate = gate
+            try:
+                rpc('unpause', gid)
+                def ready_to_pause():
+                    task = status(gid)
+                    assert task['status'] not in ('error', 'complete'), task
+                    return gate.reached.is_set() and int(task.get('media', {}).get('completedDuration', '0')) >= 2000
+                wait(ready_to_pause)
+                rpc('pause', gid)
+                wait(lambda: status(gid)['status'] == 'paused')
+            finally:
+                Handler.payload_gate = None
+                gate.released.set()
             retained = int(status(gid)['media']['completedDuration'])
-            assert retained > 0
+            assert 0 < retained < 12000, 'Pause must preserve an incomplete download'
             stop()
             requests = len(Handler.requests)
             launch()

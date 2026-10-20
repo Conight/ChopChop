@@ -43,6 +43,8 @@ Window presentation is registered at app scope, independent of the Downloads vie
 
 The Python smoke test downloads a pinned official engine into temporary storage, verifies its SHA-256, and then uses a loopback HTTP server and temporary files. It checks real engine downloads, pause, restart with the original GID and saved progress, final SHA-256, same-name file protection and clean shutdown. It re-signs a **temporary copy** of the helper for standalone execution; the opt-in integration tests verify the downloaded engine inside the app sandbox. No engine executable is tracked in the current source tree or included in build products.
 
+The HLS pause/restart fixture serves two segments, then blocks the remaining payload until the test confirms the task is paused. It does not rely on a fixed response delay: parallel segment downloads can finish between a progress poll and a pause request. A bounded gate timeout fails closed, and pure synchronization tests verify that concurrent requests cannot release the withheld payload.
+
 ## Task-list keyboard commands
 
 Command–Delete invokes the existing Remove Download command for the focused task list's visible selection. It retains single/multiple selection, removal confirmation, the saved confirmation preference and file-trash safeguards. The Downloads menu registers this shortcut only while the list owns focus, so Command–Delete in a search field or sheet retains native text editing. Merely having a selected task in another window does not register the shortcut.

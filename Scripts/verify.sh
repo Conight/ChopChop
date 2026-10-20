@@ -51,6 +51,7 @@ PY
 "$PYTHON" Scripts/check-localizations.py
 "$PYTHON" Scripts/test_release_config.py
 "$PYTHON" Scripts/test_engine_fixture.py
+"$PYTHON" Scripts/test_media_fixture.py
 "$PYTHON" Scripts/test_local_test_policy.py
 node --test Scripts/test-browser-extension.mjs
 CHOPCHOP_DERIVED_DATA="$test_derived_data" Scripts/check.sh keyboard -testLanguage en -testRegion US -parallel-testing-enabled NO -test-iterations 2 -resultBundlePath "$test_results/keyboard.xcresult" 2>&1 | tee "$validation_root/keyboard.log" "$test_results/keyboard.log"
