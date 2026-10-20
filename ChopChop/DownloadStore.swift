@@ -471,6 +471,7 @@ final class DownloadStore {
                 self.startPlanClock()
             }
             let wasRunning = self.engineController.isRunning
+            let previousConfiguration = self.engineSettingsApplication.launchedSettings ?? self.engineSettings
             var switchingEngine = false
             var backup: EngineRuntimeBackup?
             do {
@@ -519,7 +520,9 @@ final class DownloadStore {
                         self.runtime = EngineRuntimeSnapshot(phase: .stopped)
                         if wasRunning && !self.isShuttingDown && !Task.isCancelled {
                             self.engineUpgradeProgress = .init(stage: .restoring)
-                            await self.launchEngine(showAlerts: false)
+                            // Roll back with the configuration that actually ran,
+                            // not pending connection edits that may have failed.
+                            await self.launchEngine(configuration: previousConfiguration, showAlerts: false)
                         }
                         await backup?.discard()
                     } catch {
@@ -925,11 +928,12 @@ final class DownloadStore {
         await launchEngine(startupSync: startupSync)
     }
 
-    private func launchEngine(startupSync: Bool = false, showAlerts: Bool = true) async {
+    private func launchEngine(configuration: EngineSettings? = nil, startupSync: Bool = false, showAlerts: Bool = true) async {
         guard !isShuttingDown else { return }
         clearActivityMessage()
+        let launchSettings = configuration ?? engineSettings
         do {
-            try engineSettings.validateLaunchRequirements()
+            try launchSettings.validateLaunchRequirements()
         } catch {
             runtime = EngineRuntimeSnapshot(phase: .failed(error.localizedDescription), lastError: error.localizedDescription)
             if showAlerts { postError(error, title: String(localized: "Start Engine Failed")) }
@@ -956,7 +960,6 @@ final class DownloadStore {
         do {
             try Task.checkCancellation()
             guard engineSessionID == sessionID else { return }
-            let launchSettings = engineSettings
             let launchBootstrap = ed2kBootstrapStatus
             let launchSnapshot = try await engineController.start(settings: launchSettings)
             guard engineSessionID == sessionID else { return }

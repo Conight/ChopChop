@@ -4612,6 +4612,8 @@ final class ChopChopTests: XCTestCase {
         let (store, controller) = try await makeEngineUpdateStore(manager: manager)
         defer { store.shutdown() }
         controller.rejectedVersion = EngineVersion("3.10.0")
+        let workingPort = store.engineSettings.rpcPort
+        store.engineSettings.rpcPort += 1
         var alerts: [UserFacingAlert] = []
         let subscription = store.userAlerts.sink { alerts.append($0) }
         defer { subscription.cancel() }
@@ -4624,6 +4626,9 @@ final class ChopChopTests: XCTestCase {
         XCTAssertNotNil(store.engineUpgradeError)
         XCTAssertTrue(store.canUpdateEngine)
         XCTAssertTrue(alerts.isEmpty, "Manual update failures are shown in Engine settings")
+        XCTAssertEqual(controller.startedSettings.last?.rpcPort, workingPort, "Rollback must use the connection configuration that actually worked")
+        XCTAssertEqual(store.engineSettings.rpcPort, workingPort + 1, "The user's pending edit remains saved")
+        XCTAssertEqual(store.engineRestartReasons, ["Engine connection"])
         let activations = await manager.activationCount
         XCTAssertEqual(activations, 0)
     }
@@ -5604,6 +5609,7 @@ private final class MockEngineController: Aria2EngineControlling {
     var rejectedVersion: EngineVersion?
     func selectInstallation(_ installation: EngineInstallation) { selectedInstallation = installation }
     var startCallCount = 0
+    var startedSettings: [EngineSettings] = []
     var stopCallCount = 0
     var terminateForAppExitCallCount = 0
 
@@ -5621,6 +5627,7 @@ private final class MockEngineController: Aria2EngineControlling {
 
     func start(settings: EngineSettings) async throws -> EngineRuntimeSnapshot {
         startCallCount += 1
+        startedSettings.append(settings)
         if let rejectedVersion, selectedInstallation?.version == rejectedVersion { throw EngineError.notRunning }
         isRunning = true
         hasLaunchedProcess = true
