@@ -203,6 +203,9 @@ nonisolated enum ED2KBootstrapCache {
     }
 
     private static func atomicWrite(_ data: Data, to url: URL) throws {
+        // Preserve the file revision when a scheduled sync returns identical
+        // bytes. A successful check alone must not require an engine restart.
+        if (try? Data(contentsOf: url)) == data { return }
         let temporaryURL = url.deletingLastPathComponent()
             .appendingPathComponent("\(url.lastPathComponent).tmp", isDirectory: false)
         if FileManager.default.fileExists(atPath: temporaryURL.path) {

@@ -293,6 +293,12 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             "user-agent": userAgent,
             "bt-user-agent": BitTorrentClientIdentity.current.userAgent,
             "bt-peer-id-prefix": BitTorrentClientIdentity.current.peerIDPrefix,
+            "bt-max-peers": "\(btMaxPeers)",
+            "enable-dht": btDHTEnabled.description,
+            "enable-peer-exchange": btPeerExchangeEnabled.description,
+            "bt-enable-lpd": btLocalPeerDiscoveryEnabled.description,
+            "bt-encryption": btForceEncryption ? "required" : "preferred",
+            "ed2k-upload-slots": "\(ed2kUploadSlots)",
             "seed-ratio": keepSharing ? "0" : "\(shareRatio)",
             "pause-metadata": pauseMetadata.description,
             "bt-tracker": TrackerText.commaSeparated(from: btTracker)
@@ -310,13 +316,7 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             options["listen-port"] = "\(listenPort)"
             options["ed2k-listen-port"] = "\(ed2kListenPort)"
             options["ed2k-udp-listen-port"] = "\(ed2kUDPListenPort)"
-            options["ed2k-upload-slots"] = "\(ed2kUploadSlots)"
             options["ed2k-server"] = ED2KServerText.commaSeparated(from: ed2kServer)
-            options["bt-max-peers"] = "\(btMaxPeers)"
-            options["enable-dht"] = btDHTEnabled.description
-            options["enable-peer-exchange"] = btPeerExchangeEnabled.description
-            options["bt-enable-lpd"] = btLocalPeerDiscoveryEnabled.description
-            options["bt-encryption"] = btForceEncryption ? "required" : "preferred"
             options["check-certificate"] = "true"
             if let caCertificatePath = Self.defaultCACertificatePath {
                 options["ca-certificate"] = caCertificatePath
@@ -326,10 +326,68 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     }
 
     func hotReloadableEngineOptions(downloadDirectoryPath: String? = nil) -> [String: String] {
-        engineOptions(downloadDirectoryPath: downloadDirectoryPath, includeStartupOnly: false)
+        var options = engineOptions(downloadDirectoryPath: downloadDirectoryPath, includeStartupOnly: false)
+        // An omitted option keeps the old value. Clearing an editor must also
+        // clear the running engine's proxy, bypass list or User-Agent.
+        options["all-proxy"] = proxyURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        options["no-proxy"] = proxyBypass.trimmingCharacters(in: .whitespacesAndNewlines)
+        options["user-agent"] = userAgent
+        return options
     }
 
     private func speedLimit(_ kilobytesPerSecond: Int) -> String {
         kilobytesPerSecond > 0 ? "\(kilobytesPerSecond)K" : "0"
+    }
+}
+
+/// Records what this engine session actually accepted, independently of saved
+/// preferences. Bandwidth has its own clock because scheduled caps change even
+/// when preferences do not; configuration updates must never overwrite it.
+nonisolated struct EngineSettingsApplication: Equatable {
+    private(set) var launchedSettings: EngineSettings?
+    private(set) var launchedBootstrap = ED2KBootstrapStatus()
+    private(set) var appliedOptions: [String: String] = [:]
+
+    static func runtimeOptions(_ settings: EngineSettings) -> [String: String] {
+        settings.hotReloadableEngineOptions().filter {
+            !["max-overall-download-limit", "max-overall-upload-limit"].contains($0.key)
+        }
+    }
+
+    mutating func didLaunch(_ settings: EngineSettings, bootstrap: ED2KBootstrapStatus = .init()) {
+        launchedSettings = settings
+        launchedBootstrap = bootstrap
+        appliedOptions = Self.runtimeOptions(settings)
+    }
+
+    mutating func didApply(_ options: [String: String]) {
+        appliedOptions.merge(options) { _, new in new }
+    }
+
+    func pendingOptions(for settings: EngineSettings) -> [String: String] {
+        Self.runtimeOptions(settings).filter { appliedOptions[$0.key] != $0.value }
+    }
+
+    func restartReasons(for settings: EngineSettings, bootstrap: ED2KBootstrapStatus = .init()) -> [String] {
+        guard let launchedSettings else { return [] }
+        let before = launchedSettings.engineOptions(includeStartupOnly: true)
+        let after = settings.engineOptions(includeStartupOnly: true)
+        // Empty values are absent from launch arguments, so compare both key sets.
+        let runtimeKeys = Set(settings.hotReloadableEngineOptions().keys)
+        let changed = Set(before.keys).union(after.keys).subtracting(runtimeKeys)
+            .filter { before[$0] != after[$0] }
+        var reasons: [String] = []
+        if !changed.isDisjoint(with: ["rpc-listen-port", "rpc-secret"]) {
+            reasons.append(String(localized: "Engine connection"))
+        }
+        if !changed.isDisjoint(with: ["listen-port", "enable-dht", "enable-peer-exchange",
+                                     "bt-enable-lpd", "bt-encryption", "bt-max-peers"]) {
+            reasons.append(String(localized: "BitTorrent"))
+        }
+        if !changed.isDisjoint(with: ["ed2k-listen-port", "ed2k-udp-listen-port", "ed2k-upload-slots", "ed2k-server"])
+            || launchedBootstrap != bootstrap {
+            reasons.append(String(localized: "ED2K"))
+        }
+        return reasons
     }
 }

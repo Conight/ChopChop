@@ -722,6 +722,32 @@ final class DesignPreviewTests: XCTestCase {
     }
 
     @MainActor
+    func testManagedEngineSettingsFitRunningPendingRestartAndFailureStates() async throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        let suite = "ChopChop-engine-settings-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let updates = AppUpdateCoordinator(build: AppBuild(version: "0.0.1-beta.19"), client: DesignReleaseClient(), defaults: defaults)
+        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
+            for state in ["running", "pending", "failed"] {
+                store.engineSettings.rpcPort = EngineSettings.defaultRPCPort
+                store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 1234))
+                store.engineSettingsApplication.didLaunch(store.engineSettings)
+                if state == "pending" { store.engineSettings.rpcPort += 1 }
+                if state == "failed" {
+                    store.runtime.phase = .failed(String(localized: "The engine is unavailable. Open Engine settings to retry the connection."))
+                }
+                let view = SettingsView(initialPane: .engine).environment(store).environment(updates)
+                try await render(view, name: "settings-engine-managed-\(state)-\(appearance.rawValue)",
+                                 size: NSSize(width: 860, height: 560), appearance: appearance, output: output)
+            }
+        }
+    }
+
+    @MainActor
     func testFlatSettingsFitSmallWindowAndKeepBottomControlsReachable() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
@@ -1099,6 +1125,12 @@ final class DesignPreviewTests: XCTestCase {
         }
         let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         try data.write(to: output.appendingPathComponent("\(name).png"))
+        if name.hasPrefix("settings-engine-managed-") {
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
     }
 
     @MainActor

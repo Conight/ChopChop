@@ -44,6 +44,8 @@ Programmatic quit actions call `AppTermination.request()`. AppKit's `terminateLa
 
 `DownloadStore` coordinates observable UI state and these services. Network clients, filesystem rules and platform resource ownership belong in their own modules. Source organization does not change the SwiftData schema or the Engine RPC identifiers.
 
+`EngineSettingsApplication` records accepted live defaults and the startup configuration separately from persisted preferences. `DownloadStoreEngineSettings` owns the session-bound reconciliation worker and inline failure state. Views consume its pending-restart reasons rather than treating a generic Apply action as proof that every preference is active. The bandwidth clock remains the sole owner of effective global caps.
+
 `DownloadStore` and `AppUpdateCoordinator` use Observation. SwiftUI receives them through `Environment`, keeps owned instances in `State`, and creates editable bindings with `Bindable`; a view subscribes to the properties it actually reads. AppKit's Dock, menu-bar visibility and notification navigation retain explicit event streams, delivered after the corresponding state is committed. Polling must not broadcast changes to unrelated settings, draft editors or window navigation. See Apple's [Observation migration guide](https://developer.apple.com/documentation/swiftui/migrating-from-the-observable-object-protocol-to-the-observable-macro).
 
 ## Download list presentation

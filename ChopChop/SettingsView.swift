@@ -44,6 +44,8 @@ struct SettingsView: View {
     @State var peerLimitConfirmation: PeerLimitConfirmation?
     @State var sharingModeSelection: BitTorrentSharingMode = .stopByCondition
     @State var ed2kSearchFileTypeSelection: ED2KSearchFileType = .any
+    @State var engineAdvancedExpanded = false
+    @State var engineRestartConfirmation = false
 
     init(initialPane: SettingsPane? = nil, search: SettingsSearchModel? = nil) {
         _settingsSearch = StateObject(wrappedValue: search ?? SettingsSearchModel())
@@ -56,7 +58,10 @@ struct SettingsView: View {
             .frame(minWidth: 860, idealWidth: 940, minHeight: 560, idealHeight: 640)
         .focusedSceneValue(\.settingsSearchAction, settingsSearchAction)
         .onChange(of: settingsSearch.navigationRequest) { _, request in
-            if let request { selectedPane = request.entry.pane }
+            if let request {
+                if ["engine.rpc-port", "engine.advanced"].contains(request.entry.id) { engineAdvancedExpanded = true }
+                selectedPane = request.entry.pane
+            }
         }
         .onChange(of: selectedPane) { _, pane in
             if !AppLaunchConfiguration.isTestAutomation { UserDefaults.standard.set(pane.rawValue, forKey: Self.lastPaneKey) }
@@ -110,6 +115,13 @@ struct SettingsView: View {
         } message: { confirmation in
             Text(String(localized: "Max peers is set to \(confirmation.value). The recommended limit is 128 because higher values can increase memory and connection pressure."))
         }
+        .confirmationDialog(String(localized: "Restart Engine?"), isPresented: $engineRestartConfirmation) {
+            Button(String(localized: "Restart Engine")) { runStoreTask { await store.restartEngine() } }
+                .disabled(!store.canRestartEngine)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "Downloads and seeding will pause. Your progress is saved; resume downloads when you are ready."))
+        }
     }
 
     private var settingsSearchAction: (@MainActor () -> Void)? {
@@ -151,7 +163,7 @@ struct SettingsView: View {
                 .frame(maxWidth: AppLayout.settingsWidth)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if selectedPane == .network || selectedPane == .bitTorrent || selectedPane == .ed2k { engineSettingsFooter }
+                    if [.network, .bitTorrent, .ed2k, .engine].contains(selectedPane) { engineSettingsFooter }
                 }
                 .task(id: settingsSearch.navigationRequest?.id) {
                     guard let request = settingsSearch.navigationRequest,
@@ -209,16 +221,37 @@ struct SettingsView: View {
     var engineSettingsFooter: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(spacing: 16) {
-                Text(String(localized: "Saved automatically. Apply changes to the running engine; port changes require a restart."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Button {
-                    runStoreTask { await store.applyRuntimeEngineOptions() }
-                } label: {
-                    ActionFeedbackLabel(title: String(localized: "Apply Settings"), systemImage: "slider.horizontal.3", feedback: store.runtimeSettingsFeedback)
-                }.disabled(!runtimeCanApplySettings || store.runtimeSettingsFeedback == .working)
+            VStack(alignment: .leading, spacing: 8) {
+                if let issue = store.engineSettingsIssue ?? store.bandwidthPlanIssue {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(String(localized: "Some settings couldn’t be applied")).fontWeight(.medium)
+                            Text(issue).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                        Spacer(minLength: 0)
+                        Button(String(localized: "Retry")) {
+                            store.retryEngineSettingsApplication()
+                            runStoreTask { await store.runDownloadPlans() }
+                        }.disabled(store.isUpdatingEngine || store.runtimeSettingsFeedback == .working)
+                    }
+                } else {
+                    Text(store.runtimeSettingsFeedback == .working
+                         ? String(localized: "Applying changes…")
+                         : String(localized: "Changes are saved automatically. Download defaults apply to new tasks; global limits apply to all transfers."))
+                        .foregroundStyle(.secondary)
+                }
+                if !store.engineRestartReasons.isEmpty {
+                    HStack(spacing: 12) {
+                        Label(String(localized: "Restart required: \(store.engineRestartReasons.joined(separator: ", "))"),
+                              systemImage: "arrow.clockwise")
+                        Spacer(minLength: 0)
+                        Button(String(localized: "Restart to Apply…")) { engineRestartConfirmation = true }
+                            .disabled(!store.canRestartEngine)
+                            .accessibilityIdentifier("settings-restart-to-apply-button")
+                    }
+                }
             }
+            .font(.caption).fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AppLayout.settingsInset).padding(.vertical, AppLayout.groupInset)
             .frame(maxWidth: AppLayout.settingsWidth)
             .frame(maxWidth: .infinity)

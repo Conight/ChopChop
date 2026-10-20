@@ -1,5 +1,15 @@
 import Foundation
 
+nonisolated extension AddDownloadDraft {
+    init(defaults: EngineSettings) {
+        self.init()
+        savePath = defaults.downloadDirectoryPath ?? ""
+        splitCount = defaults.splitCount
+        userAgent = defaults.userAgent
+        proxyURL = defaults.proxyURL
+    }
+}
+
 nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var rawInput = ""
     var startPaused = false

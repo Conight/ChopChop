@@ -7,7 +7,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
     case newDownload, pasteLink, openFile, details, reveal, pause, resume, editAgain, remove
     case finishRecording, retryMedia, findTorrentSources, moveToTop, speedLimits, schedule
     case searchDownloads, refresh, pauseAll, forcePauseAll, resumeAll, clearFinished
-    case startEngine, restartEngine, stopEngine, engineSettings, checkUpdates, diagnostics, help
+    case engineSettings, checkUpdates, diagnostics, help
     var id: String { rawValue }
 
     var title: String { L10n.key(titleKey) }
@@ -34,9 +34,6 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .forcePauseAll: "Force Pause All"
         case .resumeAll: "Resume All"
         case .clearFinished: "Clear Finished Records"
-        case .startEngine: "Start Engine"
-        case .restartEngine: "Restart Engine"
-        case .stopEngine: "Stop Engine"
         case .engineSettings: "Engine Settings…"
         case .checkUpdates: "Check All Updates…"
         case .diagnostics: "Preview Diagnostic Report"
@@ -51,11 +48,11 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .details, .help: "info.circle"
         case .reveal: "folder"
         case .pause, .pauseAll, .forcePauseAll: "pause"
-        case .resume, .resumeAll, .startEngine: "play"
+        case .resume, .resumeAll: "play"
         case .editAgain: "square.and.pencil"
         case .remove, .clearFinished: "trash"
-        case .finishRecording, .stopEngine: "stop"
-        case .retryMedia, .refresh, .restartEngine: "arrow.clockwise"
+        case .finishRecording: "stop"
+        case .retryMedia, .refresh: "arrow.clockwise"
         case .findTorrentSources: "antenna.radiowaves.left.and.right"
         case .moveToTop: "arrow.up.to.line"
         case .speedLimits: "speedometer"
@@ -72,7 +69,7 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .details, .reveal, .pause, .resume, .editAgain, .remove, .finishRecording, .retryMedia, .findTorrentSources, .moveToTop, .speedLimits, .schedule:
             L10n.key("Selected Download")
         case .searchDownloads, .refresh, .pauseAll, .forcePauseAll, .resumeAll, .clearFinished: L10n.key("Downloads")
-        case .startEngine, .restartEngine, .stopEngine, .engineSettings: L10n.key("Engine")
+        case .engineSettings: L10n.key("Engine")
         case .checkUpdates, .diagnostics, .help: "ChopChop"
         }
     }
@@ -139,9 +136,6 @@ enum DownloadAction: String, CaseIterable, Identifiable {
             return ready && context.window?.showDetails != nil && task?.isAvailableInEngine == true && task?.primaryControlAction != nil && task?.requiresFileSelection == false
         case .refresh, .pauseAll, .forcePauseAll, .resumeAll: return ready
         case .clearFinished: return !store.isUpdatingEngine && store.canClearFinishedRecords
-        case .startEngine: return store.canStartEngine
-        case .restartEngine: return store.canRestartEngine
-        case .stopEngine: return store.canStopEngine
         case .engineSettings: return context.window?.openEngineSettings != nil
         case .checkUpdates: return context.window?.checkUpdates != nil
         case .diagnostics: return context.window?.openDiagnostics != nil
@@ -175,9 +169,6 @@ enum DownloadAction: String, CaseIterable, Identifiable {
         case .forcePauseAll: Task { await store.forcePauseAll() }
         case .resumeAll: Task { await store.resumeAll() }
         case .clearFinished: Task { await store.purgeCompletedRecords() }
-        case .startEngine: Task { await store.startEngine() }
-        case .restartEngine: Task { await store.restartEngine() }
-        case .stopEngine: Task { await store.stopEngine() }
         case .engineSettings: context.window?.openEngineSettings?()
         case .checkUpdates: context.window?.checkUpdates?()
         case .diagnostics: context.window?.openDiagnostics?()

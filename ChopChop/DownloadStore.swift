@@ -36,7 +36,16 @@ final class DownloadStore {
     var engineSettings: EngineSettings {
         didSet {
             persistEngineSettings()
+            // A pristine, unopened draft follows preferences. An edited or
+            // presented draft belongs to the user and keeps its own options.
+            if inputCoordinator.owner == nil, addDraft == AddDownloadDraft(defaults: oldValue) {
+                addDraft = AddDownloadDraft(defaults: engineSettings)
+            }
             if oldValue != engineSettings { startPlanClock() }
+            if oldValue != engineSettings {
+                engineSettingsIssue = nil
+                scheduleEngineSettingsApplication()
+            }
             if oldValue.trackerSourceURLs != engineSettings.trackerSourceURLs {
                 trackerSyncPending = true
                 trackerSyncRetryAfter = nil
@@ -147,6 +156,10 @@ final class DownloadStore {
     var trackerSyncFeedback = ActionFeedback.idle
     var bootstrapSyncFeedback = ActionFeedback.idle
     var runtimeSettingsFeedback = ActionFeedback.idle
+    var engineSettingsApplication = EngineSettingsApplication()
+    var engineSettingsIssue: String?
+    @ObservationIgnored var engineSettingsTask: Task<Void, Never>?
+    var engineSettingsTaskID = UUID()
     var isSyncingTrackers = false
     var trackerSyncIssue: String?
     @ObservationIgnored private var trackerSyncClock: Task<Void, Never>?
@@ -339,12 +352,14 @@ final class DownloadStore {
         engineInstallTask?.cancel()
         engineUpgradeTask?.cancel()
         engineMaintenanceTask?.cancel()
+        engineSettingsTask?.cancel()
         pollTask?.cancel()
         planTask?.cancel()
         ed2kSearchTask?.cancel()
     }
 
     func shutdown() {
+        cancelEngineSettingsApplication()
         trackerSyncClock?.cancel()
         trackerSyncOperation?.cancel()
         stopEngineEvents()
@@ -449,7 +464,12 @@ final class DownloadStore {
         engineUpgradeProgress = .init(stage: selection == nil ? .checkingRelease : .connecting)
         engineUpgradeTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { self.engineUpgradeProgress = nil; self.engineUpgradeTask = nil }
+            defer {
+                self.engineUpgradeProgress = nil
+                self.engineUpgradeTask = nil
+                self.scheduleEngineSettingsApplication()
+                self.startPlanClock()
+            }
             let wasRunning = self.engineController.isRunning
             var switchingEngine = false
             var backup: EngineRuntimeBackup?
@@ -465,6 +485,7 @@ final class DownloadStore {
                 }
                 try Task.checkCancellation()
                 guard !self.isShuttingDown else { throw CancellationError() }
+                try self.engineSettings.validateLaunchRequirements()
                 self.engineUpgradeProgress = .init(stage: .savingDownloads)
                 if wasRunning { try await self.engineController.client().saveSession() }
                 try Task.checkCancellation()
@@ -475,13 +496,11 @@ final class DownloadStore {
                 backup = try await self.engineInstallationManager.backupRuntimeState()
                 try Task.checkCancellation()
                 self.engineController.selectInstallation(installation)
-                if wasRunning {
-                    self.engineUpgradeProgress = .init(stage: .restarting)
-                    await self.launchEngine(showAlerts: false)
-                    try Task.checkCancellation()
-                    guard case .running = self.runtime.phase else {
-                        throw EngineError.executableLaunchFailed(path: installation.executableURL.path, reason: self.runtime.lastError ?? String(localized: "The updated engine did not start."))
-                    }
+                self.engineUpgradeProgress = .init(stage: .restarting)
+                await self.launchEngine(showAlerts: false)
+                try Task.checkCancellation()
+                guard case .running = self.runtime.phase else {
+                    throw EngineError.executableLaunchFailed(path: installation.executableURL.path, reason: self.runtime.lastError ?? String(localized: "The updated engine did not start."))
                 }
                 self.engineUpgradeProgress = .init(stage: .activating)
                 try await self.engineInstallationManager.activate(installation)
@@ -531,6 +550,7 @@ final class DownloadStore {
     }
 
     private func suspendEngineMonitoring() {
+        cancelEngineSettingsApplication()
         stopEngineEvents()
         engineSessionID = UUID()
         engineMaintenanceTask?.cancel()
@@ -721,6 +741,8 @@ final class DownloadStore {
 
     var canRestartEngine: Bool {
         !isShuttingDown && !isUpdatingEngine && !isEngineTransitioning && !engineSetupState.requiresInstallation && engineSetupState != .checking
+            && !isSearchingED2K && !isResolvingBitTorrentFiles && bitTorrentSelectionSession == nil
+            && !mediaDownloads.isPresented && !isPerformingBatchOperation
     }
 
     private var isEngineTransitioning: Bool {
@@ -917,6 +939,7 @@ final class DownloadStore {
         // The controller validates port availability immediately before launching.
         // Keeping that check there also lets injected controllers stay independent of live engines.
         let sessionID = UUID()
+        cancelEngineSettingsApplication()
         armedScheduledTaskIDs.removeAll()
         scheduleRequests.removeAll()
         lastBandwidthOptions = nil
@@ -933,6 +956,7 @@ final class DownloadStore {
             try Task.checkCancellation()
             guard engineSessionID == sessionID else { return }
             let launchSettings = engineSettings
+            let launchBootstrap = ed2kBootstrapStatus
             let launchSnapshot = try await engineController.start(settings: launchSettings)
             guard engineSessionID == sessionID else { return }
             launchArguments = launchSnapshot.lastLaunchArguments
@@ -946,11 +970,10 @@ final class DownloadStore {
             guard engineSessionID == sessionID else { return }
             engineCapabilities = try await engineController.client().getVersion()
             guard engineSessionID == sessionID, !Task.isCancelled else { return }
-            if engineSettings.btTracker != launchSettings.btTracker {
-                try await engineController.client().changeGlobalOption(["bt-tracker": TrackerText.commaSeparated(from: engineSettings.btTracker)])
-                guard engineSessionID == sessionID, !Task.isCancelled else { return }
-            }
             runtime = launchSnapshot
+            engineSettingsApplication.didLaunch(launchSettings, bootstrap: launchBootstrap)
+            engineSettingsIssue = nil
+            scheduleEngineSettingsApplication()
             if showAlerts, let backup = launchSnapshot.sessionBackupURL {
                 userAlerts.send(UserFacingAlert(
                     title: String(localized: "Download Engine Updated"),
@@ -1001,6 +1024,7 @@ final class DownloadStore {
             postError(EngineError.notRunning, title: String(localized: "Stop Engine Failed"))
             return
         }
+        cancelEngineSettingsApplication()
         engineSessionID = UUID()
         stopEngineEvents()
         engineMaintenanceTask?.cancel()
@@ -1031,6 +1055,7 @@ final class DownloadStore {
     }
 
     func prepareForAppTermination() async {
+        cancelEngineSettingsApplication()
         trackerSyncClock?.cancel()
         trackerSyncOperation?.cancel()
         stopEngineEvents()
@@ -1140,7 +1165,7 @@ final class DownloadStore {
             return false
         }
         guard engineController.isRunning else {
-            postError(String(localized: "Start Aria2 Next before adding downloads."), title: String(localized: "Engine Not Running"))
+            postError(String(localized: "The engine is unavailable. Open Engine settings to retry the connection."), title: String(localized: "Engine Not Running"))
             return false
         }
         if let capabilities = engineCapabilities {
@@ -1162,7 +1187,7 @@ final class DownloadStore {
         }
         if addDraft.shouldInspectMedia {
             guard engineCapabilities?.supportsMedia == true else {
-                postError(String(localized: "The running engine does not advertise media track selection. Update Aria2 Next in Engine settings."), title: String(localized: "Media Unavailable"))
+                postError(String(localized: "The running engine does not advertise media track selection. Update Aria2 Next in Settings → Updates."), title: String(localized: "Media Unavailable"))
                 return false
             }
             do {
@@ -1502,32 +1527,6 @@ final class DownloadStore {
         }
     }
 
-    func applyRuntimeEngineOptions() async {
-        guard !isUpdatingEngine, runtimeSettingsFeedback != .working else { return }
-        runtimeSettingsFeedback = .working
-        defer { if runtimeSettingsFeedback == .working { runtimeSettingsFeedback = .idle } }
-        guard engineController.isRunning else {
-            postError(String(localized: "Start Aria2 Next before applying runtime options."), title: String(localized: "Apply Settings Failed"))
-            return
-        }
-        do {
-            let client = try engineController.client()
-            var options = engineSettings.hotReloadableEngineOptions(downloadDirectoryPath: engineSettings.downloadDirectoryPath)
-            if preferences.bandwidthSchedule.enabled, let issue = preferences.bandwidthSchedule.validationIssue {
-                throw DownloadOperationError(issue)
-            }
-            // Apply the effective cap immediately, without briefly lifting a scheduled limit.
-            options.merge(preferences.bandwidthSchedule.options(at: Date(), base: engineSettings)) { _, effective in effective }
-            try await client.changeGlobalOption(options)
-            try await applyTrackersToRunningTasks(engineSettings.btTracker, using: client)
-            lastBandwidthOptions = nil
-            runtimeSettingsFeedback = .succeeded
-            postActivity(String(localized: "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."))
-        } catch {
-            postError(error, title: String(localized: "Apply Settings Failed"))
-        }
-    }
-
     func startTrackerSyncClock(startup: Bool = false) {
         guard !isShuttingDown else { return }
         trackerSyncClockStarted = true
@@ -1617,15 +1616,14 @@ final class DownloadStore {
         trackerSyncRetryAfter = nil
 
         if engineController.isRunning {
-            do {
-                let sessionID = engineSessionID
-                let client = try engineController.client()
-                try await client.changeGlobalOption(["bt-tracker": TrackerText.commaSeparated(from: trackerText)])
-                guard engineSessionID == sessionID, !isShuttingDown else { throw CancellationError() }
-                try await applyTrackersToRunningTasks(trackerText, using: client)
-            } catch is CancellationError { return }
-            catch {
-                report(error.localizedDescription, title: String(localized: "Apply Trackers Failed"))
+            let sessionID = engineSessionID
+            // Tracker sync joins the same writer as settings edits. A second
+            // changeGlobalOption request could otherwise overwrite newer edits.
+            if let pending = engineSettingsTask { await pending.value }
+            else { await applyRuntimeEngineOptions() }
+            guard engineSessionID == sessionID, !isShuttingDown, !Task.isCancelled else { return }
+            if let issue = engineSettingsIssue {
+                report(issue, title: String(localized: "Apply Trackers Failed"))
                 return
             }
         }
@@ -1782,7 +1780,7 @@ final class DownloadStore {
         }
         guard !isSearchingED2K else { return }
         guard engineController.isRunning else {
-            postError(String(localized: "Start Aria2 Next before searching ED2K."), title: String(localized: "ED2K Search Failed"))
+            postError(String(localized: "The engine is unavailable. Open Engine settings to retry the connection."), title: String(localized: "ED2K Search Failed"))
             return
         }
         let keyword = ed2kSearchKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1874,7 +1872,7 @@ final class DownloadStore {
             return
         }
         guard engineController.isRunning else {
-            postError(String(localized: "Start Aria2 Next before adding downloads."), title: String(localized: "ED2K Download Failed"))
+            postError(String(localized: "The engine is unavailable. Open Engine settings to retry the connection."), title: String(localized: "ED2K Download Failed"))
             return
         }
         let context = ed2kDownloadContext()
@@ -2217,12 +2215,7 @@ final class DownloadStore {
     }
 
     func defaultAddDraft() -> AddDownloadDraft {
-        var draft = AddDownloadDraft()
-        draft.savePath = engineSettings.downloadDirectoryPath ?? ""
-        draft.splitCount = engineSettings.splitCount
-        draft.userAgent = engineSettings.userAgent
-        draft.proxyURL = engineSettings.proxyURL
-        return draft
+        AddDownloadDraft(defaults: engineSettings)
     }
 
     private func persistEngineSettings() {

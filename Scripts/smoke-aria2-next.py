@@ -329,6 +329,20 @@ def main():
             rpc("changeGlobalOption", {"seed-time": "", "seed-ratio": "0"})
             assert "seed-time" not in rpc("getGlobalOption")
             assert rpc("getGlobalOption")["seed-ratio"] == "0"
+            rpc("changeGlobalOption", {"all-proxy": "http://127.0.0.1:9", "no-proxy": "localhost"})
+            rpc("changeGlobalOption", {"all-proxy": "", "no-proxy": ""})
+            assert rpc("getGlobalOption").get("all-proxy", "") == ""
+            assert rpc("getGlobalOption").get("no-proxy", "") == ""
+            original_options = rpc("getGlobalOption")
+            peer_changes = {"bt-max-peers": "96", "bt-encryption": "required",
+                            "enable-peer-exchange": "false", "bt-enable-lpd": "false",
+                            "ed2k-upload-slots": "5"}
+            rpc("changeGlobalOption", peer_changes)
+            changed = rpc("getGlobalOption")
+            assert changed["bt-max-peers"] == "96" and changed["bt-encryption"] == "required"
+            assert changed["enable-peer-exchange"] == "false" and changed["ed2k-upload-slots"] == "5"
+            rpc("changeGlobalOption", {key: original_options[key] for key in peer_changes})
+            print("PASS live settings: cleared proxy/bypass and updated peer defaults without restarting")
             began = time.monotonic()
             stalled = rpc("addUri", [f"http://127.0.0.1:{server.server_port}/stall"],
                           {"out": "stalled.bin", "pause": "false", "max-tries": "3",

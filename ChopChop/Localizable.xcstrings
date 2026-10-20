@@ -1910,40 +1910,6 @@
         }
       }
     },
-    "Apply Settings": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apply Settings"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用设置"
-          }
-        }
-      }
-    },
-    "Apply Settings Failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apply Settings Failed"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法应用设置"
-          }
-        }
-      }
-    },
     "Apply Trackers Failed": {
       "extractionState": "manual",
       "localizations": {
@@ -2182,23 +2148,6 @@
         }
       }
     },
-    "Aria2 Next failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next failed"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next 运行失败"
-          }
-        }
-      }
-    },
     "Aria2 Next is already running.": {
       "extractionState": "manual",
       "localizations": {
@@ -2314,40 +2263,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aria2 Next 进程监控未报告引擎进程 ID。"
-          }
-        }
-      }
-    },
-    "Aria2 Next ready": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next ready"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next 已就绪"
-          }
-        }
-      }
-    },
-    "Aria2 Next running": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next running"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aria2 Next 正在运行"
           }
         }
       }
@@ -3045,23 +2960,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "更改会保留此种子的进度。Aria2 Next 可能短暂重启连接，磁盘上已存在的跳过文件会保留。"
-          }
-        }
-      }
-    },
-    "Changing the RPC port or token requires restarting the engine.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Changing the RPC port or token requires restarting the engine."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更改 RPC 端口或令牌后，需要重启引擎。"
           }
         }
       }
@@ -8032,23 +7930,6 @@
         }
       }
     },
-    "Generate Token": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Generate Token"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "生成令牌"
-          }
-        }
-      }
-    },
     "Generate an RPC token": {
       "extractionState": "manual",
       "localizations": {
@@ -10258,23 +10139,6 @@
         }
       }
     },
-    "No engine launch arguments yet.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No engine launch arguments yet."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚无引擎启动参数。"
-          }
-        }
-      }
-    },
     "No file list reported by Aria2 Next yet.": {
       "extractionState": "manual",
       "localizations": {
@@ -12364,23 +12228,6 @@
         }
       }
     },
-    "RPC token": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RPC token"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RPC 令牌"
-          }
-        }
-      }
-    },
     "RPC token is required before the engine can be launched.": {
       "extractionState": "manual",
       "localizations": {
@@ -13506,16 +13353,16 @@
     "Retry Connection": {
       "extractionState": "manual",
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重试连接"
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Retry Connection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试连接"
           }
         }
       }
@@ -13894,57 +13741,6 @@
         }
       }
     },
-    "Runtime requirements complete": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Runtime requirements complete"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行条件已具备"
-          }
-        }
-      }
-    },
-    "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Runtime settings applied. Restart Aria2 Next for RPC, BT, ED2K, DHT, peer, encryption, or bootstrap changes."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已应用运行设置。RPC、BT、ED2K、DHT、节点、加密或引导配置变更需要重新启动 Aria2 Next。"
-          }
-        }
-      }
-    },
-    "Runtime setup incomplete": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Runtime setup incomplete"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行设置未完成"
-          }
-        }
-      }
-    },
     "Save History Failed": {
       "extractionState": "manual",
       "localizations": {
@@ -14043,23 +13839,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存到"
-          }
-        }
-      }
-    },
-    "Saved automatically. Apply changes to the running engine; port changes require a restart.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saved automatically. Apply changes to the running engine; port changes require a restart."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置自动保存。点击应用使更改在当前引擎中生效；端口更改需要重启引擎。"
           }
         }
       }
@@ -15589,57 +15368,6 @@
         }
       }
     },
-    "Start Aria2 Next before adding downloads.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start Aria2 Next before adding downloads."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加下载前，请先启动 Aria2 Next。"
-          }
-        }
-      }
-    },
-    "Start Aria2 Next before applying runtime options.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start Aria2 Next before applying runtime options."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用运行选项前，请先启动 Aria2 Next。"
-          }
-        }
-      }
-    },
-    "Start Aria2 Next before searching ED2K.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start Aria2 Next before searching ED2K."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索 ED2K 前，请先启动 Aria2 Next。"
-          }
-        }
-      }
-    },
     "Start Download": {
       "extractionState": "manual",
       "localizations": {
@@ -15670,23 +15398,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法开始下载"
-          }
-        }
-      }
-    },
-    "Start Engine": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start Engine"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "启动引擎"
           }
         }
       }
@@ -15874,23 +15585,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止"
-          }
-        }
-      }
-    },
-    "Stop Engine": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stop Engine"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止引擎"
           }
         }
       }
@@ -16825,23 +16519,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "队列已发生变化，请重新拖动任务。"
-          }
-        }
-      }
-    },
-    "The running engine does not advertise media track selection. Update Aria2 Next in Engine settings.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The running engine does not advertise media track selection. Update Aria2 Next in Engine settings."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前引擎未声明支持媒体轨道选择。请在引擎设置中更新 Aria2 Next。"
           }
         }
       }
@@ -19746,7 +19423,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Engine 的 GitHub"
+            "value": "引擎的 GitHub 项目"
           }
         }
       }
@@ -20323,6 +20000,346 @@
           "stringUnit": {
             "state": "translated",
             "value": "此下载无法安全续传：服务器可能不支持分段请求，或远程文件、已保存的进度发生了变化。请使用“编辑并重新添加”下载一份新副本，不会覆盖已有文件。"
+          }
+        }
+      }
+    },
+    "Engine connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engine connection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎连接"
+          }
+        }
+      }
+    },
+    "ChopChop manages the engine automatically. Restored downloads stay paused until you resume them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop manages the engine automatically. Restored downloads stay paused until you resume them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 会自动管理引擎。恢复的下载会保持暂停，直到你手动继续。"
+          }
+        }
+      }
+    },
+    "Engine Updates…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engine Updates…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎更新…"
+          }
+        }
+      }
+    },
+    "Connection Needs Attention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection Needs Attention"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接需要处理"
+          }
+        }
+      }
+    },
+    "Local connection between ChopChop and its engine. Change only if the port is in use.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local connection between ChopChop and its engine. Change only if the port is in use."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChopChop 与引擎之间的本地连接。仅在端口被占用时修改。"
+          }
+        }
+      }
+    },
+    "Connection authentication is generated and managed by ChopChop.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection authentication is generated and managed by ChopChop."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接凭据由 ChopChop 自动生成并管理。"
+          }
+        }
+      }
+    },
+    "Restart Engine…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Engine…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启引擎…"
+          }
+        }
+      }
+    },
+    "The engine is unavailable. Retry the connection to restore access to your downloads.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine is unavailable. Retry the connection to restore access to your downloads."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎当前不可用。请重试连接以恢复对下载任务的访问。"
+          }
+        }
+      }
+    },
+    "Restart Engine?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Engine?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启引擎？"
+          }
+        }
+      }
+    },
+    "Downloads and seeding will pause. Your progress is saved; resume downloads when you are ready.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads and seeding will pause. Your progress is saved; resume downloads when you are ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载和做种将暂停，进度会保存。准备好后请手动继续下载。"
+          }
+        }
+      }
+    },
+    "Some settings couldn’t be applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some settings couldn’t be applied"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分设置未能生效"
+          }
+        }
+      }
+    },
+    "Applying changes…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applying changes…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在应用更改…"
+          }
+        }
+      }
+    },
+    "Changes are saved automatically. Download defaults apply to new tasks; global limits apply to all transfers.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes are saved automatically. Download defaults apply to new tasks; global limits apply to all transfers."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改会自动保存。下载默认设置用于新任务，全局限速作用于所有传输。"
+          }
+        }
+      }
+    },
+    "Restart required: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart required: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启后生效：%@"
+          }
+        }
+      }
+    },
+    "Restart to Apply…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart to Apply…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启以应用…"
+          }
+        }
+      }
+    },
+    "Reconnecting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnecting…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重新连接…"
+          }
+        }
+      }
+    },
+    "Stopping…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopping…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在停止…"
+          }
+        }
+      }
+    },
+    "Not Running": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not Running"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未运行"
+          }
+        }
+      }
+    },
+    "The engine is unavailable. Open Engine settings to retry the connection.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine is unavailable. Open Engine settings to retry the connection."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎当前不可用。请打开“引擎”设置并重试连接。"
+          }
+        }
+      }
+    },
+    "The running engine does not advertise media track selection. Update Aria2 Next in Settings → Updates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The running engine does not advertise media track selection. Update Aria2 Next in Settings → Updates."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前引擎不支持媒体轨道选择。请在“设置 → 更新”中更新 Aria2 Next。"
           }
         }
       }

@@ -15,8 +15,8 @@ enum SettingsSearchIndex {
         .init(id: "integrations.browser", pane: .integrations, title: "Browser Integration"),
         .init(id: "engine.version", pane: .engine, title: "Installed version"),
         .init(id: "engine.update", pane: .updates, title: "Engine Update"),
-        .init(id: "engine.rpc-token", pane: .engine, title: "RPC token"),
         .init(id: "engine.rpc-port", pane: .engine, title: "RPC port"),
+        .init(id: "engine.advanced", pane: .engine, title: "Advanced"),
         .init(id: "bitTorrent.tracker-sources", pane: .bitTorrent, title: "Tracker Sources"),
         .init(id: "bitTorrent.tracker-list", pane: .bitTorrent, title: "Tracker List"),
         .init(id: "ed2k.servers", pane: .ed2k, title: "ED2K Servers"),
@@ -76,7 +76,6 @@ enum SettingsSearchIndex {
         .init(id: "integrations.receive-ed2k-links", pane: .integrations, title: "Receive ED2K links"),
         .init(id: "integrations.open-torrent-files", pane: .integrations, title: "Open Torrent files"),
         .init(id: "integrations.open-metalink-files", pane: .integrations, title: "Open Metalink files"),
-        .init(id: "engine.start-engine", pane: .engine, title: "Start Engine"),
     ]
     static func results(for query: String) -> [SettingSearchEntry] {
         let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
@@ -98,7 +97,8 @@ enum SettingsSearchIndex {
         "bitTorrent.seeding": "seed upload ratio 做种 上传 分享率",
         "downloads.default-save-location": "directory folder path 文件夹 目录 路径 保存",
         "updates.chopchop": "version release update 版本 更新",
-        "engine.rpc-token": "authentication password 认证 密码 令牌"
+        "engine.advanced": "restart connection diagnostics 重启 连接 诊断",
+        "engine.rpc-port": "local connection 本地连接 端口"
     ]
 }
 

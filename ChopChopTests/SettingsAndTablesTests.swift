@@ -10,7 +10,10 @@ final class SettingsAndTablesTests: XCTestCase {
         XCTAssertEqual(Set(entries.map(\.pane)), Set(SettingsPane.allCases))
         XCTAssertEqual(SettingsSearchIndex.results(for: "Global upload limit").map(\.id), ["network.global-upload-limit"])
         XCTAssertTrue(SettingsSearchIndex.results(for: "上传 限速").contains { $0.id == "network.global-upload-limit" })
-        XCTAssertEqual(SettingsSearchIndex.results(for: "RPC token").map(\.id), ["engine.rpc-token"])
+        XCTAssertEqual(SettingsSearchIndex.results(for: "RPC port").map(\.id), ["engine.rpc-port"])
+        XCTAssertTrue(SettingsSearchIndex.results(for: "RPC token").isEmpty)
+        XCTAssertTrue(SettingsSearchIndex.results(for: "Start Engine").isEmpty)
+        XCTAssertEqual(SettingsSearchIndex.results(for: "重启").map(\.id), ["engine.advanced"])
         XCTAssertTrue(SettingsSearchIndex.results(for: "nothing matches this").isEmpty)
         let model = SettingsSearchModel()
         model.query = "Global upload limit"

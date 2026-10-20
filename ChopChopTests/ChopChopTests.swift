@@ -2609,11 +2609,11 @@ final class ChopChopTests: XCTestCase {
 
         let runtime = settings.hotReloadableEngineOptions(downloadDirectoryPath: "/Downloads")
         XCTAssertNil(runtime["rpc-secret"])
-        XCTAssertNil(runtime["bt-encryption"])
+        XCTAssertEqual(runtime["bt-encryption"], "required")
         XCTAssertNil(runtime["bt-require-crypto"])
         XCTAssertNil(runtime["ed2k-listen-port"])
         XCTAssertNil(runtime["ed2k-udp-listen-port"])
-        XCTAssertNil(runtime["ed2k-upload-slots"])
+        XCTAssertEqual(runtime["ed2k-upload-slots"], "5")
         XCTAssertNil(runtime["ed2k-server"])
         XCTAssertNil(runtime["check-certificate"])
         XCTAssertNil(runtime["ca-certificate"])
@@ -2724,6 +2724,16 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(status.nodesDatSize, 5)
         XCTAssertNotNil(status.serverMetModified)
         XCTAssertNotNil(ED2KBootstrapCache.cachedPathsIfAvailable(applicationSupportBase: base))
+        let paths = try ED2KBootstrapCache.paths(applicationSupportBase: base)
+        let oldDate = Date(timeIntervalSince1970: 1_000)
+        for path in [paths.serverMetPath, paths.nodesDatPath] {
+            try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: path)
+        }
+        let repeated = try ED2KBootstrapCache.write(
+            ED2KBootstrapFetchResult(serverMet: Data("server".utf8), nodesDat: Data("nodes".utf8)),
+            applicationSupportBase: base)
+        XCTAssertEqual(repeated.serverMetModified, oldDate, "An unchanged sync must not create a new bootstrap revision")
+        XCTAssertEqual(repeated.nodesDatModified, oldDate)
     }
 
     @MainActor
@@ -4639,7 +4649,7 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
-    func testUpdatingStoppedEngineDoesNotStartIt() async throws {
+    func testUpdatingUnavailableEngineStartsAndValidatesTheReplacement() async throws {
         let (store, controller) = try await makeEngineUpdateStore(manager: StartupEngineManager())
         defer { store.shutdown() }
         await store.stopEngine()
@@ -4647,8 +4657,8 @@ final class ChopChopTests: XCTestCase {
         let finished = await waitForMainActorCondition(timeout: 3) { !store.isUpdatingEngine }
         XCTAssertTrue(finished)
         XCTAssertEqual(store.engineVersionDescription, "3.10.0")
-        XCTAssertEqual(controller.startCallCount, 1)
-        XCTAssertFalse(controller.isRunning)
+        XCTAssertEqual(controller.startCallCount, 2)
+        XCTAssertTrue(controller.isRunning)
     }
 
     @MainActor
@@ -5211,6 +5221,115 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testEngineSettingsAutomaticallyCoalesceEditsWithoutRestarting() async throws {
+        let changes = LockedBox<[[String: String]]>([])
+        let client = try makeRPCClient { request in
+            XCTAssertEqual(try Self.captureRPCMethod(from: request), "aria2.changeGlobalOption")
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            let params = try XCTUnwrap(object["params"] as? [Any])
+            changes.set(changes.value() + [try XCTUnwrap(params.last as? [String: String])])
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+        }
+        let controller = MockEngineController(client: client)
+        let store = try makeInjectedStore(engineController: controller)
+        defer { store.shutdown() }
+        store.runtime.phase = .running(pid: 1234)
+        store.engineSettings.proxyURL = "http://127.0.0.1:7890"
+        store.engineSettingsApplication.didLaunch(store.engineSettings)
+        store.engineSettings.proxyURL = ""
+        store.engineSettings.splitCount = 8
+        store.engineSettings.splitCount = 16
+        await store.engineSettingsTask?.value
+        XCTAssertEqual(changes.value(), [["all-proxy": "", "split": "16"]])
+        XCTAssertFalse(store.hasPendingEngineSettings)
+        XCTAssertNil(store.engineSettingsIssue)
+        XCTAssertEqual(controller.stopCallCount, 0)
+        XCTAssertEqual(controller.startCallCount, 0)
+        XCTAssertEqual(store.addDraft.proxyURL, "")
+        XCTAssertEqual(store.addDraft.splitCount, 16, "The unopened draft must use the updated defaults")
+        store.addDraft.rawInput = "https://example.com/unfinished-draft"
+        store.addDraft.splitCount = 4
+        store.engineSettings.splitCount = 32
+        await store.engineSettingsTask?.value
+        XCTAssertEqual(store.addDraft.splitCount, 4, "Changing preferences must preserve an edited draft")
+    }
+
+    @MainActor
+    func testEngineSettingsFailureStaysPendingUntilExplicitRetry() async throws {
+        let rejected = LockedBox(true)
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            _ = try Self.captureRPCMethod(from: request, into: calls)
+            return try Self.rpcHTTPResponse(for: request, body: rejected.value()
+                ? #"{"error":{"code":1,"message":"Rejected"}}"# : #"{"result":"OK"}"#)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.runtime.phase = .running(pid: 1234)
+        store.engineSettingsApplication.didLaunch(store.engineSettings)
+        store.engineSettings.splitCount = 16
+        await store.engineSettingsTask?.value
+        XCTAssertNotNil(store.engineSettingsIssue)
+        XCTAssertTrue(store.hasPendingEngineSettings)
+        XCTAssertEqual(store.runtimeSettingsFeedback, .idle)
+        XCTAssertNil(store.engineSettingsTask, "A rejection must not cause an endless retry loop")
+        XCTAssertEqual(calls.value(), ["aria2.changeGlobalOption"])
+        rejected.set(false)
+        store.retryEngineSettingsApplication()
+        await store.engineSettingsTask?.value
+        XCTAssertNil(store.engineSettingsIssue)
+        XCTAssertFalse(store.hasPendingEngineSettings)
+        XCTAssertEqual(calls.value(), ["aria2.changeGlobalOption", "aria2.changeGlobalOption"])
+    }
+
+    @MainActor
+    func testEditsDuringEngineSettingsRPCConvergeToTheLatestValue() async throws {
+        let changes = LockedBox<[[String: String]]>([])
+        let gate = DispatchSemaphore(value: 0)
+        defer { gate.signal() }
+        let client = try makeRPCClient { request in
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            let params = try XCTUnwrap(object["params"] as? [Any])
+            changes.set(changes.value() + [try XCTUnwrap(params.last as? [String: String])])
+            if changes.value().count == 1 { _ = gate.wait(timeout: .now() + 5) }
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        store.runtime.phase = .running(pid: 1234)
+        store.engineSettingsApplication.didLaunch(store.engineSettings)
+        store.engineSettings.splitCount = 16
+        let requested = await waitForMainActorCondition(timeout: 3) { changes.value().count == 1 }
+        XCTAssertTrue(requested)
+        store.engineSettings.splitCount = 32
+        gate.signal()
+        await store.engineSettingsTask?.value
+        XCTAssertEqual(changes.value(), [["split": "16"], ["split": "32"]])
+        XCTAssertFalse(store.hasPendingEngineSettings)
+    }
+
+    @MainActor
+    func testStoppingEngineCancelsPendingSettingsWithoutRevivingTheProcess() async throws {
+        let calls = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            _ = try Self.captureRPCMethod(from: request, into: calls)
+            return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
+        }
+        let controller = MockEngineController(client: client)
+        let store = try makeInjectedStore(engineController: controller)
+        defer { store.shutdown() }
+        store.runtime.phase = .running(pid: 1234)
+        store.engineSettingsApplication.didLaunch(store.engineSettings)
+        store.engineSettings.splitCount = 16
+        let worker = store.engineSettingsTask
+        await store.stopEngine()
+        await worker?.value
+        XCTAssertTrue(calls.value().isEmpty)
+        XCTAssertEqual(store.runtime.phase, .stopped)
+        XCTAssertEqual(controller.startCallCount, 0)
+    }
+
+    @MainActor
     func testContinuousSeedingRuntimeDefaultsClearTimeLimitAndPreserveEffectiveUploadCap() async throws {
         let changes = LockedBox<[String: String]>([:])
         let calls = LockedBox<[String]>([])
@@ -5219,7 +5338,9 @@ final class ChopChopTests: XCTestCase {
             XCTAssertEqual(method, "aria2.changeGlobalOption")
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
             let params = try XCTUnwrap(object["params"] as? [Any])
-            changes.set(try XCTUnwrap(params.last as? [String: String]))
+            var accepted = changes.value()
+            accepted.merge(try XCTUnwrap(params.last as? [String: String])) { _, value in value }
+            changes.set(accepted)
             return try Self.rpcHTTPResponse(for: request, body: #"{"result":"OK"}"#)
         }
         let controller = MockEngineController(client: client)
@@ -5232,8 +5353,9 @@ final class ChopChopTests: XCTestCase {
         store.preferences.bandwidthSchedule.endMinute = 0
         store.preferences.bandwidthSchedule.uploadKB = 64
         await store.applyRuntimeEngineOptions()
+        await store.runDownloadPlans()
         XCTAssertEqual(store.runtimeSettingsFeedback, .succeeded)
-        XCTAssertEqual(calls.value(), ["aria2.changeGlobalOption"])
+        XCTAssertEqual(calls.value(), ["aria2.changeGlobalOption", "aria2.changeGlobalOption"])
         XCTAssertEqual(changes.value()["max-overall-upload-limit"], "64K")
         XCTAssertEqual(changes.value()["seed-time"], "", "V3 clears the seeding deadline with an empty value")
         XCTAssertEqual(changes.value()["seed-ratio"], "0")

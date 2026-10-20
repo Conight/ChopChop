@@ -93,11 +93,7 @@ struct DownloadConsoleView: View {
                             DownloadActionButton(action: action, context: commandContext)
                         }
                         Divider()
-                        Menu(String(localized: "Engine")) {
-                            ForEach([DownloadAction.startEngine, .restartEngine, .stopEngine, .engineSettings]) { action in
-                                DownloadActionButton(action: action, context: commandContext)
-                            }
-                        }
+                        DownloadActionButton(action: .engineSettings, context: commandContext)
                     } label: {
                         Label(String(localized: "More"), systemImage: "ellipsis")
                     }

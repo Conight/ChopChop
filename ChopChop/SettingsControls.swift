@@ -161,112 +161,62 @@ struct KeyValueLine: View {
     }
 }
 
-struct RuntimeRequirementsView: View {
-    var missingRequirements: [String]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if missingRequirements.isEmpty {
-                RuntimeRequirementLine(
-                    symbol: "checkmark.circle.fill",
-                    title: String(localized: "Runtime requirements complete"),
-                    tint: .green
-                )
-            } else {
-                ForEach(missingRequirements, id: \.self) { requirement in
-                    RuntimeRequirementLine(
-                        symbol: "exclamationmark.circle",
-                        title: requirement,
-                        tint: .orange
-                    )
-                }
-            }
-        }
-    }
-}
-
-struct RuntimeRequirementLine: View {
-    var symbol: String
-    var title: String
-    var tint: Color
-
-    var body: some View {
-        Label {
-            Text(title)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: symbol)
-                .foregroundStyle(tint)
-        }
-    }
-}
-
 struct EngineStatusView: View {
     @Environment(DownloadStore.self) private var store
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        HStack(spacing: 14) {
+            Image(systemName: "cpu")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.secondary)
+                .frame(width: 40, height: 44)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Aria2 Next").font(.headline)
+                HStack(spacing: 6) {
+                    if isBusy {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: hasIssue ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .foregroundStyle(hasIssue ? Color.orange : Color.green)
+                    }
+                    Text(status).font(.callout).foregroundStyle(.secondary)
+                }
             }
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 4)
+        .accessibilityIdentifier("settings-engine-status")
     }
 
-    private var symbol: String {
+    private var isBusy: Bool {
+        if store.isUpdatingEngine || store.engineSetupState == .checking || store.engineSetupState.isInstalling { return true }
         switch store.runtime.phase {
-        case .running:
-            "checkmark.circle.fill"
-        case .failed:
-            "exclamationmark.triangle.fill"
-        default:
-            store.engineSettings.canLaunch ? "cpu" : "exclamationmark.circle"
+        case .starting, .stopping: return true
+        default: return false
         }
     }
 
-    private var tint: Color {
+    private var hasIssue: Bool {
+        if store.engineSetupState.requiresInstallation || store.connectionIssue != nil { return true }
         switch store.runtime.phase {
-        case .running:
-            .green
-        case .failed:
-            .red
-        default:
-            store.engineSettings.canLaunch ? .cyan : .orange
+        case .stopped, .failed: return true
+        default: return false
         }
     }
 
-    private var title: String {
+    private var status: String {
+        if let progress = store.engineUpgradeProgress { return progress.title }
         if let status = store.engineSetupState.statusLabel { return status }
         switch store.runtime.phase {
         case .running:
-            return String(localized: "Aria2 Next running")
-        case .failed:
-            return String(localized: "Aria2 Next failed")
-        default:
-            return store.engineSettings.canLaunch ? String(localized: "Aria2 Next ready") : String(localized: "Runtime setup incomplete")
-        }
-    }
-
-    private var subtitle: String {
-        let missingRequirements = store.engineSettings.missingLaunchRequirements
-        if !missingRequirements.isEmpty {
-            return String(localized: "Missing: \(missingRequirements.joined(separator: ", ")).")
-        }
-        switch store.runtime.phase {
-        case .running: return String(localized: "The engine is ready to download files.")
+            return store.connectionIssue == nil ? String(localized: "Running") : String(localized: "Reconnecting…")
         case .starting: return String(localized: "Starting the download engine…")
-        default: return String(localized: "Aria2 Next starts automatically when ChopChop opens. Restored downloads stay paused until you resume them.")
+        case .stopping: return String(localized: "Stopping…")
+        case .failed: return String(localized: "Connection Needs Attention")
+        case .stopped: return String(localized: "Not Running")
         }
     }
 }
-
 
 struct CompletionNotificationSetting: View {
     @Environment(DownloadStore.self) private var store

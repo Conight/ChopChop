@@ -18,6 +18,7 @@ extension DownloadStore {
         let sequence = refreshSequence
         let revision = taskRevision
         if let exitStatus = engineController.clearTerminatedProcess() {
+            cancelEngineSettingsApplication()
             stopEngineEvents()
             let error = EngineError.processExited(exitStatus, String(localized: "Aria2 Next stopped unexpectedly."))
             pollTask?.cancel()

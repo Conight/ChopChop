@@ -123,6 +123,7 @@
 		5374D0F3E4845DD88C29EDFA /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC35ABCB1CAD112C27004C69; };
 		D87ADD8B183BE11642EA6A98 /* SystemProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2F6500A5A99BD2AA287504D; };
 		ED42E71969ED8D6CB29A72B6 /* TrackerSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5702EAC90E093CBBBB510A; };
+		BA1900000000000000000001 /* DownloadStoreEngineSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1900000000000000000002 /* DownloadStoreEngineSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -266,6 +267,7 @@
 		7D1000000000000000000001 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Development.xcconfig; sourceTree = SOURCE_ROOT; };
 		7D1000000000000000000002 /* Distribution.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Distribution.xcconfig; sourceTree = SOURCE_ROOT; };
 		7D1000000000000000000003 /* Dev-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Dev-Info.plist"; sourceTree = "<group>"; };
+		BA1900000000000000000002 /* DownloadStoreEngineSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreEngineSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -355,6 +357,7 @@
 				70DFCCD191A2D88A14CBDBB9 /* SettingsED2KPage.swift */,
 				A535E717D334750D52C58372 /* SettingsIntegrationsPage.swift */,
 				BF2DAA41DBE251468A12E017 /* SettingsEnginePage.swift */,
+				BA1900000000000000000002 /* DownloadStoreEngineSettings.swift */,
 				15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */,
 				EB60F50300208130EDB1425E /* SettingsTrackerEditors.swift */,
 				9ACA212227CC5DCAFB9A2F52 /* SettingsControls.swift */,
@@ -634,6 +637,7 @@
 				EAE1A559FE30E348304DFF49 /* SettingsED2KPage.swift in Sources */,
 				D1F5E781D3A8E6F2DA334E86 /* SettingsIntegrationsPage.swift in Sources */,
 				172760A8B9385AC8C8585AEF /* SettingsEnginePage.swift in Sources */,
+				BA1900000000000000000001 /* DownloadStoreEngineSettings.swift in Sources */,
 				7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */,
 				8F935B7C513893269CFFA0BD /* SettingsTrackerEditors.swift in Sources */,
 				7F86A90198316EE9994C3820 /* SettingsControls.swift in Sources */,

@@ -4,19 +4,32 @@ import SwiftUI
 extension SettingsView {
     @ViewBuilder
     var engine: some View {
-        SettingsSection(title: "Aria2 Next") {
+        SettingsSection {
             EngineStatusView()
-            KeyValueLine(title: String(localized: "Installed version"), value: store.engineVersionDescription).settingsAnchor("engine.version")
-            if let capabilities = store.engineCapabilities {
-                KeyValueLine(title: String(localized: "Running version"), value: capabilities.version)
-                if !capabilities.enabledFeatures.isEmpty {
-                    KeyValueLine(title: String(localized: "Available features"), value: capabilities.enabledFeatures.joined(separator: ", "))
-                }
-            }
-            Text(String(localized: "Aria2 Next starts automatically when ChopChop opens. Restored downloads stay paused until you resume them."))
+            KeyValueLine(title: String(localized: "Installed version"), value: store.engineVersionDescription)
+                .settingsAnchor("engine.version")
+            Text(String(localized: "ChopChop manages the engine automatically. Restored downloads stay paused until you resume them."))
                 .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button(String(localized: "Engine Updates…")) { selectedPane = .updates }
+                Spacer()
+                Link(String(localized: "Engine on GitHub"), destination: EngineDistribution.repositoryURL)
+            }
         }
 
+        if let issue = engineConnectionIssue {
+            SettingsSection(title: String(localized: "Connection Needs Attention")) {
+                Text(issue).font(.callout).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Retry Connection")) {
+                    if case .running = store.runtime.phase { engineRestartConfirmation = true }
+                    else { runStoreTask { await store.restartEngine() } }
+                }
+                    .disabled(!store.canRestartEngine)
+                    .accessibilityIdentifier("settings-engine-retry-button")
+            }
+        }
         engineAdvanced
     }
 
@@ -59,7 +72,8 @@ extension SettingsView {
                             .font(.callout).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 12) {
-                        if let release = store.selectedEngineRelease {
+                        if let release = store.selectedEngineRelease,
+                           store.engineSetupState.requiresInstallation || store.hasEngineVersionChange {
                             Button(engineVersionActionTitle(release)) {
                                 if store.engineSetupState.requiresInstallation { store.installRequiredEngine() }
                                 else { store.updateEngine() }
@@ -82,7 +96,6 @@ extension SettingsView {
 
     private func engineVersionActionTitle(_ release: EngineRelease) -> String {
         if store.installedEngine == nil { return String(localized: "Download and Start") }
-        if release.version == store.installedEngine?.version { return String(localized: "Installed") }
         if store.engineUpgradeError != nil { return String(localized: "Retry Installation") }
         if let installed = store.installedEngine, release.version < installed.version {
             return String(localized: "Switch to \(release.version.description)")
@@ -90,118 +103,55 @@ extension SettingsView {
         return String(localized: "Update to \(release.version.description)")
     }
 
-    @ViewBuilder
     var engineAdvanced: some View {
-        SettingsSection(title: "RPC") {
-            SecureField(String(localized: "RPC token"), text: Bindable(store).engineSettings.rpcToken)
-                .settingsAnchor("engine.rpc-token")
-                .nativeTextFieldStyle()
-                .frame(minWidth: 220, maxWidth: .infinity)
-            HStack {
-                Button {
-                    store.generateRPCToken()
-                } label: {
-                    Label(String(localized: "Generate Token"), systemImage: "key")
+        SettingsSection {
+            DisclosureGroup(String(localized: "Advanced"), isExpanded: $engineAdvancedExpanded) {
+                SettingsControlRow(title: String(localized: "RPC port"),
+                                   subtitle: String(localized: "Local connection between ChopChop and its engine. Change only if the port is in use.")) {
+                    TextField(String(localized: "RPC port"), value: Bindable(store).engineSettings.rpcPort, format: .number.grouping(.never))
+                        .nativeTextFieldStyle().labelsHidden().frame(width: 112)
                 }
-                .buttonStyle(.bordered)
-
-                TextField(String(localized: "Port"), value: Bindable(store).engineSettings.rpcPort, format: .number.grouping(.never))
-                    .nativeTextFieldStyle()
-                    .frame(width: 112)
+                .settingsAnchor("engine.rpc-port")
+                Text(String(localized: "Connection authentication is generated and managed by ChopChop."))
+                    .font(.caption).foregroundStyle(.secondary)
+                if !store.engineSettings.missingLaunchRequirements.isEmpty {
+                    Text(store.engineSettings.missingLaunchRequirements.joined(separator: "\n"))
+                        .font(.callout).foregroundStyle(.orange)
                 }
-            .settingsAnchor("engine.rpc-port")
-            Text(String(localized: "Changing the RPC port or token requires restarting the engine."))
-                .font(.caption).foregroundStyle(.secondary)
-        }
-
-        SettingsSection(title: String(localized: "Runtime")) {
-            HStack(spacing: 10) {
-                Button {
-                    runStoreTask { await store.startEngine() }
-                } label: {
-                    Label(String(localized: "Start Engine"), systemImage: "play.fill")
+                if let capabilities = store.engineCapabilities {
+                    KeyValueLine(title: String(localized: "Running version"), value: capabilities.version)
+                    if !capabilities.enabledFeatures.isEmpty {
+                        KeyValueLine(title: String(localized: "Available features"), value: capabilities.enabledFeatures.joined(separator: ", "))
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!store.canStartEngine)
-
-                Button {
-                    runStoreTask { await store.restartEngine() }
-                } label: {
-                    Label(String(localized: "Restart"), systemImage: "arrow.clockwise")
+                if case .running(let pid) = store.runtime.phase {
+                    KeyValueLine(title: "PID", value: String(pid))
+                    Button(String(localized: "Restart Engine…")) { engineRestartConfirmation = true }
+                        .disabled(!store.canRestartEngine)
+                        .accessibilityIdentifier("settings-engine-restart-button")
                 }
-                .buttonStyle(.bordered)
-                .disabled(!store.canRestartEngine)
-
-                Button {
-                    runStoreTask { await store.stopEngine() }
-                } label: {
-                    Label(String(localized: "Stop"), systemImage: "stop.fill")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!store.canStopEngine)
-
-                Button {
-                    runStoreTask { await store.applyRuntimeEngineOptions() }
-                } label: {
-                    ActionFeedbackLabel(title: String(localized: "Apply Settings"), systemImage: "slider.horizontal.3", feedback: store.runtimeSettingsFeedback)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!runtimeCanApplySettings || store.runtimeSettingsFeedback == .working)
-            }
-            .settingsAnchor("engine.start-engine")
-            RuntimeRequirementsView(missingRequirements: store.engineSettings.missingLaunchRequirements)
-            KeyValueLine(title: String(localized: "State"), value: runtimeDescription)
-            if let error = store.runtime.lastError {
-                VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
-                    Label(String(localized: "Last error"), systemImage: "exclamationmark.triangle")
-                    Text(error)
-                        .font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        launchArguments
-    }
-
-    var launchArguments: some View {
-        SettingsSection(title: String(localized: "Launch Arguments")) {
-            if store.runtime.lastLaunchArguments.isEmpty {
-                Text(String(localized: "No engine launch arguments yet."))
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(store.runtime.lastLaunchArguments, id: \.self) { argument in
-                    Text(argument)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if !store.runtime.lastLaunchArguments.isEmpty {
+                    DisclosureGroup(String(localized: "Launch Arguments")) {
+                        Text(store.runtime.lastLaunchArguments.joined(separator: "\n"))
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
+            .settingsAnchor("engine.advanced")
         }
     }
 
-    var runtimeDescription: String {
+    private var engineConnectionIssue: String? {
+        guard !store.engineSetupState.requiresInstallation,
+              store.engineSetupState != .checking, !store.isUpdatingEngine else { return nil }
         switch store.runtime.phase {
-        case .stopped:
-            String(localized: "Stopped")
-        case .starting:
-            String(localized: "Starting")
-        case .running(let pid):
-            String(localized: "Running, PID \(String(pid))")
-        case .stopping:
-            String(localized: "Stopping")
-        case .failed(let message):
-            String(localized: "Failed: \(message)")
-        }
-    }
-
-    var runtimeCanApplySettings: Bool {
-        guard !store.isUpdatingEngine else { return false }
-        return switch store.runtime.phase {
-        case .running:
-            true
-        case .stopped, .starting, .stopping, .failed:
-            false
+        case .failed(let message): return message
+        case .stopped: return String(localized: "The engine is unavailable. Retry the connection to restore access to your downloads.")
+        case .running: return store.connectionIssue
+        case .starting, .stopping: return nil
         }
     }
 }

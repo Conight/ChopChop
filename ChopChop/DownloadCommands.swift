@@ -181,11 +181,7 @@ struct DownloadCommands: Commands {
                 DownloadActionButton(action: action, context: context)
             }
             Divider()
-            Menu(String(localized: "Engine")) {
-                ForEach([DownloadAction.startEngine, .restartEngine, .stopEngine, .engineSettings]) { action in
-                    DownloadActionButton(action: action, context: context)
-                }
-            }
+            DownloadActionButton(action: .engineSettings, context: context)
         }
     }
 }
