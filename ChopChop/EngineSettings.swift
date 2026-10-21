@@ -122,7 +122,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
     static let defaultED2KServerMetURL = "https://upd.emule-security.org/server.met"
     static let defaultED2KNodesDatURL = "https://upd.emule-security.org/nodes.dat"
     static let defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
-    static let systemCACertificatePath = "/etc/ssl/cert.pem"
 
     static var defaultDownloadDirectoryPath: String? {
         if AppIdentity.isDevelopment {
@@ -134,10 +133,6 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
-    }
-
-    static var defaultCACertificatePath: String? {
-        FileManager.default.fileExists(atPath: systemCACertificatePath) ? systemCACertificatePath : nil
     }
 
     static func isDefaultDownloadDirectoryPath(_ path: String) -> Bool {
@@ -317,10 +312,9 @@ nonisolated struct EngineSettings: Equatable, Sendable {
             options["ed2k-listen-port"] = "\(ed2kListenPort)"
             options["ed2k-udp-listen-port"] = "\(ed2kUDPListenPort)"
             options["ed2k-server"] = ED2KServerText.commaSeparated(from: ed2kServer)
+            // The supported macOS engine uses Apple SecTrust by default. A
+            // CA file overrides it; /etc/ssl/cert.pem is not the system trust store.
             options["check-certificate"] = "true"
-            if let caCertificatePath = Self.defaultCACertificatePath {
-                options["ca-certificate"] = caCertificatePath
-            }
         }
         return options.filter { !$0.value.isEmpty || $0.key == "seed-time" || $0.key == "bt-tracker" }
     }

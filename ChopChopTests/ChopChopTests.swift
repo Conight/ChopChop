@@ -2602,9 +2602,7 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(startup["ed2k-server"], "server.example:4661,server-two.example:4662")
         XCTAssertEqual(startup["file-allocation"], FileAllocationMode.trunc.rawValue)
         XCTAssertEqual(startup["check-certificate"], "true")
-        if let caCertificatePath = EngineSettings.defaultCACertificatePath {
-            XCTAssertEqual(startup["ca-certificate"], caCertificatePath)
-        }
+        XCTAssertNil(startup["ca-certificate"], "A CA file disables the engine's native macOS trust evaluation")
         XCTAssertEqual(startup["seed-time"], "")
 
         let runtime = settings.hotReloadableEngineOptions(downloadDirectoryPath: "/Downloads")

@@ -21,6 +21,7 @@ import urllib.request
 import uuid
 
 from engine_fixture import download_engine
+from engine_tls_fixture import run_native_tls_checks
 from local_signing import signing_identity, require_disposable_test_host
 from release_config import load
 
@@ -292,7 +293,7 @@ def main():
                      "--state-save-interval=1", "--continue=false", "--split=1",
                      "--max-connection-per-server=1", "--enable-dht=false", "--bt-enable-lpd=false",
                      f"--listen-port={free_port()}", "--ed2k-listen-port=0", "--ed2k-udp-listen-port=0",
-                     "--quiet=true", "--pause=true", f"--log={root / 'engine.log'}"]
+                     "--check-certificate=true", "--quiet=true", "--pause=true", f"--log={root / 'engine.log'}"]
 
         def launch(resume=False):
             nonlocal process
@@ -325,6 +326,7 @@ def main():
 
         try:
             launch()
+            run_native_tls_checks(root, rpc, wait_for)
             rpc("changeGlobalOption", {"seed-time": "60", "seed-ratio": "2"})
             rpc("changeGlobalOption", {"seed-time": "", "seed-ratio": "0"})
             assert "seed-time" not in rpc("getGlobalOption")
