@@ -1,6 +1,7 @@
 """Local HTTPS regression for the managed engine's macOS native trust policy.
 
 Only disposable hosts may install the temporary localhost-only test anchor.
+Its trust is revoked on exit; discard the VM to remove the denial record.
 The real engine must accept it through SecTrust, reject the old CA-file
 override, and still reject an untrusted chain and a mismatched hostname.
 """
@@ -21,6 +22,13 @@ PAYLOAD = b"ChopChop native macOS TLS verification fixture\n" * 32
 class TLSHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
+    def handle(self):
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
+            # Rejecting a certificate deliberately closes the TLS connection.
+            pass
+
     def do_GET(self):
         start, end = 0, len(PAYLOAD) - 1
         requested = self.headers.get("Range")
@@ -32,6 +40,8 @@ class TLSHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(206 if requested else 200)
         self.send_header("Content-Length", str(end - start + 1))
         self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Connection", "close")
+        self.close_connection = True
         if requested:
             self.send_header("Content-Range", f"bytes {start}-{end}/{len(PAYLOAD)}")
         self.end_headers()
@@ -69,8 +79,11 @@ authorityKeyIdentifier = keyid,issuer
 """)
 
     def run(*args, check=True):
-        return subprocess.run([str(arg) for arg in args], check=check,
-                              capture_output=True, text=True, timeout=30)
+        result = subprocess.run([str(arg) for arg in args],
+                                capture_output=True, text=True, timeout=30)
+        if check and result.returncode:
+            raise AssertionError(f"TLS fixture command failed: {result.args}\n{result.stdout}{result.stderr}")
+        return result
 
     run("/usr/bin/openssl", "req", "-new", "-x509", "-newkey", "rsa:2048",
         "-nodes", "-sha256", "-days", "2", "-subj", "/CN=" + name,
@@ -126,18 +139,27 @@ authorityKeyIdentifier = keyid,issuer
         download("old-static-ca", extra={"ca-certificate": "/etc/ssl/cert.pem"})
         download("native-trust", succeeds=True)
         download("wrong-hostname", source=f"https://127.0.0.1:{server.server_port}/fixture.bin")
-        print("PASS native TLS: system-trusted CA accepted, old CA-file override rejected; unknown issuer and wrong hostname rejected")
     finally:
         server.shutdown()
         server.server_close()
         worker.join(timeout=5)
-        if trust_attempted:
-            # Remove only this unique test anchor and its certificate, even when
-            # a transfer fails. No existing trust settings are replaced.
-            removed = run("sudo", "-n", "/usr/bin/security", "remove-trusted-cert",
-                          "-d", ca, check=False)
-            deleted = run("sudo", "-n", "/usr/bin/security", "delete-certificate",
-                          "-Z", fingerprint, "/Library/Keychains/System.keychain", check=False)
-            if trust_installed:
-                removed.check_returncode()
-                deleted.check_returncode()
+        try:
+            if trust_attempted:
+                # Removing the last admin trust record requests interactive
+                # authorization on current macOS, even with sudo. Revoke only
+                # our unique CA instead; the denial record dies with the VM.
+                # Never modify the host's authorization policy to skip that UI.
+                try:
+                    run("sudo", "-n", "/usr/bin/security", "add-trusted-cert", "-d",
+                        "-r", "deny", "-p", "ssl", "-s", "localhost",
+                        "-k", "/Library/Keychains/System.keychain", ca)
+                finally:
+                    run("sudo", "-n", "/usr/bin/security", "delete-certificate",
+                        "-Z", fingerprint, "/Library/Keychains/System.keychain", check=trust_installed)
+                revoked = run("/usr/bin/security", "verify-cert", "-p", "ssl", "-s", "localhost",
+                              "-L", "-c", leaf, "-c", ca, check=False)
+                assert revoked.returncode != 0, "The fixture CA must no longer be trusted"
+        finally:
+            ca_key.unlink(missing_ok=True)
+            leaf_key.unlink(missing_ok=True)
+    print("PASS native TLS: system-trusted CA accepted, old CA-file override rejected; unknown issuer and wrong hostname rejected; fixture trust revoked")
