@@ -1,0 +1,3 @@
+# Xcode 27's hosted label is newer than actionlint 1.7.12's built-in catalog.
+self-hosted-runner:
+  labels: [xcode-27]

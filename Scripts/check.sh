@@ -42,21 +42,23 @@ case "$mode" in
     release-unit) set -- test -configuration Release -only-testing:ChopChopTests \
         ENABLE_TESTABILITY=YES CODE_SIGN_INJECT_BASE_ENTITLEMENTS=YES ENABLE_HARDENED_RUNTIME=NO "$@" ;;
     ui) set -- test -only-testing:ChopChopUITests "$@" ;;
-    keyboard) set -- test \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandSelectAllAndDeleteRespectFilteredTaskList \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindAndTextDeletionDoNotRemoveSelectedDownload \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandNewFromSettingsUsesOneDownloadWindow \
-        -only-testing:ChopChopUITests/ChopChopUITests/testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch \
-        -only-testing:ChopChopUITests/ChopChopUITests/testShowDownloadsRestoresClosedAndMinimizedMainWindow \
-        -only-testing:ChopChopUITests/ChopChopUITests/testDoubleClickOpensDetailsWithoutPausingOrResuming \
-        -only-testing:ChopChopUITests/ChopChopUITests/testCommandFindSearchesSettingsAndSelectsExistingQuery \
-        -only-testing:ChopChopUITests/ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow \
-        -only-testing:ChopChopUITests/ChopChopUITests/testEmptyClipboardShowsFeedbackInAboutWindow "$@" ;;
+    keyboard|keyboard-a|keyboard-b)
+        keyboard_tests="$(python3 - "$repo_root/Scripts/keyboard-tests.json" "$mode" <<'PYTESTS'
+import json, re, sys
+plan = json.load(open(sys.argv[1]))
+selected = [test for group in plan.values() for test in group] if sys.argv[2] == 'keyboard' else plan[sys.argv[2][-1]]
+if not selected or any(re.fullmatch(r'test[A-Za-z0-9_]+', test) is None for test in selected):
+    raise SystemExit('Invalid keyboard test selection')
+print('\n'.join(selected))
+PYTESTS
+)"
+        for keyboard_test in $keyboard_tests; do
+            set -- "-only-testing:ChopChopUITests/ChopChopUITests/$keyboard_test" "$@"
+        done
+        set -- test "$@" ;;
     all) set -- test "$@" ;;
     release) set -- build -configuration Release "$@" ;;
-    *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|keyboard|all|release] [xcodebuild options...]' >&2; exit 2 ;;
+    *) echo 'Usage: Scripts/check.sh [unit|layout|release-unit|ui|keyboard|keyboard-a|keyboard-b|all|release] [xcodebuild options...]' >&2; exit 2 ;;
 esac
 . "$repo_root/Scripts/xcode-environment.sh"
 . "$repo_root/Scripts/local-signing.sh"
@@ -64,4 +66,4 @@ exec /usr/bin/xcodebuild -project "$repo_root/ChopChop.xcodeproj" \
     -scheme "ChopChop Dev" -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$derived_data" \
     CODE_SIGN_IDENTITY="$signing_identity" CODE_SIGNING_REQUIRED=YES \
-    CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" "$@"
+    CHOPCHOP_RELEASE_VERSION="${CHOPCHOP_RELEASE_VERSION:-development}" -showBuildTimingSummary "$@"

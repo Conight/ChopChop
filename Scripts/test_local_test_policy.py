@@ -18,7 +18,7 @@ class LocalTestPolicyTests(unittest.TestCase):
         return subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, timeout=15)
 
     def test_hosted_tests_and_full_gate_reject_personal_mac(self):
-        commands = [[str(SCRIPTS / 'check.sh'), mode] for mode in ('unit', 'layout', 'release-unit', 'ui', 'keyboard', 'all')]
+        commands = [[str(SCRIPTS / 'check.sh'), mode] for mode in ('unit', 'layout', 'release-unit', 'ui', 'keyboard', 'keyboard-a', 'keyboard-b', 'all')]
         commands += [[str(SCRIPTS / name)] for name in ('verify.sh', 'verify-engine-installation.sh')]
         for command in commands:
             with self.subTest(command=command):

@@ -1,5 +1,12 @@
 name: Verification tools
 description: Install the versions used by the shared verification gate
+inputs:
+  browser:
+    description: Install Node for browser tests
+    default: 'true'
+  media:
+    description: Install FFmpeg for real media tests
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -12,13 +19,15 @@ runs:
         for name, version in json.loads(Path('Scripts/verification-tools.json').read_text()).items():
             print(f'{name}={version}')
         PY
-    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+    - if: inputs.browser == 'true'
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ steps.versions.outputs.node }}
     - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: ${{ steps.versions.outputs.python }}
     - name: Install pinned FFmpeg bottle
+      if: inputs.media == 'true'
       shell: bash
       env:
         HOMEBREW_NO_AUTO_UPDATE: 1

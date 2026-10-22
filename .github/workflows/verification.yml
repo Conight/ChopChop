@@ -1,0 +1,71 @@
+name: Shared verification
+
+on:
+  workflow_call:
+    inputs:
+      source-ref:
+        type: string
+        default: ''
+      release-version:
+        type: string
+        default: development
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source-ref }}
+      - name: Validate workflows and release policy
+        run: |
+          python3 Scripts/check-workflows.py
+          python3 Scripts/test_ci_policy.py
+          bash -n Scripts/verify.sh
+          sh -n Scripts/check.sh
+  verify:
+    needs: policy
+    name: ${{ matrix.lane }}
+    runs-on: xcode-27
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        lane: [native, keyboard-a, keyboard-b, integration]
+    env:
+      CHOPCHOP_TEST_RESULTS_DIR: build/test-results
+      CHOPCHOP_RELEASE_VERSION: ${{ inputs.release-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source-ref }}
+      - name: Show build environment
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+      - uses: ./.github/actions/verification-tools
+        with:
+          browser: ${{ matrix.lane == 'native' }}
+          media: ${{ matrix.lane == 'integration' }}
+      - name: Verify ${{ matrix.lane }}
+        env:
+          VERIFICATION_LANE: ${{ matrix.lane }}
+        run: Scripts/verify.sh --lane "$VERIFICATION_LANE"
+      - name: Preserve logs, timings, screenshots, and results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.lane }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CHOPCHOP_TEST_RESULTS_DIR }}
+          compression-level: 1
+          if-no-files-found: ignore
+          retention-days: 7

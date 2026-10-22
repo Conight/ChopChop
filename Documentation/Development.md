@@ -290,6 +290,8 @@ Final validation for these features: 231 Swift unit/RPC/layout tests, 227 passed
 
 ### Shared verification gate
 
+Current CI/CD topology, measurements, exact-commit release promotion and unpublished packaging rehearsals are documented in [CI/CD performance](CICD.md). CI uses four isolated parallel macOS lanes; the standalone command below retains complete sequential validation.
+
 `Scripts/verify.sh` is the entry point for CI and release preparation. It validates both String Catalogs, runs extension tests and the English Swift suite, checks Chinese offscreen geometry, runs the isolated real HTTP/RPC and HLS/DASH suites, then builds and verifies the hardened Release app. `--package OUTPUT_DIRECTORY DMG_NAME` additionally creates and verifies a mounted DMG. This command does not publish anything.
 
 The verification gate pins Python 3.14.8, Node 24.22.0 (LTS), and FFmpeg/FFprobe 9.0.2 in `Scripts/verification-tools.json`. Install those versions on the disposable test host before running the gate. The script prefers `python3.14`, falls back to `python3`, and accepts an explicit `PYTHON` path; version checks run before building. The GitHub composite action installs fixed Node/Python versions and a checksum-verified FFmpeg formula/bottle from a fixed Homebrew commit. Shared library dependencies are resolved by Homebrew. The engine fixture and packaging dependencies remain version- and hash-pinned separately. Updating a tool baseline requires updating these pins and rerunning both real engine suites.

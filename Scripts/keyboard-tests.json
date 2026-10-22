@@ -1,0 +1,17 @@
+{
+  "a": [
+    "testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch",
+    "testPasteDownloadFromSettingsReturnsToMainWindow",
+    "testCommandFindSearchesSettingsAndSelectsExistingQuery",
+    "testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts",
+    "testEmptyClipboardShowsFeedbackInAboutWindow"
+  ],
+  "b": [
+    "testCommandSelectAllAndDeleteRespectFilteredTaskList",
+    "testCommandNewFromSettingsUsesOneDownloadWindow",
+    "testDoubleClickOpensDetailsWithoutPausingOrResuming",
+    "testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask",
+    "testShowDownloadsRestoresClosedAndMinimizedMainWindow",
+    "testCommandFindAndTextDeletionDoNotRemoveSelectedDownload"
+  ]
+}
