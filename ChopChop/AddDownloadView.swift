@@ -74,7 +74,7 @@ struct AddDownloadPanel: View {
                             .padding(.top, AppLayout.controlSpacing)
                             .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
                     }
-                    .padding(.leading, AppLayout.disclosureLeadingInset)
+                    .disclosureGroupStyle(ImportOptionsDisclosureStyle())
                     if let error = submissionError {
                         VStack(alignment: .leading, spacing: 5) {
                             Label(error.title, systemImage: "exclamationmark.triangle.fill")
@@ -356,6 +356,34 @@ private struct DownloadFolderPath: NSViewRepresentable {
         let url = DownloadLocationDisplay.resolvedURL(path)
         if control.url != url { control.url = url }
         control.setAccessibilityValue(DownloadLocationDisplay.path(path))
+    }
+}
+
+/// Keep the complete disclosure header inside the scroll view and make its label
+/// a real click/keyboard target. Don't depend on the automatic macOS triangle's
+/// accessibility rectangle, which includes space outside its visible hit target.
+private struct ImportOptionsDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: AppLayout.controlSpacing) {
+            Button { configuration.isExpanded.toggle() } label: {
+                HStack(spacing: AppLayout.controlSpacing) {
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: AppLayout.controlSpacing)
+                        .accessibilityHidden(true)
+                    configuration.label
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, AppLayout.focusClearance)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("add-download-advanced-toggle")
+            .accessibilityValue(String(localized: configuration.isExpanded ? "Expanded" : "Collapsed"))
+            if configuration.isExpanded { configuration.content }
+        }
+        .stateChangeMotion(configuration.isExpanded)
     }
 }
 
