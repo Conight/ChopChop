@@ -1563,6 +1563,12 @@ final class DownloadStore {
 
     func applyTrackersToRunningTasks(_ text: String, using client: Aria2RPCClient) async throws {
         let additional = TrackerText.trackers(from: text)
+        // An empty list only needs engine reconciliation when this app owns a
+        // previous supplement. Ordinary settings application needs no torrent RPC.
+        guard !additional.isEmpty || tasks.contains(where: { task in
+            guard let ownership = task.publicTrackerOwnership else { return false }
+            return ownership.infoHash == task.infoHash && !ownership.urlFingerprints.isEmpty
+        }) else { return }
         let sessionID = engineSessionID
         let active = try await client.activeTorrentTasks()
         var failures: [String] = []

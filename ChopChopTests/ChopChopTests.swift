@@ -2975,6 +2975,43 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testEmptyTrackerSupplementSkipsUnownedTasksAndRetiresOwnedEntries() async throws {
+        let calls = LockedBox<[String]>([])
+        let replacements = LockedBox<[[String: Any]]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request, into: calls)
+            switch method {
+            case "aria2.tellActive":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"bt","status":"active","bittorrent":{"mode":"multi"}}]}"#)
+            case "aria2.tellStatus":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"bt","status":"active","infoHash":"hash-a","bittorrent":{"mode":"multi","privateTorrent":"false"}}}"#)
+            case "aria2.getBtTrackers":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"url":"https://original.example/announce","tier":"7"},{"url":"https://old.example/announce","tier":"8"}]}"#)
+            case "aria2.replaceBtTrackers":
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+                let params = try XCTUnwrap(payload["params"] as? [Any])
+                replacements.set(try XCTUnwrap(params[2] as? [[String: Any]]))
+            default: break
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        var torrent = makeTask(id: "bt", protocolKind: .bitTorrent, status: .active)
+        torrent.infoHash = "hash-a"
+        store.tasks = [torrent]
+        try await store.applyTrackersToRunningTasks("", using: client)
+        XCTAssertTrue(calls.value().isEmpty, "No supplemental list or owned entries requires no torrent RPC")
+        torrent.publicTrackerOwnership = PublicTrackerOwnership(infoHash: "hash-a", urlFingerprints: [PublicTrackerPolicy.fingerprint("https://old.example/announce")])
+        store.tasks = [torrent]
+        try await store.applyTrackersToRunningTasks("", using: client)
+        XCTAssertEqual(replacements.value().compactMap { $0["url"] as? String }, ["https://original.example/announce"])
+        XCTAssertEqual(replacements.value().first?["tier"] as? Int, 7)
+        XCTAssertTrue(calls.value().contains("aria2.saveSession"))
+        XCTAssertEqual(store.tasks.first?.publicTrackerOwnership?.urlFingerprints, [])
+    }
+
+    @MainActor
     func testTrackerSyncUpdatesActiveTorrentsInFullPreservingOriginalURLsAndTiers() async throws {
         let replacements = LockedBox<[[String: Any]]>([])
         let calls = LockedBox<[String]>([])
