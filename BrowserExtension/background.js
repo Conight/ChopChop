@@ -1,5 +1,5 @@
 import {message, CaptureError} from './i18n.js';
-import {sendLinks} from './core.js';
+import {handoff, recentReceipts} from './handoff.js';
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => chrome.contextMenus.create({
     id: 'send-to-chopchop', title: message('contextDownload'), contexts: ['link', 'video', 'audio']
@@ -9,8 +9,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async info => {
   if (info.menuItemId !== 'send-to-chopchop') return;
   try {
-    const {pairing = ''} = await chrome.storage.local.get('pairing');
-    await sendLinks([info.linkUrl || info.srcUrl], pairing);
+    await handoff([info.linkUrl || info.srcUrl]);
     await chrome.action.setBadgeText({text: ''});
   } catch (error) {
     // Persist only a generic actionable error, never the source URL or request headers.
@@ -18,4 +17,13 @@ chrome.contextMenus.onClicked.addListener(async info => {
     await chrome.action.setBadgeText({text: '!'});
     await chrome.action.setBadgeBackgroundColor({color: '#bd6510'});
   }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
+  const job = message.type === 'handoff' ? handoff(message.urls, message.context)
+    : message.type === 'receipts' ? recentReceipts(message.revealID) : null;
+  if (!job) return;
+  job.then(value => respond({value}), error => respond({error: error.code || 'unavailable'}));
+  return true;
 });

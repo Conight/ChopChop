@@ -143,7 +143,7 @@ final class DownloadImportTests: XCTestCase {
             XCTAssertNil(info["CFBundleDocumentTypes"])
         } else {
             let urlTypes = try XCTUnwrap(info["CFBundleURLTypes"] as? [[String: Any]])
-            XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["ed2k", "magnet", "thunder"])
+            XCTAssertEqual(urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }.sorted(), ["chopchop", "ed2k", "magnet", "thunder"])
             let documents = try XCTUnwrap(info["CFBundleDocumentTypes"] as? [[String: Any]])
             XCTAssertEqual(documents.count, 2)
             XCTAssertTrue(documents.allSatisfy { $0["LSHandlerRank"] as? String == "Alternate" })

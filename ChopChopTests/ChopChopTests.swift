@@ -992,6 +992,7 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(params[1] as? [String], ["magnet:?xt=urn:btih:BF650E61509ABA5376CB3946305B2B5270A68B17"])
         let options = try XCTUnwrap(params[2] as? [String: String])
         XCTAssertEqual(options["pause-metadata"], "true")
+        XCTAssertEqual(options["bt-tracker"], "", "Unknown metadata must not inherit public trackers")
         XCTAssertEqual(options["follow-torrent"], "true")
         XCTAssertEqual(options["dir"], "/tmp/downloads")
         XCTAssertEqual(options["pause"], "false")
@@ -1028,6 +1029,7 @@ final class ChopChopTests: XCTestCase {
         let options = try XCTUnwrap(params[3] as? [String: String])
         XCTAssertEqual(options["pause"], "true")
         XCTAssertEqual(options["pause-metadata"], "true")
+        XCTAssertEqual(options["bt-tracker"], "", "Unknown metadata must not inherit public trackers")
     }
 
     func testRPCClientTellStatusAndGetFilesDecodeTorrentSelectionFields() async throws {
@@ -2942,6 +2944,37 @@ final class ChopChopTests: XCTestCase {
     }
 
     @MainActor
+    func testPublicTrackerSupplementSkipsPrivateAndUnknownMetadata() async throws {
+        let replaced = LockedBox<[String]>([])
+        let client = try makeRPCClient { request in
+            let method = try Self.captureRPCMethod(from: request)
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.requestBodyData(from: request)) as? [String: Any])
+            let params = payload["params"] as? [Any] ?? []
+            let gid = params.count > 1 ? params[1] as? String : nil
+            switch method {
+            case "aria2.tellActive":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"public","status":"active","bittorrent":{"mode":"multi"}},{"gid":"private","status":"active","bittorrent":{"mode":"multi"}},{"gid":"unknown","status":"active","bittorrent":{}}]}"#)
+            case "aria2.tellStatus":
+                var torrent: [String: Any] = ["mode": "multi"]
+                if gid == "public" { torrent["privateTorrent"] = "false" }
+                if gid == "private" { torrent["privateTorrent"] = "true" }
+                let body = try JSONSerialization.data(withJSONObject: ["result": ["gid": gid!, "status": "active", "bittorrent": torrent]])
+                return try Self.rpcHTTPResponse(for: request, body: String(decoding: body, as: UTF8.self))
+            case "aria2.getBtTrackers":
+                XCTAssertEqual(gid, "public")
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":[]}"#)
+            case "aria2.replaceBtTrackers": replaced.withValue { $0.append(gid!) }
+            default: break
+            }
+            return try Self.responseForStoreMutationPoll(method: method, request: request)
+        }
+        let store = try makeInjectedStore(engineController: MockEngineController(client: client))
+        defer { store.shutdown() }
+        try await store.applyTrackersToRunningTasks("https://public-tracker.example/announce", using: client)
+        XCTAssertEqual(replaced.value(), ["public"])
+    }
+
+    @MainActor
     func testTrackerSyncUpdatesActiveTorrentsInFullPreservingOriginalURLsAndTiers() async throws {
         let replacements = LockedBox<[[String: Any]]>([])
         let calls = LockedBox<[String]>([])
@@ -2956,6 +2989,8 @@ final class ChopChopTests: XCTestCase {
                 XCTAssertEqual((params[1] as? [String: String])?["bt-tracker"], (many + [original]).joined(separator: ","))
             case "aria2.tellActive":
                 return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"gid":"bt","status":"active","bittorrent":{"mode":"multi","info":{"name":"BT"}}},{"gid":"http","status":"active","files":[{"path":"/tmp/a.zip"}]}]}"#)
+            case "aria2.tellStatus":
+                return try Self.rpcHTTPResponse(for: request, body: #"{"result":{"gid":"bt","status":"active","bittorrent":{"mode":"multi","privateTorrent":"false"}}}"#)
             case "aria2.getBtTrackers":
                 XCTAssertEqual(params[1] as? String, "bt")
                 return try Self.rpcHTTPResponse(for: request, body: #"{"result":[{"url":"https://original.example/announce?passkey=private","tier":"7"}]}"#)
@@ -2994,7 +3029,7 @@ final class ChopChopTests: XCTestCase {
                 return try Self.rpcHTTPResponse(for: request, body: #"{"result":[]}"#)
             case "aria2.tellStatus":
                 let status = gid == "paused" ? "paused" : "active"
-                return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"\(gid!)\",\"status\":\"\(status)\"}}")
+                return try Self.rpcHTTPResponse(for: request, body: "{\"result\":{\"gid\":\"\(gid!)\",\"status\":\"\(status)\",\"bittorrent\":{\"mode\":\"multi\",\"privateTorrent\":\"false\"}}}")
             case "aria2.replaceBtTrackers": updated.withValue { $0.append(gid!) }
             default: break
             }

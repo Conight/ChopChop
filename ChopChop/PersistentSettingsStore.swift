@@ -232,6 +232,7 @@ final class PersistentAppConfiguration {
     var showMenuBar: Bool
     var notifyOnDownloadCompletion: Bool = false
     var bandwidthScheduleData: Data?
+    var temporaryBandwidthData: Data?
     var browserCaptureEnabled: Bool = false
     var browserCaptureToken: String = ""
     var keepRunningAfterClose: Bool
@@ -257,6 +258,7 @@ final class PersistentAppConfiguration {
         self.launchAtLogin = preferences.launchAtLogin
         self.showMenuBar = preferences.showMenuBar
         self.notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
+        self.temporaryBandwidthData = try? JSONEncoder().encode(preferences.temporaryBandwidth)
         self.browserCaptureEnabled = preferences.browserCaptureEnabled
         self.browserCaptureToken = preferences.browserCaptureToken
         self.keepRunningAfterClose = preferences.keepRunningAfterClose
@@ -283,6 +285,7 @@ final class PersistentAppConfiguration {
         preferences.showMenuBar = showMenuBar
         preferences.notifyOnDownloadCompletion = notifyOnDownloadCompletion
         preferences.bandwidthSchedule = bandwidthScheduleData.flatMap { try? JSONDecoder().decode(BandwidthSchedule.self, from: $0) } ?? BandwidthSchedule()
+        preferences.temporaryBandwidth = temporaryBandwidthData.flatMap { try? JSONDecoder().decode(TemporaryBandwidthLimit.self, from: $0) } ?? TemporaryBandwidthLimit()
         preferences.browserCaptureEnabled = browserCaptureEnabled
         preferences.browserCaptureToken = browserCaptureToken
         preferences.keepRunningAfterClose = keepRunningAfterClose
@@ -309,6 +312,7 @@ final class PersistentAppConfiguration {
         showMenuBar = preferences.showMenuBar
         notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
         bandwidthScheduleData = try? JSONEncoder().encode(preferences.bandwidthSchedule)
+        temporaryBandwidthData = try? JSONEncoder().encode(preferences.temporaryBandwidth)
         browserCaptureEnabled = preferences.browserCaptureEnabled
         browserCaptureToken = preferences.browserCaptureToken
         keepRunningAfterClose = preferences.keepRunningAfterClose

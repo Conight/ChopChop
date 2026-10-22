@@ -18,6 +18,8 @@ nonisolated struct DownloadImportRequest: Identifiable, Equatable, Sendable {
     var resources: [String]
     var documents: [String: ImportedDownloadDocument] = [:]
     var issues: [String] = []
+    var browserRequestID: UUID?
+    var browserContext: BrowserRequestContext?
 }
 
 nonisolated enum DownloadImportReader {
@@ -143,11 +145,12 @@ final class DownloadInputCoordinator: ObservableObject {
     private(set) var hasManualRequest = false
     private var savedDraft: AddDownloadDraft?
     private var claimedImport: DownloadImportRequest?
+    var browserRequestID: UUID? { claimedImport?.browserRequestID }
 
     func enqueue(_ requests: [DownloadImportRequest]) {
         // Repeated platform events while an item is waiting must not create duplicate sheets.
-        for request in requests where !pending.contains(where: { $0.resources == request.resources && $0.documents == request.documents && $0.issues == request.issues }) {
-            if claimedImport?.resources == request.resources && claimedImport?.documents == request.documents { continue }
+        for request in requests where request.browserRequestID != nil || !pending.contains(where: { $0.resources == request.resources && $0.documents == request.documents && $0.issues == request.issues }) {
+            if request.browserRequestID == nil, claimedImport?.resources == request.resources && claimedImport?.documents == request.documents { continue }
             pending.append(request)
         }
         revision += 1

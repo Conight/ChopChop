@@ -20343,6 +20343,804 @@
           }
         }
       }
+    },
+    "Applying speed limits…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applying speed limits…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在应用速度上限…"
+          }
+        }
+      }
+    },
+    "Check Connections": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Connections"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测连接"
+          }
+        }
+      }
+    },
+    "Clear forwarded credentials before changing the download origin.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear forwarded credentials before changing the download origin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改下载站点前，请先清除转交的凭据。"
+          }
+        }
+      }
+    },
+    "Connection attempt failed; retained for another attempt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection attempt failed; retained for another attempt"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接失败，暂时保留以便再次尝试"
+          }
+        }
+      }
+    },
+    "Connection reachable; announce not verified": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection reachable; announce not verified"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接可达，尚未验证宣布结果"
+          }
+        }
+      }
+    },
+    "Connection tests do not verify announce success or available peers. UDP tests are skipped when a proxy is configured. Private and unknown torrents never receive automatic public trackers.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection tests do not verify announce success or available peers. UDP tests are skipped when a proxy is configured. Private and unknown torrents never receive automatic public trackers."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接检测不代表宣布成功或存在可用节点。配置代理时跳过 UDP 检测。不会向私有或隐私属性未知的种子自动添加公共 Tracker。"
+          }
+        }
+      }
+    },
+    "Cooling down after repeated connection failures": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cooling down after repeated connection failures"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续连接失败，正在冷却"
+          }
+        }
+      }
+    },
+    "Enter bandwidth limits between zero and 2147483647 KiB/s.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter bandwidth limits between zero and 2147483647 KiB/s."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入零至 2147483647 KiB/s 之间的速度上限。"
+          }
+        }
+      }
+    },
+    "Excluded by your tracker list edits": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excluded by your tracker list edits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已根据你的列表编辑排除"
+          }
+        }
+      }
+    },
+    "Global limits": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global limits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局限速"
+          }
+        }
+      }
+    },
+    "History includes an observation gap.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History includes an observation gap."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史中存在未观测的时间段。"
+          }
+        }
+      }
+    },
+    "Limit Until Turned Off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limit Until Turned Off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "限速直至手动关闭"
+          }
+        }
+      }
+    },
+    "Limit for 1 Hour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limit for 1 Hour"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "限速 1 小时"
+          }
+        }
+      }
+    },
+    "Limit for 30 Minutes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limit for 30 Minutes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "限速 30 分钟"
+          }
+        }
+      }
+    },
+    "Limits apply when the engine is connected.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limits apply when the engine is connected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接引擎后生效。"
+          }
+        }
+      }
+    },
+    "No successful source snapshot": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No successful source snapshot"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚无成功获取的源快照"
+          }
+        }
+      }
+    },
+    "Not selected: tracker capacity or host diversity": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not selected: tracker capacity or host diversity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选用：数量限制或优先分散主机"
+          }
+        }
+      }
+    },
+    "Observed after reconnect; original transition time is unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observed after reconnect; original transition time is unknown."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重连后观测到此状态，实际变化时间未知。"
+          }
+        }
+      }
+    },
+    "Observed average speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observed average speed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "观测平均速度"
+          }
+        }
+      }
+    },
+    "Peak download speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peak download speed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载峰值速度"
+          }
+        }
+      }
+    },
+    "Peak upload speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peak upload speed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上传峰值速度"
+          }
+        }
+      }
+    },
+    "Reset Pairing Failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Pairing Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置配对失败"
+          }
+        }
+      }
+    },
+    "Reset Tracker Exclusions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Tracker Exclusions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置 Tracker 排除项"
+          }
+        }
+      }
+    },
+    "Selected without a recent connection observation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected without a recent connection observation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选用，暂无近期连接观测"
+          }
+        }
+      }
+    },
+    "Statistics cover observed intervals only. Historical curves are compacted; peaks and summary values are kept separately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics cover observed intervals only. Historical curves are compacted; peaks and summary values are kept separately."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "统计仅覆盖已观测的时间段。历史曲线会压缩保存，峰值和汇总数据独立保留。"
+          }
+        }
+      }
+    },
+    "Submission Needs Review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submission Needs Review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请核实提交结果"
+          }
+        }
+      }
+    },
+    "Task Activity": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task Activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务活动"
+          }
+        }
+      }
+    },
+    "Temporary Speed Limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temporary Speed Limit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "临时限速"
+          }
+        }
+      }
+    },
+    "Temporary limits can only reduce the effective global or scheduled limit. Zero means unlimited. Expiration is preserved across restarts.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temporary limits can only reduce the effective global or scheduled limit. Zero means unlimited. Expiration is preserved across restarts."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "临时限速仅会降低当前全局或定时速度上限。零表示不限速，重启后保留到期时间。"
+          }
+        }
+      }
+    },
+    "The previous submission result is unknown. Check Downloads before creating another task.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The previous submission result is unknown. Check Downloads before creating another task."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一次提交结果未知。请先检查下载列表，再创建新任务。"
+          }
+        }
+      }
+    },
+    "Tracker Diagnostics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker Diagnostics"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker 诊断"
+          }
+        }
+      }
+    },
+    "Tracker diagnostics cache could not be read.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker diagnostics cache could not be read."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 Tracker 诊断缓存。"
+          }
+        }
+      }
+    },
+    "Tracker diagnostics cache could not be saved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker diagnostics cache could not be saved."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存 Tracker 诊断缓存。"
+          }
+        }
+      }
+    },
+    "Transfer history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfer history"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "传输历史"
+          }
+        }
+      }
+    },
+    "Turn Off Temporary Limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn Off Temporary Limit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭临时限速"
+          }
+        }
+      }
+    },
+    "Browser submission history is unavailable. Review Downloads before resetting pairing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser submission history is unavailable. Review Downloads before resetting pairing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览器提交历史不可用。重置配对前请先检查下载列表。"
+          }
+        }
+      }
+    },
+    "Browser request details are included. Review the source and authentication before confirming.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser request details are included. Review the source and authentication before confirming."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已附带浏览器请求信息，确认前请核对来源与身份凭据。"
+          }
+        }
+      }
+    },
+    "Time": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间"
+          }
+        }
+      }
+    },
+    "Bytes/s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bytes/s"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字节/秒"
+          }
+        }
+      }
+    },
+    "Direction": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direction"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方向"
+          }
+        }
+      }
+    },
+    "Segment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segment"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间段"
+          }
+        }
+      }
+    },
+    "Connection tests cannot use this proxy configuration; no direct connection was attempted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection tests cannot use this proxy configuration; no direct connection was attempted."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接检测不支持当前代理配置，未尝试直连。"
+          }
+        }
+      }
+    },
+    "Browser receipt history is full. Review Downloads before resetting pairing to accept more requests.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser receipt history is full. Review Downloads before resetting pairing to accept more requests."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览器回执历史已满。请检查下载列表，再重置配对以接收新请求。"
+          }
+        }
+      }
+    },
+    "Tracker source exceeds the 2 MiB limit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker source exceeds the 2 MiB limit."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracker 源超过 2 MiB 大小限制。"
+          }
+        }
+      }
+    },
+    "Until %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截至 %@"
+          }
+        }
+      }
+    },
+    "Until turned off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until turned off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直至手动关闭"
+          }
+        }
+      }
+    },
+    "%lld ms": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 毫秒"
+          }
+        }
+      }
+    },
+    "Connection success rate over the last 16 observations": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection success rate over the last 16 observations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 16 次观测的连接成功率"
+          }
+        }
+      }
+    },
+    "Metalink files received with browser credentials stay as documents. Open the saved file to review its downloads.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metalink files received with browser credentials stay as documents. Open the saved file to review its downloads."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附带浏览器凭据的 Metalink 文件会保留为文档。打开已保存的文件可核对其中的下载。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -102,3 +102,56 @@ final class BrowserCaptureTests: XCTestCase {
         XCTAssertFalse(try persistence.loadAppPreferences().browserCaptureEnabled)
     }
 }
+
+extension BrowserCaptureTests {
+    @MainActor
+    func testDurableReceiptDeduplicatesAdmissionAndRestrictsReadbackToOwnedTasks() async throws {
+        let token = String(repeating: "b", count: 64)
+        let server = BrowserCaptureServer()
+        server.start(token: token, port: 0)
+        defer { server.stop() }
+        for _ in 0..<100 where !server.isListening { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(server.isListening)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.connectionProxyDictionary = [:]
+        let client = URLSession(configuration: configuration)
+        defer { client.invalidateAndCancel() }
+        var submissions = 0
+        server.onSubmission = { _ in submissions += 1 }
+        let requestID = UUID()
+        let body = try JSONSerialization.data(withJSONObject: ["requestID": requestID.uuidString,
+            "issuedAt": Date().timeIntervalSince1970 * 1000, "urls": ["https://example.com/file?token=private"]])
+        @MainActor func request(_ path: String, body: Data) -> URLRequest {
+            var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/v2/\(path)")!)
+            request.httpMethod = "POST"; request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            return request
+        }
+        let (capabilities, capabilityResponse) = try await client.data(for: request("capabilities", body: Data("{}".utf8)))
+        XCTAssertEqual((capabilityResponse as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertEqual((try JSONSerialization.jsonObject(with: capabilities) as? [String: Any])?["protocolVersion"] as? Int, 2)
+        let (_, missingIdentity) = try await client.data(for: request("import", body: Data(#"{"urls":["https://example.com/file"]}"#.utf8)))
+        XCTAssertEqual((missingIdentity as? HTTPURLResponse)?.statusCode, 400)
+        for _ in 0..<2 {
+            let (_, response) = try await client.data(for: request("import", body: body))
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 202)
+        }
+        XCTAssertEqual(submissions, 1)
+        server.receiptStore.update(requestID) { $0.taskIDs = ["owned"]; $0.state = .created }
+        server.onReadTasks = { ids in
+            XCTAssertEqual(ids, ["owned"])
+            return [["id": "owned", "name": "file", "status": "Paused"]]
+        }
+        let query = try JSONSerialization.data(withJSONObject: ["requestID": requestID.uuidString, "taskIDs": ["foreign"]])
+        let (data, response) = try await client.data(for: request("receipt", body: query))
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let receipt = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(receipt["state"] as? String, "created")
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("token=private"))
+        var denied = request("receipt", body: query)
+        denied.setValue("Bearer invalid", forHTTPHeaderField: "Authorization")
+        let (_, deniedResponse) = try await client.data(for: denied)
+        XCTAssertEqual((deniedResponse as? HTTPURLResponse)?.statusCode, 403)
+    }
+}

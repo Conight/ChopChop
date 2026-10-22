@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00E800FFE2E0C8C4D1BAFDC5 /* DownloadStoreSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10F8C62D1CB5E46FD25D789 /* DownloadStoreSubmission.swift */; };
+		D1743C2718D82D34DE1B7127 /* TrackerDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3369CFFCAD77CB6FF3BBD0BF /* TrackerDiagnosticsView.swift */; };
+		FC025BF897957066C43943A3 /* TrackerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A002E9C602575C62CE98A /* TrackerDiagnostics.swift */; };
+		5BC6523850B7C75FD068D1BC /* DownloadStoreBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD3A9ED5D1892131243D1B1F /* DownloadStoreBrowser.swift */; };
+		4978A0AD89D53F9CBB5E6CBD /* BrowserReceipts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E6288C70B7FDA0C80AB39D /* BrowserReceipts.swift */; };
+		044B41DD2471A028F0C440AE /* TemporaryBandwidthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E2F7404B3817E941255EF52 /* TemporaryBandwidthView.swift */; };
+		349E672CC753D153F09C1DDA /* EffectiveBandwidth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBA8DBCDA345467DC185022 /* EffectiveBandwidth.swift */; };
+		AA2DA31457303528329D8AD2 /* DownloadActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C196CED9BA7D311D1E73089 /* DownloadActivityView.swift */; };
+		2D4B2D67FEED7704B1FFBE69 /* DownloadActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F158B758636713017C1BB09 /* DownloadActivity.swift */; };
 		7C1000000000000000000001 /* AppAbout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1000000000000000000002 /* AppAbout.swift */; };
 		63D000000000000000000001 /* TorrentDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D000000000000000000002 /* TorrentDiscovery.swift */; };
 		7DF4ABD36C0D496AA73DF537 /* SettingsUpdatesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */; };
@@ -153,6 +162,15 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C10F8C62D1CB5E46FD25D789 /* DownloadStoreSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreSubmission.swift; sourceTree = "<group>"; };
+		3369CFFCAD77CB6FF3BBD0BF /* TrackerDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerDiagnosticsView.swift; sourceTree = "<group>"; };
+		CB6A002E9C602575C62CE98A /* TrackerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerDiagnostics.swift; sourceTree = "<group>"; };
+		AD3A9ED5D1892131243D1B1F /* DownloadStoreBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreBrowser.swift; sourceTree = "<group>"; };
+		D0E6288C70B7FDA0C80AB39D /* BrowserReceipts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserReceipts.swift; sourceTree = "<group>"; };
+		1E2F7404B3817E941255EF52 /* TemporaryBandwidthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryBandwidthView.swift; sourceTree = "<group>"; };
+		6CBA8DBCDA345467DC185022 /* EffectiveBandwidth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveBandwidth.swift; sourceTree = "<group>"; };
+		0C196CED9BA7D311D1E73089 /* DownloadActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadActivityView.swift; sourceTree = "<group>"; };
+		5F158B758636713017C1BB09 /* DownloadActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadActivity.swift; sourceTree = "<group>"; };
 		7C1000000000000000000002 /* AppAbout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAbout.swift; sourceTree = "<group>"; };
 		63D000000000000000000002 /* TorrentDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDiscovery.swift; sourceTree = "<group>"; };
 		15259F43D641494D9C1C88AB /* SettingsUpdatesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUpdatesPage.swift; sourceTree = "<group>"; };
@@ -337,6 +355,15 @@
 		59DBECA12FCFE0DA005075E1 /* ChopChop */ = {
 			isa = PBXGroup;
 			children = (
+				C10F8C62D1CB5E46FD25D789 /* DownloadStoreSubmission.swift */,
+				3369CFFCAD77CB6FF3BBD0BF /* TrackerDiagnosticsView.swift */,
+				CB6A002E9C602575C62CE98A /* TrackerDiagnostics.swift */,
+				AD3A9ED5D1892131243D1B1F /* DownloadStoreBrowser.swift */,
+				D0E6288C70B7FDA0C80AB39D /* BrowserReceipts.swift */,
+				1E2F7404B3817E941255EF52 /* TemporaryBandwidthView.swift */,
+				6CBA8DBCDA345467DC185022 /* EffectiveBandwidth.swift */,
+				0C196CED9BA7D311D1E73089 /* DownloadActivityView.swift */,
+				5F158B758636713017C1BB09 /* DownloadActivity.swift */,
 				62A000000000000000000004 /* Localizable.xcstrings */,
                 62A000000000000000000005 /* AppShortcuts.xcstrings */,
 				62A000000000000000000003 /* NativeControls.swift */,
@@ -619,6 +646,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				00E800FFE2E0C8C4D1BAFDC5 /* DownloadStoreSubmission.swift in Sources */,
+				D1743C2718D82D34DE1B7127 /* TrackerDiagnosticsView.swift in Sources */,
+				FC025BF897957066C43943A3 /* TrackerDiagnostics.swift in Sources */,
+				5BC6523850B7C75FD068D1BC /* DownloadStoreBrowser.swift in Sources */,
+				4978A0AD89D53F9CBB5E6CBD /* BrowserReceipts.swift in Sources */,
+				044B41DD2471A028F0C440AE /* TemporaryBandwidthView.swift in Sources */,
+				349E672CC753D153F09C1DDA /* EffectiveBandwidth.swift in Sources */,
+				AA2DA31457303528329D8AD2 /* DownloadActivityView.swift in Sources */,
+				2D4B2D67FEED7704B1FFBE69 /* DownloadActivity.swift in Sources */,
 				62B000000000000000000003 /* NativeControls.swift in Sources */,
 				62B000000000000000000007 /* TorrentFileSelection.swift in Sources */,
 				63D000000000000000000001 /* TorrentDiscovery.swift in Sources */,
@@ -883,7 +919,7 @@
 				CODE_SIGN_ENTITLEMENTS = ChopChop/ChopChop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -923,7 +959,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1165,7 +1201,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 8J75L9A3BN;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

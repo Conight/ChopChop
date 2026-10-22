@@ -283,6 +283,8 @@ nonisolated struct Aria2RPCClient: Sendable {
 
         var options = newTaskOptions(try draft.engineOptions(fallbackDirectory: fallbackDirectory, autoOrganize: autoOrganize))
         options["pause"] = "false" // Metadata must resolve even when the eventual payload should stay paused.
+        // Metadata privacy is not known yet. Never inherit the public global list.
+        options["bt-tracker"] = ""
         options["pause-metadata"] = "true"
         options["force-save"] = "true" // Preserve active seeding in crash-recovery sessions.
         options["follow-torrent"] = "true"

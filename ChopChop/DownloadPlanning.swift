@@ -1,41 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-nonisolated struct BandwidthSchedule: Codable, Equatable, Sendable {
-    var enabled = false
-    var startMinute = 22 * 60
-    var endMinute = 8 * 60
-    var downloadKB = 1024
-    var uploadKB = 128
-
-    var validationIssue: String? {
-        guard (0..<1440).contains(startMinute), (0..<1440).contains(endMinute),
-              (0...Int(Int32.max)).contains(downloadKB), (0...Int(Int32.max)).contains(uploadKB) else {
-            return String(localized: "Enter valid times and bandwidth limits of zero or more KiB/s.")
-        }
-        return nil
-    }
-
-    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
-        guard enabled else { return false }
-        let minute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
-        if startMinute == endMinute { return true }
-        return startMinute < endMinute
-            ? (startMinute..<endMinute).contains(minute)
-            : minute >= startMinute || minute < endMinute
-    }
-
-    func options(at date: Date, base: EngineSettings, calendar: Calendar = .current) -> [String: String] {
-        let active = contains(date, calendar: calendar)
-        return [
-            "max-overall-download-limit": Self.limit(active ? downloadKB : base.maxOverallDownloadLimitKB),
-            "max-overall-upload-limit": Self.limit(active ? uploadKB : base.maxOverallUploadLimitKB)
-        ]
-    }
-
-    private static func limit(_ kb: Int) -> String { kb > 0 ? "\(kb)K" : "0" }
-}
-
 nonisolated enum DownloadQueueOrder {
     static func position(moving id: String, before target: String?, in queue: [String]) -> Int? {
         guard queue.contains(id), id != target else { return nil }
@@ -182,4 +147,16 @@ struct BandwidthScheduleView: View {
             store.preferences.bandwidthSchedule[keyPath: key] = Calendar.current.component(.hour, from: date) * 60 + Calendar.current.component(.minute, from: date)
         })
     }
+}
+
+nonisolated extension BandwidthSchedule {
+    func options(at date: Date, base: EngineSettings, calendar: Calendar = .current) -> [String: String] {
+        let active = contains(date, calendar: calendar)
+        return [
+            "max-overall-download-limit": Self.limit(active ? downloadKB : base.maxOverallDownloadLimitKB),
+            "max-overall-upload-limit": Self.limit(active ? uploadKB : base.maxOverallUploadLimitKB)
+        ]
+    }
+
+    private static func limit(_ kb: Int) -> String { kb > 0 ? "\(kb)K" : "0" }
 }

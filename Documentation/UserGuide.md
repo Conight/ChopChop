@@ -183,3 +183,21 @@ For a signed update, choose **Install and Restart** when preparation finishes. C
 Older releases without signed update metadata still download directly in ChopChop, with progress, cancellation and SHA-256 verification. When the download finishes, choose **Quit and Open Installer**: ChopChop opens the DMG, saves its downloads and exits. Then drag ChopChop to Applications. If opening fails, the app stays open and **Try Again** reuses the verified download. **Show in Finder** reveals the DMG without quitting. Unwritable installation locations also offer **Download Installer**. Engine versions and installation are also managed in Settings → Updates.
 
 Downloaded installers and prepared signed updates can be recovered after reopening ChopChop; their files are verified again before use. While waiting for termination, **Retry Quit** requests a normal exit and never force-quits ongoing session saving. If the installer stops waiting, the app reports the failure and offers a retry of the prepared package.
+
+## 浏览器回执、临时限速与任务历史 / Receipts, temporary limits and history
+
+### 简体中文
+
+- **浏览器交接：** 更新并重新加载扩展后，在弹窗的“最近提交”查看等待确认、已创建、取消或结果未知等状态。刷新只查询结果，不重复提交。可打开对应任务，或点击“打开 ChopChop”启动已安装的正式应用。结果未知时先检查应用中的下载；若回执明确不存在，再重新发送。
+- **可选身份信息：** 选中单个 HTTP(S) 资源后，可选择“为此下载附带 Cookie…”，批准该站点权限。附带的信息仅用于本次选择，在应用确认时可编辑。修改站点前需要清除转交的凭据。扩展设置可移除可选 Cookie 和站点权限。
+- **临时限速：** 在菜单栏选择限速 30 分钟、1 小时或直至手动关闭。设置 → 下载可调整上、下行限额。临时值不会提高全局或定时速度上限；到期时间保留到下次启动，过期后恢复原有限速规则。未连接引擎或尚未应用时会显示提示。
+- **Tracker：** 设置 → BitTorrent → Tracker 列表可展开诊断。检测连接不代表宣布成功或存在资源，网络或代理改变后会重新评估旧观测。手动删除的托管 Tracker 会被排除；“重置 Tracker 排除项”允许下次同步重新选用。私有种子与隐私未知的元数据任务不会自动补充公共 Tracker。
+- **任务历史：** 详情 → 概览 → 任务活动显示状态变化、速度曲线与观测平均/峰值。重连后的状态不会伪装成精确的历史变化时间；未观测区间会明确标记。历史曲线有容量限制，汇总值不从压缩曲线重新计算。
+
+### English
+
+- Update/reload the extension, then use **Recent submissions** to distinguish pending confirmation, created tasks, cancellation and unknown outcomes. Refresh only reads receipts. Open associated tasks in the app, or use **Open ChopChop** to launch the installed production application. Check Downloads before retrying an uncertain write; an authoritative missing receipt permits a new explicit submission.
+- **Include cookies for this download…** is optional for one selected HTTP(S) resource and requests access to that origin. Review the forwarded fields in the app. Clear forwarded credentials before changing the origin. Extension options can remove optional cookie/site grants.
+- The menu bar offers temporary speed caps for 30 minutes, one hour, or until turned off. Configure the rates in Settings → Downloads. Temporary caps cannot raise the effective global/scheduled limit. Expiration survives restart; expired caps restore the previous rules. Disconnected and pending-application states are shown.
+- Expand **Tracker Diagnostics** in BitTorrent settings. Connection evidence does not prove announce success or peer availability. Network/proxy changes invalidate old observations. Editing managed entries creates exclusions; reset exclusions before syncing to allow them back. Private and unknown torrents never receive automatic public supplements.
+- Expand **Task Activity** in Details → Overview for observed state transitions, speed history and summary metrics. Gaps and recovered transitions are labelled explicitly. Compacted charts do not change independently stored peak/summary values.

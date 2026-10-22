@@ -12,3 +12,9 @@ document.getElementById('pair').addEventListener('submit', async event => {
     input.value = ''; status.textContent = message('paired');
   } catch (error) { status.textContent = captureErrorMessage(error); }
 });
+
+document.getElementById('forget-cookies').addEventListener('click', async () => {
+  const granted = await chrome.permissions.getAll();
+  await chrome.permissions.remove({permissions: ['cookies'], origins: (granted.origins || []).filter(origin => origin !== 'http://127.0.0.1/*')});
+  status.textContent = message('cookiesForgotten');
+});

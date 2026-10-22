@@ -22,7 +22,32 @@ const fallback = {
   "noMedia": "No direct media found. You can send this page link, or copy the direct download URL.",
   "pageRestricted": "This page cannot be inspected. Right-click a download link instead.",
   "sentOne": "1 link sent. Review in ChopChop.",
-  "sentMany": "$1 links sent. Review in ChopChop."
+  "sentMany": "$1 links sent. Review in ChopChop.",
+  "uncertain": "The submission result is unknown. Refresh recent submissions and check ChopChop before sending again.",
+  "receiptMissing": "No receipt exists for this request. You can send the selection again.",
+  "includeContext": "Include cookies for this download…",
+  "contextIncluded": "Request details included for this selection only. Review them in ChopChop.",
+  "contextUnavailable": "Select one HTTP or HTTPS link to include request details.",
+  "recentSubmissions": "Recent submissions",
+  "refreshReceipts": "Refresh status",
+  "openInApp": "Open in ChopChop",
+  "offline": "Saved status; engine unavailable",
+  "launchApp": "Open ChopChop",
+  "receipt_pending": "Waiting for confirmation in ChopChop",
+  "receipt_created": "Downloads created",
+  "receipt_partial": "Some downloads created; remaining items cancelled",
+  "receipt_cancelled": "Submission cancelled",
+  "receipt_unknown": "Result needs review in ChopChop",
+  "task_Active": "Active",
+  "task_Waiting": "Waiting",
+  "task_Paused": "Paused",
+  "task_Completed": "Completed",
+  "task_Failed": "Failed",
+  "task_Removed": "Removed",
+  "forgetCookies": "Remove Optional Cookie Access",
+  "cookiesForgotten": "Optional cookie and site access removed.",
+  "receiptCapacity": "Too many unresolved submissions. Refresh their status and review ChopChop before sending more.",
+  "appUpdateRequired": "Update and restart ChopChop before using this extension. No download was submitted to the older app."
 };
 export function message(key, substitutions = []) {
   const translated = globalThis.chrome?.i18n?.getMessage(key, substitutions);

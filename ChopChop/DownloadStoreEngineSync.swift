@@ -170,11 +170,13 @@ extension DownloadStore {
             }
             let byID = Dictionary(uniqueKeysWithValues: samples.map { ($0.gid, $0) })
             var updated = tasks
+            let observedAt = Date()
             for index in updated.indices {
                 guard let sample = byID[updated[index].id] else { continue }
-                guard let task = sample.updating(updated[index]) else {
+                guard var task = sample.updating(updated[index]) else {
                     return await refreshTasks(reportErrors: false)
                 }
+                task.activity = DownloadActivity.observing(task, previous: updated[index], now: observedAt)
                 updated[index] = task
             }
             if tasks != updated { tasks = updated }
@@ -304,7 +306,7 @@ extension DownloadStore {
     func nextPlanDelay(now: Date = Date()) -> Duration {
         if applyingDownloadPlans || taskMutationDepth > 0 { return .milliseconds(100) }
         return DownloadRefreshPolicy.planDelay(now: now,
-            deadlines: tasks.filter { armedScheduledTaskIDs.contains($0.id) }.compactMap { task in
+            deadlines: [preferences.temporaryBandwidth.expiresAt].compactMap { $0 }.filter { $0 > now } + tasks.filter { armedScheduledTaskIDs.contains($0.id) }.compactMap { task in
                 guard let date = task.scheduledStart else { return nil }
                 return date <= now && !task.isAvailableInEngine ? now.addingTimeInterval(5) : date
             },

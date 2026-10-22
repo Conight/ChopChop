@@ -15,11 +15,12 @@ nonisolated enum BrowserCaptureHTTP {
         guard delimiter.lowerBound <= maximumHeader,
               let header = String(data: data[..<delimiter.lowerBound], encoding: .utf8) else { return .rejected(400) }
         let lines = header.components(separatedBy: "\r\n")
-        guard lines.first == "POST /v1/import HTTP/1.1" else { return .rejected(404) }
+        guard let first = lines.first, ["POST /v1/import HTTP/1.1", "POST /v1/receipt HTTP/1.1", "POST /v2/import HTTP/1.1", "POST /v2/receipt HTTP/1.1", "POST /v2/capabilities HTTP/1.1"].contains(first) else { return .rejected(404) }
         var headers: [String: String] = [:]
         for line in lines.dropFirst() {
             guard let colon = line.firstIndex(of: ":") else { return .rejected(400) }
             let key = line[..<colon].lowercased()
+            guard !key.isEmpty, key.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return .rejected(400) }
             guard headers[key] == nil else { return .rejected(400) }
             headers[key] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
         }
@@ -29,15 +30,20 @@ nonisolated enum BrowserCaptureHTTP {
         let body = data[delimiter.upperBound...]
         guard body.count >= length else { return .incomplete }
         guard body.count == length else { return .rejected(400) }
+        headers["x-bridge-route"] = first.contains("/capabilities ") ? "capabilities" : (first.contains("/receipt ") ? "receipt" : "import")
+        headers["x-bridge-version"] = first.contains("/v2/") ? "2" : "1"
         return .request(headers, Data(body))
     }
 
-    static func authorizedURLs(headers: [String: String], body: Data, token: String, port: UInt16) -> [String]? {
-        // Token and literal Host validation prevent web pages and DNS rebinding from using the bridge.
+    static func isAuthorized(headers: [String: String], token: String, port: UInt16) -> Bool {
         guard token.count == 64, headers["authorization"] == "Bearer \(token)",
               headers["host"] == "127.0.0.1:\(port)",
-              headers["content-type"]?.split(separator: ";").first?.lowercased() == "application/json" else { return nil }
-        if let origin = headers["origin"], !origin.hasPrefix("chrome-extension://") { return nil }
+              headers["content-type"]?.split(separator: ";").first?.lowercased() == "application/json" else { return false }
+        return headers["origin"].map { $0.hasPrefix("chrome-extension://") } ?? true
+    }
+
+    static func authorizedURLs(headers: [String: String], body: Data, token: String, port: UInt16) -> [String]? {
+        guard isAuthorized(headers: headers, token: token, port: port) else { return nil }
         struct Payload: Decodable { var urls: [String] }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: body),
               !payload.urls.isEmpty, payload.urls.count <= 100 else { return nil }
@@ -57,9 +63,9 @@ nonisolated enum BrowserCaptureHTTP {
         return unique
     }
 
-    static func response(_ code: Int) -> Data {
-        let accepted = code == 202
-        let body = accepted ? #"{"accepted":true}"# : #"{"accepted":false}"#
+    static func response(_ code: Int, json: Data? = nil) -> Data {
+        let accepted = code == 202 || code == 200
+        let body = json.flatMap { String(data: $0, encoding: .utf8) } ?? (accepted ? #"{"accepted":true}"# : #"{"accepted":false}"#)
         return Data("HTTP/1.1 \(code) \(accepted ? "Accepted" : "Rejected")\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)".utf8)
     }
 }
@@ -71,6 +77,10 @@ final class BrowserCaptureServer: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var port: UInt16 = BrowserCaptureServer.defaultPort
     var onImport: (([String]) -> Void)?
+    var onSubmission: ((BrowserSubmission) -> Void)?
+    var onReadTasks: (([String]) -> [[String: Any]])?
+    var onRevealTasks: (([String]) -> Void)?
+    var receiptStore = BrowserReceiptStore()
     private var token = ""
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
@@ -142,8 +152,56 @@ final class BrowserCaptureServer: ObservableObject {
                     self.receive(connection, id: id, buffer: buffer)
                 case .rejected(let code): self.reply(code, connection: connection, id: id)
                 case .request(let headers, let body):
+                    if headers["x-bridge-route"] == "capabilities" {
+                        guard BrowserCaptureHTTP.isAuthorized(headers: headers, token: self.token, port: self.port) else {
+                            self.reply(403, connection: connection, id: id); return
+                        }
+                        let capabilities: [String: Any] = ["protocolVersion": 2, "receipts": true, "requestContext": true]
+                        self.reply(200, connection: connection, id: id, json: try? JSONSerialization.data(withJSONObject: capabilities))
+                        return
+                    }
+                    if headers["x-bridge-route"] == "receipt" {
+                        guard let payload = try? JSONDecoder().decode(ReceiptQuery.self, from: body),
+                              BrowserCaptureHTTP.isAuthorized(headers: headers, token: self.token, port: self.port) else {
+                            self.reply(403, connection: connection, id: id); return
+                        }
+                        self.receiptStore.pruneExpired()
+                        guard self.receiptStore.isAvailable else { self.reply(503, connection: connection, id: id); return }
+                        guard let receipt = self.receiptStore.receipts[payload.requestID] else {
+                            self.reply(404, connection: connection, id: id); return
+                        }
+                        if payload.reveal == true { self.onRevealTasks?(receipt.taskIDs) }
+                        self.replyReceipt(receipt, code: 200, connection: connection, id: id)
+                        return
+                    }
                     guard let urls = BrowserCaptureHTTP.authorizedURLs(headers: headers, body: body, token: self.token, port: self.port) else {
                         self.reply(403, connection: connection, id: id); return
+                    }
+                    if var submission = try? JSONDecoder().decode(BrowserSubmission.self, from: body) {
+                        guard submission.context?.isValid != false,
+                              submission.context == nil || (urls.count == 1 && ["http", "https"].contains(URL(string: urls[0])?.scheme ?? "") && submission.context?.matches(urls[0]) == true) else {
+                            self.reply(400, connection: connection, id: id); return
+                        }
+                        submission.urls = urls
+                        do {
+                            if self.receiptStore.receipts[submission.requestID] != nil {
+                                let (receipt, _) = try self.receiptStore.admit(submission, body: body)
+                                self.replyReceipt(receipt, code: 202, connection: connection, id: id)
+                                return
+                            }
+                            guard Date().timeIntervalSince(self.lastImport) >= 0.5 else {
+                                self.reply(429, connection: connection, id: id); return
+                            }
+                            let (receipt, fresh) = try self.receiptStore.admit(submission, body: body)
+                            self.lastImport = Date()
+                            if fresh { self.onSubmission?(submission) }
+                            self.replyReceipt(receipt, code: 202, connection: connection, id: id)
+                        } catch { self.reply(409, connection: connection, id: id) }
+                        return
+                    }
+                    // A malformed v2 identity cannot silently degrade to legacy admission.
+                    if headers["x-bridge-version"] == "2" || (try? JSONSerialization.jsonObject(with: body) as? [String: Any])?["requestID"] != nil {
+                        self.reply(400, connection: connection, id: id); return
                     }
                     guard Date().timeIntervalSince(self.lastImport) >= 0.5 else {
                         self.reply(429, connection: connection, id: id); return
@@ -156,8 +214,16 @@ final class BrowserCaptureServer: ObservableObject {
         }
     }
 
-    private func reply(_ code: Int, connection: NWConnection, id: UUID) {
-        connection.send(content: BrowserCaptureHTTP.response(code), completion: .contentProcessed { [weak self] _ in
+    private struct ReceiptQuery: Decodable { var requestID: UUID; var reveal: Bool? }
+
+    private func replyReceipt(_ receipt: BrowserReceipt, code: Int, connection: NWConnection, id: UUID) {
+        let value: [String: Any] = ["requestID": receipt.requestID.uuidString, "state": receipt.state.rawValue,
+            "tasks": onReadTasks?(receipt.taskIDs) ?? []]
+        reply(code, connection: connection, id: id, json: try? JSONSerialization.data(withJSONObject: value))
+    }
+
+    private func reply(_ code: Int, connection: NWConnection, id: UUID, json: Data? = nil) {
+        connection.send(content: BrowserCaptureHTTP.response(code, json: json), completion: .contentProcessed { [weak self] _ in
             connection.cancel()
             Task { @MainActor in self?.connections.removeValue(forKey: id) }
         })
@@ -175,6 +241,14 @@ struct BrowserIntegrationView: View {
                 get: { store.preferences.browserCaptureEnabled },
                 set: { store.setBrowserCaptureEnabled($0) }))
             Text(server.status).font(.callout).foregroundStyle(.secondary)
+            if server.receiptStore.receipts.values.filter({ Date().timeIntervalSince($0.createdAt) < 7 * 86400 }).count >= 512 {
+                Text(String(localized: "Browser receipt history is full. Review Downloads before resetting pairing to accept more requests."))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            if !server.receiptStore.isAvailable {
+                Text(String(localized: "Browser submission history is unavailable. Review Downloads before resetting pairing."))
+                    .font(.callout).foregroundStyle(.red)
+            }
             step(String(localized: "1. Enable Receiving")) {
                 Text(String(localized: "Keep ChopChop open and turn on receiving above. When ready, this Mac accepts links only from paired extensions."))
                     .fixedSize(horizontal: false, vertical: true)

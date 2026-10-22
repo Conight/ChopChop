@@ -123,6 +123,7 @@ extension SettingsView {
         }
 
         SettingsSection(title: String(localized: "Tracker List")) {
+            TrackerDiagnosticsView().settingsAnchor("bitTorrent.tracker-diagnostics")
             TrackerListEditor(trackerText: btTrackerTextBinding).settingsAnchor("bitTorrent.tracker-list")
 
             Toggle(String(localized: "Sync tracker sources automatically"), isOn: Bindable(store).engineSettings.btTrackerAutoSync)

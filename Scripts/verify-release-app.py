@@ -91,7 +91,7 @@ def verify(app, development=False):
     require(manifest.get("default_locale") == "en", "Browser extension fallback locale is missing")
     require(manifest["manifest_version"] == 3, "Browser extension must use Manifest V3")
     require(manifest["host_permissions"] == ["http://127.0.0.1/*"], "Browser extension host access is too broad")
-    for name in ("manifest.json", "core.js", "background.js", "popup.js", "popup.html", "options.js", "options.html", "style.css", "i18n.js", "_locales/en/messages.json", "_locales/zh_CN/messages.json"):
+    for name in ("manifest.json", "core.js", "handoff.js", "background.js", "popup.js", "popup.html", "options.js", "options.html", "style.css", "i18n.js", "_locales/en/messages.json", "_locales/zh_CN/messages.json"):
         require((extension / name).read_bytes() == (root / "BrowserExtension" / name).read_bytes(),
                 f"Bundled browser extension differs: {name}")
     metadata = json.loads((app / "Contents/Resources/Metadata.appintents/extract.actionsdata").read_text())

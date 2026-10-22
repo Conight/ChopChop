@@ -240,5 +240,8 @@ nonisolated extension DownloadTask {
         addedAtIsFirstSeen = try values.decodeIfPresent(Bool.self, forKey: .addedAtIsFirstSeen) ?? true
         queuePosition = try values.decodeIfPresent(Int.self, forKey: .queuePosition)
         scheduledStart = try values.decodeIfPresent(Date.self, forKey: .scheduledStart)
+        privateTorrent = try values.decodeIfPresent(Bool.self, forKey: .privateTorrent)
+        activity = try values.decodeIfPresent(DownloadActivity.self, forKey: .activity)
+        publicTrackerOwnership = try values.decodeIfPresent(PublicTrackerOwnership.self, forKey: .publicTrackerOwnership)
     }
 }

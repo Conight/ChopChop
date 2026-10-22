@@ -23,6 +23,8 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
     var referer = ""
     var cookie = ""
     var authorization = ""
+    var browserContextOrigin: String? = nil
+    var browserRequestID: UUID? = nil
     var customHeaders = ""
     var proxyURL = ""
     var importedDocuments: [String: ImportedDownloadDocument] = [:]
@@ -94,6 +96,12 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
 
     func engineOptions(fallbackDirectory: String?, autoOrganize: Bool) throws -> [String: String] {
         let normalized = try normalizedResources()
+        if let origin = browserContextOrigin, !cookie.isEmpty || !authorization.isEmpty {
+            let context = BrowserRequestContext(sourceOrigin: origin)
+            guard normalized.count == 1, context.matches(normalized[0]) else {
+                throw DownloadOperationError(String(localized: "Clear forwarded credentials before changing the download origin."))
+            }
+        }
         if normalized.count > 1, media.mode != .file,
            (media.mode != .automatic || normalized.contains(where: Self.isMediaManifest)) {
             throw DownloadOperationError(String(localized: "Add one media source at a time to inspect and choose its tracks."))
@@ -103,6 +111,13 @@ nonisolated struct AddDownloadDraft: Equatable, Sendable {
         }
 
         var options: [String: String] = ["pause": startPaused.description]
+        if browserContextOrigin != nil, !cookie.isEmpty || !authorization.isEmpty {
+            // Engine followers inherit custom headers and establish a new HTTP
+            // source origin. Keep credentialed descriptors as documents instead.
+            // The explicit torrent-selection path separately enables BT metadata.
+            options["follow-metalink"] = "false"
+            options["follow-torrent"] = "false"
+        }
         if !outputName.trimmedForEngine.isEmpty {
             options["out"] = outputName.trimmedForEngine
         }

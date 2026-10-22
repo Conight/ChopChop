@@ -127,7 +127,8 @@ nonisolated struct Aria2TaskDTO: Decodable, Sendable {
             isChecking: ["checking", "recovering"].contains(bittorrent?.state ?? "") || verifyIntegrityPending?.value == true || ((Int64(verifiedLength ?? "0") ?? 0) > 0 && (Int64(verifiedLength ?? "0") ?? 0) < (Int64(totalLength ?? "0") ?? 0)),
             isFetchingMetadata: isBitTorrentMetadataPlaceholder,
             requiresFileSelection: bittorrent?.fileSelectionState == "awaiting",
-            errorCode: errorCode
+            errorCode: errorCode,
+            privateTorrent: bittorrent?.privateTorrent.flatMap { $0 == "true" ? true : ($0 == "false" ? false : nil) }
         )
     }
 
@@ -232,6 +233,7 @@ nonisolated struct Aria2BitTorrentDTO: Decodable, Sendable {
     var info: Info?
     var mode: String?
     var announceList: [[String]]?
+    var privateTorrent: String?
     var state: String?
     var fileSelectionState: String?
     var numPeers: String?

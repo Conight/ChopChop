@@ -43,6 +43,7 @@
 			<string>Viewer</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>chopchop</string>
 				<string>magnet</string>
 				<string>ed2k</string>
 				<string>thunder</string>

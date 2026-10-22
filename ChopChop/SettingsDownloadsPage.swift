@@ -34,6 +34,7 @@ extension SettingsView {
             .disabled(!store.preferences.suppressRemoveConfirmation)
             .settingsAnchor("downloads.move-files-to-trash-when-confirmation-is-skipped")
         }
+        TemporaryBandwidthSettings()
         BandwidthScheduleView()
             .settingsAnchor("downloads.bandwidth-schedule")
     }

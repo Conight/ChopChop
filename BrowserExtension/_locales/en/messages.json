@@ -70,5 +70,80 @@
   },
   "sentMany": {
     "message": "$1 links sent. Review in ChopChop."
+  },
+  "uncertain": {
+    "message": "The submission result is unknown. Refresh recent submissions and check ChopChop before sending again."
+  },
+  "receiptMissing": {
+    "message": "No receipt exists for this request. You can send the selection again."
+  },
+  "includeContext": {
+    "message": "Include cookies for this download…"
+  },
+  "contextIncluded": {
+    "message": "Request details included for this selection only. Review them in ChopChop."
+  },
+  "contextUnavailable": {
+    "message": "Select one HTTP or HTTPS link to include request details."
+  },
+  "recentSubmissions": {
+    "message": "Recent submissions"
+  },
+  "refreshReceipts": {
+    "message": "Refresh status"
+  },
+  "openInApp": {
+    "message": "Open in ChopChop"
+  },
+  "offline": {
+    "message": "Saved status; engine unavailable"
+  },
+  "launchApp": {
+    "message": "Open ChopChop"
+  },
+  "receipt_pending": {
+    "message": "Waiting for confirmation in ChopChop"
+  },
+  "receipt_created": {
+    "message": "Downloads created"
+  },
+  "receipt_partial": {
+    "message": "Some downloads created; remaining items cancelled"
+  },
+  "receipt_cancelled": {
+    "message": "Submission cancelled"
+  },
+  "receipt_unknown": {
+    "message": "Result needs review in ChopChop"
+  },
+  "task_Active": {
+    "message": "Active"
+  },
+  "task_Waiting": {
+    "message": "Waiting"
+  },
+  "task_Paused": {
+    "message": "Paused"
+  },
+  "task_Completed": {
+    "message": "Completed"
+  },
+  "task_Failed": {
+    "message": "Failed"
+  },
+  "task_Removed": {
+    "message": "Removed"
+  },
+  "forgetCookies": {
+    "message": "Remove Optional Cookie Access"
+  },
+  "cookiesForgotten": {
+    "message": "Optional cookie and site access removed."
+  },
+  "receiptCapacity": {
+    "message": "Too many unresolved submissions. Refresh their status and review ChopChop before sending more."
+  },
+  "appUpdateRequired": {
+    "message": "Update and restart ChopChop before using this extension. No download was submitted to the older app."
   }
 }

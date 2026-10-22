@@ -11,6 +11,8 @@ struct SettingSearchEntry: Identifiable, Equatable {
 
 enum SettingsSearchIndex {
     static let entries: [SettingSearchEntry] = [
+        .init(id: "downloads.temporary-speed-limit", pane: .downloads, title: "Temporary Speed Limit"),
+        .init(id: "bitTorrent.tracker-diagnostics", pane: .bitTorrent, title: "Tracker Diagnostics"),
         .init(id: "general.notifications", pane: .general, title: "Download Completion Notifications"),
         .init(id: "integrations.browser", pane: .integrations, title: "Browser Integration"),
         .init(id: "engine.version", pane: .engine, title: "Installed version"),

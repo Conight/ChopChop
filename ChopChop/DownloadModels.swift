@@ -232,13 +232,17 @@ nonisolated struct DownloadTask: Identifiable, Hashable, Codable, Sendable {
     var torrentDirectory: String? = nil
     var torrentFileIssue: TorrentFileIssue? = nil
     var errorCode: String? = nil
+    /// nil until the engine has positively identified the torrent's privacy.
+    var privateTorrent: Bool? = nil
+    var activity: DownloadActivity? = nil
+    var publicTrackerOwnership: PublicTrackerOwnership? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, protocolKind, status, totalLength, completedLength, downloadSpeed, uploadSpeed
         case connections, destination, addedAt, errorMessage, files, peers, trackers, recentLogs, infoHash
         case isSharing, sourceURL, torrentDiagnostics, media, isChecking, isFetchingMetadata
         case requiresFileSelection, isAvailableInEngine, addedAtIsFirstSeen, queuePosition, scheduledStart
-        case torrentDirectory, torrentFileIssue, errorCode
+        case torrentDirectory, torrentFileIssue, errorCode, privateTorrent, activity, publicTrackerOwnership
     }
 
     var hasReportedTrashableFiles: Bool {

@@ -91,11 +91,15 @@ final class DownloadHistoryStore {
     }
 
     static func merge(_ incoming: [DownloadTask], existing: [DownloadTask], hidden: Set<String>) -> [DownloadTask] {
+        let previousByID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var result = Dictionary(existing.filter { !hidden.contains($0.id) }.map { ($0.id, $0.disconnectedSnapshot) },
                                 uniquingKeysWith: { first, _ in first })
         for var task in incoming where !hidden.contains(task.id) {
             if let old = result[task.id] {
                 task = EngineDownloadFilePolicy.preservingOwnedPaths(task, previous: old)
+                if task.infoHash != nil, task.infoHash == old.publicTrackerOwnership?.infoHash {
+                    task.publicTrackerOwnership = old.publicTrackerOwnership
+                }
                 task.scheduledStart = old.scheduledStart
                 task.torrentDirectory = old.torrentDirectory
                 task.torrentFileIssue = old.torrentFileIssue
@@ -116,6 +120,7 @@ final class DownloadHistoryStore {
                     }
                 }
             }
+            task.activity = DownloadActivity.observing(task, previous: previousByID[task.id])
             task.isAvailableInEngine = true
             result[task.id] = task
         }

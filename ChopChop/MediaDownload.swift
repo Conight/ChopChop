@@ -146,6 +146,7 @@ final class MediaDownloadCoordinator: ObservableObject {
     @Published var selection = MediaDownloadOptions()
     var onAdded: ((String, AddDownloadDraft) -> Void)?
     var onDiscarded: ((String) -> Void)?
+    var onUnknownCreation: ((Error, AddDownloadDraft) -> Void)?
     var onSaveError: ((String) -> Void)?
     private var ownsTask = false
     private var generation = UUID()
@@ -187,6 +188,7 @@ final class MediaDownloadCoordinator: ObservableObject {
         } catch {
             guard generation == request else { return }
             self.error = DownloadPrivacy.redact(error.localizedDescription)
+            if gid == nil { onUnknownCreation?(error, draft) }
             // An inspection never transfers payload. Remove its provisional engine record on failure.
             if let gid {
                 do { try await discard(gid, using: client) }

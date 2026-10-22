@@ -95,3 +95,118 @@ test('bridge failures have stable actionable codes and never use server response
       async () => ({status, statusText: 'private details'})), {code});
   }
 });
+
+test('receipts validate identity, preserve uncertainty, and never replay writes', async () => {
+  const {bridgeRequest} = await import('../BrowserExtension/core.js');
+  const requestID = '62f47012-46a4-44a6-ae12-4cf8f60e8d01';
+  let calls = 0;
+  const fetcher = async () => { calls++; throw new Error('private-cookie'); };
+  await assert.rejects(bridgeRequest('import', {requestID, urls: ['https://example.com/']}, `29101:${token}`, fetcher), {code: 'uncertain'});
+  assert.equal(calls, 1);
+  await assert.rejects(bridgeRequest('receipt', {requestID}, `29101:${token}`, async () => ({status: 200, json: async () => ({requestID: 'other', state: 'created', tasks: []})})), {code: 'unavailable'});
+});
+
+const capableFetch = fetcher => async (url, options) => url.endsWith('/capabilities')
+  ? {status: 200, json: async () => ({protocolVersion: 2, receipts: true, requestContext: true})}
+  : fetcher(url, options);
+
+test('a suspended or concurrent handoff retains admission identity without storing source credentials', async () => {
+  const {handoff, recentReceipts} = await import('../BrowserExtension/handoff.js');
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  let data = {}, writes = 0;
+  globalThis.chrome = {storage: {
+    local: {get: async () => ({pairing: `29101:${token}`, ...structuredClone(data)}), set: async value => { data = structuredClone({...data, ...value}); }},
+    session: {get: async () => ({}), set: async () => {}}
+  }};
+  globalThis.fetch = capableFetch(async () => { writes++; throw new Error('network lost after acceptance'); });
+  const urls = ['https://example.com/file?signature=private'];
+  const context = {sourceOrigin: 'https://example.com', cookie: 'private-cookie'};
+  try {
+    await assert.rejects(handoff(urls, context), {code: 'uncertain'});
+    await assert.rejects(handoff(urls, context), {code: 'uncertain'});
+    assert.equal(writes, 1);
+    const saved = JSON.stringify(data);
+    assert(!saved.includes('signature'));
+    assert(!saved.includes('private-cookie'));
+    assert(!saved.includes(token));
+    const id = data.receipts[0].requestID;
+    globalThis.fetch = capableFetch(async (url, options) => {
+      assert(url.endsWith('/receipt'));
+      assert.equal(JSON.parse(options.body).requestID, id);
+      return {status: 200, json: async () => ({requestID: id, state: 'created', tasks: []})};
+    });
+    assert.equal((await recentReceipts())[0].state, 'created');
+    assert.equal(data.receipts[0].state, 'created');
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('only an authoritative missing receipt releases an uncertain admission', async () => {
+  const {handoff, recentReceipts} = await import('../BrowserExtension/handoff.js');
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  let data = {};
+  globalThis.chrome = {storage: {
+    local: {get: async () => ({pairing: `29101:${token}`, ...structuredClone(data)}), set: async value => { data = structuredClone({...data, ...value}); }},
+    session: {get: async () => ({}), set: async () => {}}
+  }};
+  globalThis.fetch = capableFetch(async () => { throw new Error('lost'); });
+  try {
+    await assert.rejects(handoff(['https://example.com/new']), {code: 'uncertain'});
+    globalThis.fetch = capableFetch(async () => ({status: 404}));
+    await recentReceipts();
+    assert.equal(data.receipts[0].state, 'rejected');
+    globalThis.fetch = capableFetch(async (url, options) => {
+      const body = JSON.parse(options.body);
+      assert(body.issuedAt <= Date.now());
+      return {status: 202, json: async () => ({requestID: body.requestID, state: 'pending', tasks: []})};
+    });
+    assert.equal((await handoff(['https://example.com/new'])).state, 'pending');
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('unresolved durable identities cannot be evicted by admission capacity', async () => {
+  const {handoff} = await import('../BrowserExtension/handoff.js');
+  const {requestFingerprint} = await import('../BrowserExtension/core.js');
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const scope = await requestFingerprint(`29101:${token}`);
+  const receipts = Array.from({length: 128}, () => ({requestID: crypto.randomUUID(), scope, fingerprint: 'other', state: 'unknown', issuedAt: Date.now()}));
+  let writes = 0;
+  globalThis.chrome = {storage: {local: {get: async () => ({pairing: `29101:${token}`, receipts}), set: async () => { writes++; }}}};
+  globalThis.fetch = capableFetch(async () => { throw new Error('No write should be sent'); });
+  try {
+    await assert.rejects(handoff(['https://example.com/another']), {code: 'receiptCapacity'});
+    assert.equal(writes, 0);
+    assert.equal(receipts.length, 128);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('an older app is rejected before any download or credential payload is sent', async () => {
+  const {handoff} = await import('../BrowserExtension/handoff.js');
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const calls = []; let writes = 0;
+  globalThis.chrome = {storage: {local: {get: async () => ({pairing: `29101:${token}`, receipts: []}), set: async () => { writes++; }}}};
+  globalThis.fetch = async (url, options) => { calls.push({url, body: options.body}); return {status: 404}; };
+  try {
+    await assert.rejects(handoff(['https://example.com/private?token=secret'], {cookie: 'private'}), {code: 'appUpdateRequired'});
+    assert.equal(calls.length, 1);
+    assert(calls[0].url.endsWith('/v2/capabilities'));
+    assert.equal(calls[0].body, '{}');
+    assert.equal(writes, 0);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('reordering an uncertain batch does not create a second submission', async () => {
+  const {handoff} = await import('../BrowserExtension/handoff.js');
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  let data = {}, writes = 0;
+  globalThis.chrome = {storage: {local: {
+    get: async () => ({pairing: `29101:${token}`, ...structuredClone(data)}),
+    set: async value => { data = structuredClone({...data, ...value}); }
+  }}};
+  globalThis.fetch = capableFetch(async () => { writes++; throw new Error('lost response'); });
+  try {
+    const urls = ['https://example.com/a', 'https://example.com/b'];
+    await assert.rejects(handoff(urls), {code: 'uncertain'});
+    await assert.rejects(handoff([...urls].reverse()), {code: 'uncertain'});
+    assert.equal(writes, 1);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});

@@ -228,6 +228,7 @@ struct TaskInspectorView: View {
                                    task.addedAt.formatted(date: .abbreviated, time: .shortened), divider: false)
                 }.padding(.horizontal, 12).padding(.vertical, 4)
             }
+            DownloadActivityView(task: task)
             if task.media != nil { MediaTaskActions(task: task).labelStyle(.titleOnly) }
             if task.canRepairConnection || canSchedule {
                 VStack(alignment: .leading, spacing: 10) {

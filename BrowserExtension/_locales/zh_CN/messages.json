@@ -70,5 +70,80 @@
   },
   "sentMany": {
     "message": "已发送 $1 个链接，请在 ChopChop 中确认。"
+  },
+  "uncertain": {
+    "message": "提交结果未知。请刷新最近提交并检查 ChopChop，再决定是否重新发送。"
+  },
+  "receiptMissing": {
+    "message": "未找到此请求的回执，可以重新发送所选链接。"
+  },
+  "includeContext": {
+    "message": "为此下载附带 Cookie…"
+  },
+  "contextIncluded": {
+    "message": "仅为本次所选链接附带请求信息，请在 ChopChop 中核对。"
+  },
+  "contextUnavailable": {
+    "message": "请选择一个 HTTP 或 HTTPS 链接以附带请求信息。"
+  },
+  "recentSubmissions": {
+    "message": "最近提交"
+  },
+  "refreshReceipts": {
+    "message": "刷新状态"
+  },
+  "openInApp": {
+    "message": "在 ChopChop 中打开"
+  },
+  "offline": {
+    "message": "已保存状态，引擎不可用"
+  },
+  "launchApp": {
+    "message": "打开 ChopChop"
+  },
+  "receipt_pending": {
+    "message": "等待在 ChopChop 中确认"
+  },
+  "receipt_created": {
+    "message": "已创建下载"
+  },
+  "receipt_partial": {
+    "message": "已创建部分下载，其余项目已取消"
+  },
+  "receipt_cancelled": {
+    "message": "提交已取消"
+  },
+  "receipt_unknown": {
+    "message": "请在 ChopChop 中核实结果"
+  },
+  "task_Active": {
+    "message": "下载中"
+  },
+  "task_Waiting": {
+    "message": "等待中"
+  },
+  "task_Paused": {
+    "message": "已暂停"
+  },
+  "task_Completed": {
+    "message": "已完成"
+  },
+  "task_Failed": {
+    "message": "失败"
+  },
+  "task_Removed": {
+    "message": "已移除"
+  },
+  "forgetCookies": {
+    "message": "移除可选 Cookie 权限"
+  },
+  "cookiesForgotten": {
+    "message": "已移除可选 Cookie 和站点访问权限。"
+  },
+  "receiptCapacity": {
+    "message": "未解决的提交过多。请刷新状态并在 ChopChop 中核实后，再发送新链接。"
+  },
+  "appUpdateRequired": {
+    "message": "请更新并重新启动 ChopChop 后再使用此扩展。未向旧版应用提交下载。"
   }
 }

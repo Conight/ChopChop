@@ -190,8 +190,10 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        if let store { store.importDownloads(urls.map(DownloadImportInput.url)) }
-        else { pendingOpenURLs.append(contentsOf: urls) }
+        // The browser launch URL carries no task or authentication data.
+        let resources = urls.filter { $0.scheme?.lowercased() != "chopchop" }
+        if let store { store.importDownloads(resources.map(DownloadImportInput.url)) }
+        else { pendingOpenURLs.append(contentsOf: resources) }
         revealDownloadWindow()
     }
 

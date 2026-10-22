@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ChopChop",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "__MSG_extensionDescription__",
   "permissions": [
     "activeTab",
@@ -36,5 +36,12 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "optional_permissions": [
+    "cookies"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
 }

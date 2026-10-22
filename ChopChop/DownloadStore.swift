@@ -69,20 +69,22 @@ final class DownloadStore {
                 configureBrowserCapture()
             }
             updatePowerAssertion()
-            if oldValue.bandwidthSchedule != preferences.bandwidthSchedule { startPlanClock() }
+            if oldValue.bandwidthSchedule != preferences.bandwidthSchedule || oldValue.temporaryBandwidth != preferences.temporaryBandwidth { startPlanClock() }
         }
     }
     let inputCoordinator = DownloadInputCoordinator()
     let notifications: DownloadNotificationCoordinator
     let mediaDownloads = MediaDownloadCoordinator()
     let browserCapture = BrowserCaptureServer()
+    let trackerDiagnostics: TrackerDiagnostics
     // Explicit event streams for AppKit integrations; SwiftUI observes properties.
     let taskSnapshots = CurrentValueSubject<[DownloadTask], Never>([])
     let preferenceChanges = PassthroughSubject<AppPreferences, Never>()
     let notificationNavigationRequests = PassthroughSubject<Void, Never>()
     let downloadWindowRequests = PassthroughSubject<Void, Never>()
-    @ObservationIgnored private var inputTask: Task<Void, Never>?
+    @ObservationIgnored var inputTask: Task<Void, Never>?
     private(set) var importIssues: [String] = []
+    var browserPartConfirmed = false
     private(set) var notificationNavigationRevision = 0 {
         didSet { notificationNavigationRequests.send() }
     }
@@ -301,6 +303,8 @@ final class DownloadStore {
         self.engineInstallationManager = engineInstallationManager ?? EngineInstallationManager()
         self.settingsStore = resolvedSettingsStore
         self.engineController = engineController ?? Aria2NextEngineController()
+        let diagnosticFile = AppLaunchConfiguration.isTestAutomation ? nil : (try? Aria2NextPaths.supportDirectory())?.appendingPathComponent("tracker-diagnostics.json")
+        self.trackerDiagnostics = TrackerDiagnostics(file: diagnosticFile, monitorNetwork: !AppLaunchConfiguration.isTestAutomation)
         self.trackerFetcher = trackerFetcher ?? URLSessionBitTorrentTrackerSourceFetcher()
         self.ed2kBootstrapFetcher = ed2kBootstrapFetcher ?? URLSessionED2KBootstrapFetcher()
         self.ed2kBootstrapApplicationSupportBase = ed2kBootstrapApplicationSupportBase
@@ -316,6 +320,7 @@ final class DownloadStore {
             self?.importDownloads(urls.map(DownloadImportInput.text))
             self?.downloadWindowRequests.send()
         }
+        configureBrowserReceipts()
         configureBrowserCapture()
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification))
@@ -330,6 +335,7 @@ final class DownloadStore {
                     self.startPlanClock()
                 }
             }.store(in: &wakeObservers)
+        mediaDownloads.onUnknownCreation = { [weak self] error, draft in self?.noteUncertainBrowserSubmission(error, requestID: draft.browserRequestID) }
         mediaDownloads.onAdded = { [weak self] gid, draft in self?.rememberSubmittedTasks([gid], draft: draft) }
         mediaDownloads.onDiscarded = { [weak self] gid in
             do { try self?.hideHistory([gid]) }
@@ -853,6 +859,7 @@ final class DownloadStore {
     }
 
     func resetBrowserPairing() {
+        do { try browserCapture.receiptStore.clear() } catch { postError(error, title: String(localized: "Reset Pairing Failed")); return }
         preferences.browserCaptureToken = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased() + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
     }
 
@@ -888,13 +895,27 @@ final class DownloadStore {
         addDraft = defaultAddDraft()
         addDraft.rawInput = request.resources.joined(separator: "\n")
         addDraft.importedDocuments = request.documents
-        addDraftNotice = nil
+        addDraft.browserRequestID = request.browserRequestID
+        browserPartConfirmed = false
+        if let context = request.browserContext {
+            if !context.userAgent.isEmpty { addDraft.userAgent = context.userAgent }
+            addDraft.referer = context.referer
+            addDraft.cookie = context.cookie
+            addDraft.authorization = context.authorization
+            addDraft.browserContextOrigin = context.sourceOrigin
+        }
+        addDraftNotice = request.browserContext == nil ? nil : String(localized: "Browser request details are included. Review the source and authentication before confirming.")
+        if request.browserContext != nil, addDraft.detectedProtocol == .metalink,
+           !addDraft.cookie.isEmpty || !addDraft.authorization.isEmpty {
+            addDraftNotice = String(localized: "Metalink files received with browser credentials stay as documents. Open the saved file to review its downloads.")
+        }
         importIssues = request.issues
         return true
     }
 
     func finishDownloadPanel(owner: UUID) {
         guard inputCoordinator.owner == owner else { return }
+        finishBrowserPart()
         if let original = inputCoordinator.finish(owner: owner) { addDraft = original }
         importIssues = []
         addDraftNotice = nil
@@ -1135,131 +1156,6 @@ final class DownloadStore {
         await startEngine()
     }
 
-    private func rememberSubmittedTasks(_ gids: [String], draft: AddDownloadDraft) {
-        taskRevision += 1
-        notifications.noteAdded(gids)
-        let newTasks = DownloadHistoryStore.submittedTasks(gids, draft: draft)
-        let ids = Set(gids)
-        tasks.removeAll { ids.contains($0.id) }
-        tasks.append(contentsOf: newTasks)
-        persistTaskHistory()
-    }
-
-    func editAndAddAgain(_ task: DownloadTask) {
-        guard task.canEditAndAddAgain, inputCoordinator.owner == nil, !inputCoordinator.hasManualRequest else { return }
-        addDraft = defaultAddDraft()
-        addDraft.savePath = task.destination
-        addDraft.rawInput = task.sourceURL ?? ""
-        if addDraft.rawInput.isEmpty, task.isTorrentLike, let hash = task.infoHash, AddDownloadDraft.isBareBitTorrentInfoHash(hash) {
-            addDraft.rawInput = "magnet:?xt=urn:btih:\(hash)"
-        }
-        addDraftNotice = String(localized: "This creates a new download. Review the link and add any required authentication again. Existing partial files are preserved by the engine's filename collision policy.")
-        inputCoordinator.requestManualSheet()
-        addPanelRequests.send()
-    }
-
-    var canClearFinishedRecords: Bool {
-        !isUpdatingEngine && tasks.contains { $0.removalAction == .removeDownloadResult }
-    }
-
-    @discardableResult
-    func submitDraft() async -> Bool {
-        guard addDraft.isSubmittable else {
-            postError(DownloadDraftError.unsupportedProtocol, title: String(localized: "Invalid Download"))
-            return false
-        }
-        guard engineController.isRunning else {
-            postError(String(localized: "The engine is unavailable. Open Engine settings to retry the connection."), title: String(localized: "Engine Not Running"))
-            return false
-        }
-        if let capabilities = engineCapabilities {
-            do {
-                for source in try addDraft.normalizedResources() {
-                    if let kind = AddDownloadDraft.detectProtocol(for: source), !capabilities.supports(kind) {
-                        postError(String(localized: "The running engine does not support \(kind.rawValue). Check Engine settings."), title: String(localized: "Unsupported Protocol"))
-                        return false
-                    }
-                }
-            } catch {
-                postError(error, title: String(localized: "Invalid Download"))
-                return false
-            }
-        }
-        if addDraft.containsBitTorrentResource, !addDraft.shouldResolveBitTorrentFilesBeforeSubmit {
-            postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: String(localized: "Add Download Failed"))
-            return false
-        }
-        if addDraft.shouldInspectMedia {
-            guard engineCapabilities?.supportsMedia == true else {
-                postError(String(localized: "The running engine does not advertise media track selection. Update Aria2 Next in Settings → Updates."), title: String(localized: "Media Unavailable"))
-                return false
-            }
-            do {
-                try await mediaDownloads.inspect(addDraft, using: engineController.client(), fallbackDirectory: engineSettings.downloadDirectoryPath)
-                _ = await refreshTasks(reportErrors: false)
-            } catch { postError(error, title: String(localized: "Inspect Media Failed")) }
-            return false
-        }
-        if addDraft.shouldResolveBitTorrentFilesBeforeSubmit {
-            await prepareBitTorrentFileSelection()
-            return false
-        }
-        if ((try? addDraft.normalizedResources()) ?? []).contains(where: { AddDownloadDraft.detectProtocol(for: $0) == .ed2k }),
-           !ed2kDownloadContext().hasBootstrapOrServer {
-            postError(
-                String(localized: "Sync ED2K bootstrap files or add ED2K servers in Settings before adding ED2K downloads."),
-                title: String(localized: "Add Download Failed")
-            )
-            return false
-        }
-        do {
-            let client = try engineController.client()
-            let gids = try await client.addDownloads(
-                addDraft,
-                fallbackDirectory: engineSettings.downloadDirectoryPath,
-                autoOrganize: preferences.autoOrganizeFiles,
-                ed2kContext: ed2kDownloadContext()
-            )
-            rememberSubmittedTasks(gids, draft: addDraft)
-            selectedTaskID = gids.first
-            addDraftNotice = nil
-            addDraft = defaultAddDraft()
-            let saveError = await saveSessionAfterTaskMutation(using: client)
-            _ = await refreshTasks(reportErrors: false)
-            if let saveError {
-                postError(saveError, title: String(localized: "Save Session Failed"))
-            } else {
-                postActivity(String(localized: "Added \(gids.count) downloads."))
-            }
-            return true
-        } catch let partial as PartialDownloadSubmissionError {
-            rememberSubmittedTasks(partial.addedIDs, draft: addDraft)
-            addDraft.rawInput = addDraft.resourceLines.dropFirst(partial.addedIDs.count).joined(separator: "\n")
-            if let client = try? engineController.client() { _ = await saveSessionAfterTaskMutation(using: client) }
-            _ = await refreshTasks(reportErrors: false)
-            postError(partial, title: String(localized: "Some Downloads Were Added"))
-            return false
-        } catch {
-            postError(error, title: String(localized: "Add Download Failed"))
-            return false
-        }
-    }
-
-    func confirmMediaSelection() async -> Bool {
-        do {
-            let confirmed = await mediaDownloads.confirm(using: try engineController.client(), startPaused: addDraft.startPaused)
-            if confirmed { addDraft = defaultAddDraft(); _ = await refreshTasks(reportErrors: false) }
-            return confirmed
-        } catch { postError(error, title: String(localized: "Start Media Failed")); return false }
-    }
-
-    func cancelMediaSelection() async {
-        guard mediaDownloads.isPresented else { return }
-        inputCoordinator.cancelManualRequest()
-        await mediaDownloads.cancel(using: try? engineController.client())
-        _ = await refreshTasks(reportErrors: false)
-    }
-
     func finishRecording(_ task: DownloadTask) async {
         guard task.canFinishRecording, !isUpdatingEngine else { return }
         await performTaskMutation(alertTitle: String(localized: "Finish Recording Failed")) { client in
@@ -1275,6 +1171,10 @@ final class DownloadStore {
     }
 
     func prepareBitTorrentFileSelection() async {
+        guard !browserSubmissionIsUncertain() else {
+            postError(String(localized: "The previous submission result is unknown. Check Downloads before creating another task."), title: String(localized: "Submission Needs Review"))
+            return
+        }
         guard !isResolvingBitTorrentFiles else { return }
         guard addDraft.isSubmittable, addDraft.shouldResolveBitTorrentFilesBeforeSubmit else {
             postError(DownloadDraftError.bitTorrentSelectionRequiresSingleResource, title: String(localized: "Add Download Failed"))
@@ -1367,6 +1267,7 @@ final class DownloadStore {
             _ = await refreshTasks(reportErrors: false)
         } catch {
             guard isCurrentBitTorrentSelection(requestID) else { return }
+            if bitTorrentSelectionSession?.metadataTaskID == nil { noteUncertainBrowserSubmission(error, requestID: draft.browserRequestID) }
             // Retain the GID and any acquired metadata so a retry doesn't start discovery over.
             updateBitTorrentSelectionSession {
                 $0.phase = .failed
@@ -1388,6 +1289,9 @@ final class DownloadStore {
             return false
         }
 
+        let startPaused = addDraft.startPaused
+        let browserID = addDraft.browserRequestID
+        let owner = inputCoordinator.owner
         do {
             let client = try engineController.client()
             let snapshot = try await client.tellStatus(downloadTaskID)
@@ -1409,11 +1313,25 @@ final class DownloadStore {
                     directory: URL(fileURLWithPath: directory), source: session.source,
                     metadataFilePath: session.metadataFilePath)
             }
+            guard bitTorrentSelectionSession?.id == session.id, inputCoordinator.owner == owner else { throw CancellationError() }
             try await client.changeOption(gid: downloadTaskID, options: ["select-file": session.selectFileOption,
                 "bt-file-priority": session.files.sorted { $0.index < $1.index }.map {
                     "\($0.index)=\(session.selectedFileIndexes.contains($0.index) ? "normal" : "off")"
                 }.joined(separator: ",")])
-            if !addDraft.startPaused { try await client.resume(downloadTaskID) }
+            if snapshot.task.privateTorrent == false {
+                let currentTrackers = try await client.torrentTrackerStatus(downloadTaskID)
+                let plan = PublicTrackerPolicy.replacement(current: currentTrackers,
+                    selected: TrackerText.trackers(from: engineSettings.btTracker), previous: nil, infoHash: snapshot.task.infoHash)
+                if plan.trackers != TorrentTrackerAddress.merging(currentTrackers, additional: []) {
+                    try await client.replaceTorrentTrackers(downloadTaskID, trackers: plan.trackers)
+                }
+                if let index = tasks.firstIndex(where: { $0.id == downloadTaskID && $0.infoHash == snapshot.task.infoHash }) {
+                    tasks[index].publicTrackerOwnership = plan.ownership
+                    persistTaskHistory()
+                }
+            }
+            guard bitTorrentSelectionSession?.id == session.id, inputCoordinator.owner == owner else { throw CancellationError() }
+            if !startPaused { try await client.resume(downloadTaskID) }
             if let metadataTaskID = session.metadataTaskID, metadataTaskID != downloadTaskID {
                 do {
                     try await client.removeDownloadResult(metadataTaskID)
@@ -1422,10 +1340,13 @@ final class DownloadStore {
                 }
             }
 
-            let keptPaused = addDraft.startPaused
-            bitTorrentSelectionRequestID = nil
-            bitTorrentSelectionSession = nil
-            addDraft = defaultAddDraft()
+            noteBrowserTasks([downloadTaskID], confirmed: true, requestID: browserID, owner: owner)
+            let keptPaused = startPaused
+            if bitTorrentSelectionSession?.id == session.id {
+                bitTorrentSelectionRequestID = nil
+                bitTorrentSelectionSession = nil
+            }
+            if inputCoordinator.owner == owner { addDraft = defaultAddDraft() }
             let saveError = await saveSessionAfterTaskMutation(using: client)
             _ = await refreshTasks(reportErrors: false)
             if let saveError {
@@ -1612,7 +1533,7 @@ final class DownloadStore {
             return
         }
         // Keep cached entries from unreachable sources until a complete fetch succeeds.
-        let trackerText = result.failures.isEmpty ? fetchedText : TrackerText.lineSeparated(fromChunks: [originalText, fetchedText])
+        let trackerText = trackerDiagnostics.curate(result, sourceURLs: sources, current: originalText, proxy: engineSettings.proxyURL)
         var settings = engineSettings
         settings.btTracker = trackerText
         settings.lastTrackerSyncAt = Date()
@@ -1642,7 +1563,6 @@ final class DownloadStore {
 
     func applyTrackersToRunningTasks(_ text: String, using client: Aria2RPCClient) async throws {
         let additional = TrackerText.trackers(from: text)
-        guard !additional.isEmpty else { return }
         let sessionID = engineSessionID
         let active = try await client.activeTorrentTasks()
         var failures: [String] = []
@@ -1651,13 +1571,23 @@ final class DownloadStore {
             try Task.checkCancellation()
             guard sessionID == engineSessionID, engineController.isRunning, !isShuttingDown else { throw CancellationError() }
             do {
+                // Read at dispatch, not from a possibly stale list snapshot. Unknown
+                // metadata is protected exactly like a private torrent.
+                let snapshot = try await client.tellStatus(task.id).task
+                guard snapshot.status == .active, snapshot.privateTorrent == false else { continue }
                 let current = try await client.torrentTrackerStatus(task.id)
-                let merged = TorrentTrackerAddress.merging(current, additional: additional)
-                guard merged != TorrentTrackerAddress.merging(current, additional: []) else { continue }
-                try Task.checkCancellation()
+                let ownership = tasks.first { $0.id == task.id }?.publicTrackerOwnership
+                let plan = PublicTrackerPolicy.replacement(current: current, selected: additional, previous: ownership, infoHash: snapshot.infoHash)
+                if plan.trackers != TorrentTrackerAddress.merging(current, additional: []) {
+                    try Task.checkCancellation()
+                    guard sessionID == engineSessionID, engineController.isRunning else { throw CancellationError() }
+                    try await client.replaceTorrentTrackers(task.id, trackers: plan.trackers)
+                    changed = true
+                }
                 guard sessionID == engineSessionID, engineController.isRunning else { throw CancellationError() }
-                try await client.replaceTorrentTrackers(task.id, trackers: merged)
-                changed = true
+                if let index = tasks.firstIndex(where: { $0.id == task.id && $0.infoHash == snapshot.infoHash }) {
+                    tasks[index].publicTrackerOwnership = plan.ownership
+                }
             } catch is CancellationError { throw CancellationError() }
             catch {
                 // A torrent can finish, pause or disappear between the snapshot and
@@ -1676,6 +1606,7 @@ final class DownloadStore {
         try Task.checkCancellation()
         guard sessionID == engineSessionID, engineController.isRunning else { throw CancellationError() }
         if changed { try await client.saveSession() }
+        persistTaskHistory()
         if !failures.isEmpty {
             throw DownloadOperationError(String(localized: "Could not update trackers for \(failures.count) running torrents.\n\(failures.joined(separator: "\n"))"))
         }
@@ -1937,7 +1868,7 @@ final class DownloadStore {
         return latestResults
     }
 
-    private func ed2kDownloadContext() -> ED2KDownloadContext {
+    func ed2kDownloadContext() -> ED2KDownloadContext {
         ED2KDownloadContext(
             bootstrapPaths: ED2KBootstrapCache.cachedPathsIfAvailable(applicationSupportBase: ed2kBootstrapApplicationSupportBase),
             serverList: ED2KServerText.commaSeparated(from: engineSettings.ed2kServer)

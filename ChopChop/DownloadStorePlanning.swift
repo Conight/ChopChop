@@ -2,6 +2,20 @@ import AppKit
 import Foundation
 
 extension DownloadStore {
+    func effectiveBandwidth(at date: Date = Date()) -> EffectiveBandwidth {
+        EffectiveBandwidth.compute(baseDownload: engineSettings.maxOverallDownloadLimitKB,
+            baseUpload: engineSettings.maxOverallUploadLimitKB, schedule: preferences.bandwidthSchedule,
+            temporary: preferences.temporaryBandwidth, now: date)
+    }
+
+    func setTemporaryBandwidth(minutes: Int?) {
+        guard preferences.temporaryBandwidth.validationIssue == nil else { return }
+        preferences.temporaryBandwidth.enabled = true
+        preferences.temporaryBandwidth.expiresAt = minutes.map { Date().addingTimeInterval(Double($0) * 60) }
+    }
+
+    func clearTemporaryBandwidth() { preferences.temporaryBandwidth.enabled = false }
+
     func cancelSchedule(_ id: String) {
         scheduleRequests.removeValue(forKey: id)
         armedScheduledTaskIDs.remove(id)
@@ -51,7 +65,10 @@ extension DownloadStore {
             if preferences.bandwidthSchedule.enabled, let issue = preferences.bandwidthSchedule.validationIssue {
                 throw DownloadOperationError(issue)
             }
-            let options = preferences.bandwidthSchedule.options(at: now, base: engineSettings)
+            if preferences.temporaryBandwidth.isActive(at: now), let issue = preferences.temporaryBandwidth.validationIssue {
+                throw DownloadOperationError(issue)
+            }
+            let options = effectiveBandwidth(at: now).options
             if options != lastBandwidthOptions {
                 try await client.changeGlobalOption(options)
                 guard engineSessionID == session, !isShuttingDown else { return }

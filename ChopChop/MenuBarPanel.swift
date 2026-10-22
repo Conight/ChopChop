@@ -13,6 +13,7 @@ struct MenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.rowSpacing) {
             MenuBarTransferMetrics()
+            TemporaryBandwidthControls()
 
             if activeRows.isEmpty {
                 Text(String(localized: "No active downloads."))

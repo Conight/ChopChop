@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 nonisolated enum TrackerSyncInterval: Int, CaseIterable, Identifiable, Sendable {
     case everyStartup = 0
@@ -236,6 +237,7 @@ nonisolated struct TrackerSourceFetchFailure: Equatable, Sendable {
 nonisolated struct TrackerSourceFetchResult: Equatable, Sendable {
     var data: [String]
     var failures: [TrackerSourceFetchFailure]
+    var successfulSources: [String: String] = [:]
 }
 
 nonisolated protocol BitTorrentTrackerSourceFetching: Sendable {
@@ -253,6 +255,7 @@ nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSo
     func fetchTrackerSources(_ urls: [String]) async -> TrackerSourceFetchResult {
         var data: [String] = []
         var failures: [TrackerSourceFetchFailure] = []
+        var successfulSources: [String: String] = [:]
 
         for urlString in urls {
             guard !Task.isCancelled else { break }
@@ -261,7 +264,7 @@ nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSo
                 continue
             }
             do {
-                let (body, response) = try await Self.session.data(from: url)
+                let (bytes, response) = try await Self.session.bytes(from: url)
                 if let httpResponse = response as? HTTPURLResponse,
                    !(200...299).contains(httpResponse.statusCode) {
                     failures.append(
@@ -270,22 +273,56 @@ nonisolated struct URLSessionBitTorrentTrackerSourceFetcher: BitTorrentTrackerSo
                             reason: String(localized: "HTTP \(httpResponse.statusCode).")
                         )
                     )
+                    bytes.task.cancel()
                     continue
+                }
+                var body = Data()
+                for try await byte in bytes {
+                    guard body.count < 2 * 1024 * 1024 else {
+                        bytes.task.cancel()
+                        throw DownloadOperationError(String(localized: "Tracker source exceeds the 2 MiB limit."))
+                    }
+                    body.append(byte)
                 }
                 guard let text = String(data: body, encoding: .utf8) else {
                     failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "Response is not valid UTF-8.")))
                     continue
                 }
-                guard !TrackerText.trackers(from: text).isEmpty else {
+                guard TrackerText.trackers(from: text).contains(where: TrackerURLValidator.isValid) else {
                     failures.append(TrackerSourceFetchFailure(url: urlString, reason: String(localized: "No trackers found.")))
                     continue
                 }
                 data.append(text)
+                successfulSources[urlString] = text
             } catch {
                 failures.append(TrackerSourceFetchFailure(url: urlString, reason: error.localizedDescription))
             }
         }
 
-        return TrackerSourceFetchResult(data: data, failures: failures)
+        return TrackerSourceFetchResult(data: data, failures: failures, successfulSources: successfulSources)
+    }
+}
+
+/// Only addresses positively added by this app may be retired later. Binding to
+/// the torrent hash prevents a reused engine ID from inheriting another task's list.
+nonisolated struct PublicTrackerOwnership: Codable, Hashable, Sendable {
+    var infoHash: String
+    var urlFingerprints: [String]
+}
+
+nonisolated enum PublicTrackerPolicy {
+    static func fingerprint(_ url: String) -> String {
+        SHA256.hash(data: Data(url.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+    static func replacement(current: [BitTorrentTrackerStatus], selected: [String],
+                            previous: PublicTrackerOwnership?, infoHash: String?) -> (trackers: [TorrentTrackerAddress], ownership: PublicTrackerOwnership?) {
+        let hash = infoHash.flatMap { $0.isEmpty ? nil : $0 }
+        let owned = hash != nil && previous?.infoHash == hash ? Set(previous?.urlFingerprints ?? []) : []
+        let protected = current.filter { !owned.contains(fingerprint($0.url)) }
+        let protectedURLs = Set(protected.map(\.url))
+        let desired = TrackerText.trackers(from: selected.joined(separator: "\n"))
+        let trackers = TorrentTrackerAddress.merging(protected, additional: desired)
+        let ownership = hash.map { PublicTrackerOwnership(infoHash: $0, urlFingerprints: desired.filter { !protectedURLs.contains($0) }.map(fingerprint)) }
+        return (trackers, ownership)
     }
 }

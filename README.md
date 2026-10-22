@@ -46,8 +46,8 @@ Removing quarantine does not sign, notarize, or verify a download. Only do this 
 - Engine starts automatically; restored downloads and BitTorrent seeding stay paused until you resume them.
 - Measured byte or media-duration progress, with explicit metadata, verification, recording, and finalization states.
 - Inspect HLS/DASH sources before downloading; select quality, audio, subtitles, MP4/MKV, or a time range. Record live streams and finish them into playable files.
-- Send links and discover direct media sources with the bundled Chrome/Edge extension; review each import in ChopChop.
-- Drag waiting tasks to reorder the engine queue, schedule a paused task to start, and apply daily bandwidth limits.
+- Send links and discover direct media sources with the bundled Chrome/Edge extension; review each import in ChopChop, follow submission receipts and task progress, and optionally forward request details for one approved origin.
+- Drag waiting tasks to reorder the engine queue, schedule a paused task to start, apply daily bandwidth limits, and enable expiring temporary caps from the menu bar.
 - Choose torrent files before downloading, then change file priorities, sequential mode, preview pieces, and sharing limits from task details.
 - Repair task authentication, retry media with its saved progress, and replace same-origin links for paused tasks that have no partial data.
 - Calculate or compare file checksums with progress and cancellation; recheck torrent pieces through the engine.
@@ -55,7 +55,8 @@ Removing quarantine does not sign, notarize, or verify a download. Only do this 
 - Drop download links or Torrent/Metalink files into the window; open files with ⌘O or from Finder, and receive Magnet/ED2K/Thunder links. Every import opens for confirmation.
 - Optional macOS notifications for completed background downloads, with persistent duplicate suppression and a shortcut back to the task.
 - Native sidebar navigation, search, task details, keyboard shortcuts, and menu bar access.
-- Configure connection limits, speed limits, proxies, trackers, and ED2K bootstrap sources.
+- Configure connection limits, speed limits, proxies, trackers, and ED2K bootstrap sources. Tracker diagnostics keep per-source caches and connection evidence; private or unknown torrents never receive automatic public tracker supplements.
+- Inspect bounded task timelines and persistent speed curves, with explicit observation gaps and independently retained summary metrics.
 - Automatic engine startup, background version checks, and manual updates inside Settings.
 - Engine update progress, cancellation during download, checksum verification, and rollback if the replacement fails to start.
 

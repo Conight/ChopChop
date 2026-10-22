@@ -130,6 +130,7 @@ nonisolated struct AppPreferences: Equatable, Sendable {
     var showMenuBar = true
     var notifyOnDownloadCompletion = false
     var bandwidthSchedule = BandwidthSchedule()
+    var temporaryBandwidth = TemporaryBandwidthLimit()
     var browserCaptureEnabled = false
     var browserCaptureToken = ""
     var keepRunningAfterClose = true

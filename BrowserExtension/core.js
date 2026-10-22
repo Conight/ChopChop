@@ -70,3 +70,48 @@ export function discoverPageMedia() {
   }
   return sources.slice(0, 500);
 }
+
+export async function bridgeRequest(path, payload, pairing, fetcher = fetch) {
+  const {port, token} = parsePairingCode(pairing);
+  let response;
+  try {
+    response = await fetcher(`http://127.0.0.1:${port}/v2/${path}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+      body: JSON.stringify(payload), cache: 'no-store', credentials: 'omit', redirect: 'error',
+      signal: AbortSignal.timeout(5000)
+    });
+  } catch { throw new CaptureError(path === 'import' ? 'uncertain' : 'unavailable'); }
+  if (response.status === 403) throw new CaptureError('pairingRejected');
+  if (response.status === 429) throw new CaptureError('rateLimited');
+  if (response.status === 404) throw new CaptureError('receiptMissing');
+  if (![200, 202].includes(response.status)) throw new CaptureError(response.status === 409 ? 'uncertain' : 'rejected');
+  try {
+    const receipt = await response.json();
+    if (receipt.requestID.toLowerCase() !== payload.requestID.toLowerCase() ||
+      !['pending', 'created', 'partial', 'cancelled', 'unknown'].includes(receipt.state) ||
+      !Array.isArray(receipt.tasks) || receipt.tasks.length > 100) throw new Error();
+    return receipt;
+  } catch { throw new CaptureError(path === 'import' ? 'uncertain' : 'unavailable'); }
+}
+
+export async function requestFingerprint(value) {
+  const data = new TextEncoder().encode(JSON.stringify(value));
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data)), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function checkBridgeCapabilities(pairing, fetcher = fetch) {
+  const {port, token} = parsePairingCode(pairing);
+  let response;
+  try {
+    response = await fetcher(`http://127.0.0.1:${port}/v2/capabilities`, {
+      method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+      body: '{}', cache: 'no-store', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(5000)
+    });
+  } catch { throw new CaptureError('unavailable'); }
+  if (response.status === 403) throw new CaptureError('pairingRejected');
+  if (response.status !== 200) throw new CaptureError('appUpdateRequired');
+  try {
+    const value = await response.json();
+    if (value.protocolVersion !== 2 || value.receipts !== true || value.requestContext !== true) throw new Error();
+  } catch { throw new CaptureError('appUpdateRequired'); }
+}

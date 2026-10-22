@@ -66,6 +66,8 @@ jobs:
           path: ${{ env.CHOPCHOP_TEST_RESULTS_DIR }}
           if-no-files-found: ignore
           retention-days: 7
+      - name: Package the browser extension
+        run: python3 Scripts/package-browser-extension.py --output-dir "${OUTPUT_DIR}"
       - name: Sign the verified update package
         env:
           CHOPCHOP_UPDATE_PRIVATE_KEY: ${{ secrets.CHOPCHOP_UPDATE_PRIVATE_KEY }}
@@ -84,10 +86,13 @@ jobs:
           if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
             flags+=(--prerelease --latest=false)
           fi
+          extension_version="$(python3 -c 'import json; print(json.load(open("BrowserExtension/manifest.json"))["version"])')"
           assets=(
             "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg#ChopChop for Apple Silicon"
             "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-macos-arm64.dmg.sha256#DMG SHA-256 checksum"
             "${OUTPUT_DIR}/ChopChop-${GITHUB_REF_NAME}-update.json#Signed update manifest"
+            "${OUTPUT_DIR}/ChopChop-Extension-${extension_version}.zip#Chrome and Edge extension"
+            "${OUTPUT_DIR}/ChopChop-Extension-${extension_version}.zip.sha256#Extension SHA-256 checksum"
           )
           if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
