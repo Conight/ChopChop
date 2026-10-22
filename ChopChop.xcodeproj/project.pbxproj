@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A61000000000000000000001 /* UITestScenario.swift in App Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000003; };
+        A61000000000000000000002 /* UITestScenario.swift in UI Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000003; };
 		00E800FFE2E0C8C4D1BAFDC5 /* DownloadStoreSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10F8C62D1CB5E46FD25D789 /* DownloadStoreSubmission.swift */; };
 		D1743C2718D82D34DE1B7127 /* TrackerDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3369CFFCAD77CB6FF3BBD0BF /* TrackerDiagnosticsView.swift */; };
 		FC025BF897957066C43943A3 /* TrackerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A002E9C602575C62CE98A /* TrackerDiagnostics.swift */; };
@@ -162,6 +164,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        A61000000000000000000003 /* UITestScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Configuration/UITestScenario.swift; sourceTree = SOURCE_ROOT; };
 		C10F8C62D1CB5E46FD25D789 /* DownloadStoreSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStoreSubmission.swift; sourceTree = "<group>"; };
 		3369CFFCAD77CB6FF3BBD0BF /* TrackerDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerDiagnosticsView.swift; sourceTree = "<group>"; };
 		CB6A002E9C602575C62CE98A /* TrackerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerDiagnostics.swift; sourceTree = "<group>"; };
@@ -329,6 +332,7 @@
 		59DBEC962FCFE0DA005075E1 = {
 			isa = PBXGroup;
 			children = (
+                A61000000000000000000003 /* UITestScenario.swift */,
 				7A1000000000000000000001 /* Release.xcconfig */,
 				7D1000000000000000000002 /* Distribution.xcconfig */,
 				7D1000000000000000000001 /* Development.xcconfig */,
@@ -646,6 +650,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                A61000000000000000000001 /* UITestScenario.swift in App Sources */,
 				00E800FFE2E0C8C4D1BAFDC5 /* DownloadStoreSubmission.swift in Sources */,
 				D1743C2718D82D34DE1B7127 /* TrackerDiagnosticsView.swift in Sources */,
 				FC025BF897957066C43943A3 /* TrackerDiagnostics.swift in Sources */,
@@ -764,6 +769,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                A61000000000000000000002 /* UITestScenario.swift in UI Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

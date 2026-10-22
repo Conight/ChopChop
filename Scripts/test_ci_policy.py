@@ -137,27 +137,19 @@ class CIGateTests(unittest.TestCase):
         def offline(_): raise OSError('API unavailable')
         with self.assertRaises(OSError): wait_for_ci(offline, REPOSITORY, SHA)
 
-    def test_shards_preserve_every_existing_keyboard_regression(self):
-        plan = json.loads((ROOT / 'Scripts/keyboard-tests.json').read_text())
-        original = {
-            'testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask',
-            'testCommandSelectAllAndDeleteRespectFilteredTaskList',
-            'testCommandFindAndTextDeletionDoNotRemoveSelectedDownload',
-            'testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts',
-            'testCommandNewFromSettingsUsesOneDownloadWindow',
-            'testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch',
-            'testShowDownloadsRestoresClosedAndMinimizedMainWindow',
-            'testDoubleClickOpensDetailsWithoutPausingOrResuming',
-            'testCommandFindSearchesSettingsAndSelectsExistingQuery',
-            'testPasteDownloadFromSettingsReturnsToMainWindow',
-            'testEmptyClipboardShowsFeedbackInAboutWindow',
-        }
+    def test_ui_shards_cover_every_ui_regression_exactly_once(self):
+        plan = json.loads((ROOT / 'Scripts/ui-tests.json').read_text())
+        discovered = set()
+        for path in (ROOT / 'ChopChopUITests').rglob('*.swift'):
+            source = path.read_text()
+            for case in re.finditer(r'(?ms)^(?:final )?class ([A-Za-z0-9_]+)\s*:[^{]+\{(.*?)^}', source):
+                discovered.update(case[1] + '/' + name for name in re.findall(r'func (test[A-Za-z0-9_]+)\(', case[2]))
+        self.assertTrue(discovered)
         self.assertEqual(set(plan), {'a', 'b'})
         self.assertFalse(set(plan['a']) & set(plan['b']))
-        self.assertEqual(set(plan['a'] + plan['b']), original)
-        self.assertEqual(len(plan['a'] + plan['b']), len(original))
-        source = (ROOT / 'ChopChopUITests/ChopChopUITests.swift').read_text()
-        for name in original: self.assertRegex(source, r'func ' + re.escape(name) + r'\(')
+        selected = plan['a'] + plan['b']
+        self.assertEqual(set(selected), discovered, 'UI regressions must not remain outside the regular gate')
+        self.assertEqual(len(selected), len(discovered))
 
 
 if __name__ == '__main__':

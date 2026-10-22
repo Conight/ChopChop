@@ -1,0 +1,32 @@
+{
+  "a": [
+    "ChopChopUITests/testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch",
+    "ChopChopUITests/testDoubleClickOpensDetailsWithoutPausingOrResuming",
+    "ChopChopUITests/testCommandSelectAllAndDeleteRespectFilteredTaskList",
+    "ChopChopUITests/testSettingsBitTorrentPaneExposesTrackerControls",
+    "ChopChopUITests/testCommandNewFromSettingsUsesOneDownloadWindow",
+    "ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts",
+    "ChopChopUITests/testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask",
+    "ChopChopUITests/testSettingsShowsUnavailableEngineBeforeSetup",
+    "ChopChopUITests/testLaunchShowsEmptyReadyLibrary",
+    "ChopChopUITests/testAddDownloadMagnetLoadFilesReportsMissingEngine",
+    "ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow",
+    "ChopChopUITests/testInspectorNetworkAllowsDuplicateTrackerRows",
+    "ChopChopUITests/testMissingEngineRequiresInstallationAndCannotBeDismissed"
+  ],
+  "b": [
+    "ChopChopUITests/testSettingsED2KPaneExposesBootstrapAndSearchControls",
+    "ChopChopUITests/testSidebarSelectionFiltersFixtureTasks",
+    "ChopChopUITests/testAddDownloadAdvancedKeepsActionsReachableAndContainsSpeedLimit",
+    "ChopChopUITests/testSettingsWindowClosesWithoutBlockingMainWindow",
+    "ChopChopUITests/testShowDownloadsRestoresClosedAndMinimizedMainWindow",
+    "ChopChopUITests/testSearchFiltersFixtureTasks",
+    "ChopChopUITests/testCommandFindSearchesSettingsAndSelectsExistingQuery",
+    "ChopChopUITests/testCommandFindAndTextDeletionDoNotRemoveSelectedDownload",
+    "ChopChopUITests/testEmptyClipboardShowsFeedbackInAboutWindow",
+    "ChopChopUITests/testPasteToolbarOpensAddPanelWithClipboardLink",
+    "ChopChopUITests/testFixtureTasksExposeCorrectPauseResumeButtons",
+    "ChopChopUITests/testAddDownloadPanelValidatesURLBeforeSubmit",
+    "ChopChopUITests/testRemovingFixtureTaskShowsNativeConfirmationOptions"
+  ]
+}

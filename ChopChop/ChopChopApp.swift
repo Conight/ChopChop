@@ -21,7 +21,7 @@ struct ChopChopApp: App {
 
     init() {
         AppLaunchConfiguration.prepare()
-        let store = DownloadStore()
+        let store = AppLaunchConfiguration.uiTestScenario?.makeStore() ?? DownloadStore()
         DownloadIntentRouter.shared.store = store
         _store = State(initialValue: store)
     }
@@ -128,13 +128,11 @@ enum AppLaunchConfiguration {
         isUITesting && ProcessInfo.processInfo.environment["CHOPCHOP_UI_SUPPRESS_DEFAULT_WINDOW"] == "1"
     }
 
-    nonisolated static var testsAutomaticEngineStartup: Bool {
-        isUITesting && ProcessInfo.processInfo.environment["CHOPCHOP_UI_AUTO_START"] == "1"
+    nonisolated static var uiTestScenario: UITestScenario? {
+        UITestScenario.read(from: ProcessInfo.processInfo.environment)
     }
 
-    nonisolated static var usesUITestFixtures: Bool {
-        isUITesting && ProcessInfo.processInfo.environment["CHOPCHOP_UI_FIXTURE_TASKS"] == "1"
-    }
+    nonisolated static var testsAutomaticEngineStartup: Bool { uiTestScenario == .freshInstall }
 
     nonisolated static var isTestAutomation: Bool {
         let environment = ProcessInfo.processInfo.environment
@@ -329,5 +327,98 @@ private final class MenuBarStatusController: NSObject {
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
+    }
+}
+
+// Test data belongs to the application composition root, not DownloadStore.
+extension UITestScenario {
+    @MainActor
+    func makeStore(settingsStore: PersistentSettingsStore? = nil) -> DownloadStore {
+        let store = DownloadStore(settingsStore: settingsStore,
+                                  initialEngineSetupState: self == .freshInstall ? .unchecked : .ready)
+        // Installed scenarios model a stopped engine and never launch a process.
+        guard self == .installedTasks else { return store }
+        store.selectedDestination = .all
+        store.tasks = [
+            DownloadTask(
+                id: "active-fixture",
+                name: "Ubuntu.iso",
+                protocolKind: .bitTorrent,
+                status: .active,
+                totalLength: 4_294_967_296,
+                completedLength: 1_073_741_824,
+                downloadSpeed: 524_288,
+                uploadSpeed: 0,
+                connections: 8,
+                destination: "/tmp/ChopChopFixtures",
+                addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                errorMessage: nil,
+                files: [],
+                peers: [],
+                trackers: [
+                    TrackerEntry(url: "udp://tracker.opentrackr.org:1337/announce", status: "Announced", lastAnnounce: nil),
+                    TrackerEntry(url: "udp://tracker.opentrackr.org:1337/announce", status: "Announced", lastAnnounce: nil)
+                ],
+                recentLogs: []
+            ),
+            DownloadTask(
+                id: "waiting-fixture",
+                name: "Queue.mov",
+                protocolKind: .http,
+                status: .waiting,
+                totalLength: 104_857_600,
+                completedLength: 0,
+                downloadSpeed: 0,
+                uploadSpeed: 0,
+                connections: 0,
+                destination: "/tmp/ChopChopFixtures",
+                addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                errorMessage: nil,
+                files: [],
+                peers: [],
+                trackers: [],
+                recentLogs: []
+            ),
+            DownloadTask(
+                id: "paused-fixture",
+                name: "Paused.zip",
+                protocolKind: .http,
+                status: .paused,
+                totalLength: 209_715_200,
+                completedLength: 104_857_600,
+                downloadSpeed: 0,
+                uploadSpeed: 0,
+                connections: 0,
+                destination: "/tmp/ChopChopFixtures",
+                addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                errorMessage: nil,
+                files: [],
+                peers: [],
+                trackers: [],
+                recentLogs: []
+            ),
+            DownloadTask(
+                id: "completed-fixture",
+                name: "Finished.dmg",
+                protocolKind: .http,
+                status: .completed,
+                totalLength: 52_428_800,
+                completedLength: 52_428_800,
+                downloadSpeed: 0,
+                uploadSpeed: 0,
+                connections: 0,
+                destination: "/tmp/ChopChopFixtures",
+                addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                errorMessage: nil,
+                files: [],
+                peers: [],
+                trackers: [],
+                recentLogs: []
+            )
+        ]
+        store.speedSamples = [
+            SpeedSample(timestamp: Date(timeIntervalSince1970: 1_700_000_000), downloadBytesPerSecond: 524_288, uploadBytesPerSecond: 0)
+        ]
+        return store
     }
 }

@@ -177,7 +177,6 @@ struct SettingsView: View {
         }
         .id(selectedPane)
         .desktopControls()
-        .accessibilityIdentifier("settings-current-pane-title")
     }
 
     private func navigateToRequestedEngineSettings() {

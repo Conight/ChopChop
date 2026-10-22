@@ -102,7 +102,6 @@ struct TrackerSourcesEditor: View {
             )
             .padding(.vertical, 6)
         }
-        .accessibilityIdentifier("settings-bt-tracker-sources-editor")
         .onChange(of: customSourceURLs) { _, _ in
             reconcileFocusedSource()
         }
@@ -326,7 +325,6 @@ struct TrackerListEditor: View {
 
             commandRows
         }
-        .accessibilityIdentifier("settings-bt-tracker-list-editor")
         .onAppear(perform: selectInitialTrackerIfNeeded)
         .onChange(of: trackerText) { _, _ in
             reconcileSelection()

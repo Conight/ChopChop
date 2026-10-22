@@ -230,8 +230,10 @@ final class DownloadStore {
         ed2kBootstrapApplicationSupportBase: URL? = nil,
         powerAssertionController: (any PowerAssertionControlling)? = nil,
         engineInstallationManager: (any EngineInstallationManaging)? = nil,
-        notificationCoordinator: DownloadNotificationCoordinator? = nil
+        notificationCoordinator: DownloadNotificationCoordinator? = nil,
+        initialEngineSetupState: EngineSetupState = .unchecked
     ) {
+        engineSetupState = initialEngineSetupState
         var startupAlerts: [UserFacingAlert] = []
         let resolvedSettingsStore: PersistentSettingsStore?
         do {
@@ -342,9 +344,6 @@ final class DownloadStore {
             catch { self?.postError(error, title: String(localized: "Save History Failed")) }
         }
         mediaDownloads.onSaveError = { [weak self] message in self?.postError(message, title: String(localized: "Media Task")) }
-        if AppLaunchConfiguration.usesUITestFixtures {
-            seedUITestFixtures()
-        }
     }
 
     deinit {
@@ -2209,90 +2208,5 @@ final class DownloadStore {
         }
     }
 
-    private func seedUITestFixtures() {
-        // Model an installed, stopped engine. Imported links wait for setup to
-        // finish; fixture-only UI tests deliberately never launch the engine.
-        engineSetupState = .ready
-        selectedDestination = .all
-        tasks = [
-            DownloadTask(
-                id: "active-fixture",
-                name: "Ubuntu.iso",
-                protocolKind: .bitTorrent,
-                status: .active,
-                totalLength: 4_294_967_296,
-                completedLength: 1_073_741_824,
-                downloadSpeed: 524_288,
-                uploadSpeed: 0,
-                connections: 8,
-                destination: "/Users/conight/Downloads",
-                addedAt: Date(),
-                errorMessage: nil,
-                files: [],
-                peers: [],
-                trackers: [
-                    TrackerEntry(url: "udp://tracker.opentrackr.org:1337/announce", status: "Announced", lastAnnounce: nil),
-                    TrackerEntry(url: "udp://tracker.opentrackr.org:1337/announce", status: "Announced", lastAnnounce: nil)
-                ],
-                recentLogs: []
-            ),
-            DownloadTask(
-                id: "waiting-fixture",
-                name: "Queue.mov",
-                protocolKind: .http,
-                status: .waiting,
-                totalLength: 104_857_600,
-                completedLength: 0,
-                downloadSpeed: 0,
-                uploadSpeed: 0,
-                connections: 0,
-                destination: "/Users/conight/Downloads",
-                addedAt: Date(),
-                errorMessage: nil,
-                files: [],
-                peers: [],
-                trackers: [],
-                recentLogs: []
-            ),
-            DownloadTask(
-                id: "paused-fixture",
-                name: "Paused.zip",
-                protocolKind: .http,
-                status: .paused,
-                totalLength: 209_715_200,
-                completedLength: 104_857_600,
-                downloadSpeed: 0,
-                uploadSpeed: 0,
-                connections: 0,
-                destination: "/Users/conight/Downloads",
-                addedAt: Date(),
-                errorMessage: nil,
-                files: [],
-                peers: [],
-                trackers: [],
-                recentLogs: []
-            ),
-            DownloadTask(
-                id: "completed-fixture",
-                name: "Finished.dmg",
-                protocolKind: .http,
-                status: .completed,
-                totalLength: 52_428_800,
-                completedLength: 52_428_800,
-                downloadSpeed: 0,
-                uploadSpeed: 0,
-                connections: 0,
-                destination: "/Users/conight/Downloads",
-                addedAt: Date(),
-                errorMessage: nil,
-                files: [],
-                peers: [],
-                trackers: [],
-                recentLogs: []
-            )
-        ]
-        speedSamples = [
-            SpeedSample(timestamp: Date(), downloadBytesPerSecond: 524_288, uploadBytesPerSecond: 0)
-        ]
-    }
+
 }

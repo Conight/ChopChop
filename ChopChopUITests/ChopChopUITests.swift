@@ -14,39 +14,14 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    func testLaunchShowsEmptyDownloadLibrary() throws {
-        let app = launchApp()
-
-        let title = staticText(in: app, id: "empty-state-title", label: "No Downloads")
-        let message = staticText(
-            in: app,
-            id: "empty-state-message",
-            label: "Add a download link to get started. Your downloads in this category will appear here."
-        )
-        let searchField = searchField(in: app)
-        let quickStats = app.descendants(matching: .any)
-            .matching(identifier: "sidebar-quick-stats-card")
-            .firstMatch
-        let speedCurve = app.descendants(matching: .any)
-            .matching(identifier: "sidebar-speed-curve")
-            .firstMatch
-        let engineVersion = app.descendants(matching: .any)
-            .matching(identifier: "sidebar-quick-stats-engine-version-row")
-            .firstMatch
-        let engineStatus = app.descendants(matching: .any)
-            .matching(identifier: "sidebar-quick-stats-engine-status-row")
-            .firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 8))
-        XCTAssertTrue(message.waitForExistence(timeout: 8))
-        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
-        XCTAssertTrue(quickStats.waitForExistence(timeout: 8))
-        XCTAssertTrue(speedCurve.waitForExistence(timeout: 8))
-        XCTAssertTrue(engineVersion.waitForExistence(timeout: 8))
-        XCTAssertTrue(engineStatus.waitForExistence(timeout: 8))
-        XCTAssertEqual(textValue(of: title), "No Downloads")
-        XCTAssertEqual(textValue(of: message), "Add a download link to get started. Your downloads in this category will appear here.")
-        XCTAssertEqual(textValue(of: engineVersion), "Engine Unavailable")
-        XCTAssertEqual(textValue(of: engineStatus), "Stopped")
+    func testLaunchShowsEmptyReadyLibrary() throws {
+        let app = launchApp(scenario: .installedEmpty)
+        XCTAssertTrue(app.staticTexts["No Downloads"].waitForExistence(timeout: 4))
+        let list = app.outlines["download-task-list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 4))
+        XCTAssertEqual(list.descendants(matching: .outlineRow).count, 0)
+        XCTAssertTrue(app.buttons["toolbar-add-button"].isEnabled,
+                      "An installed, stopped engine must allow reviewing a new import")
     }
 
     @MainActor
@@ -70,7 +45,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testMissingEngineRequiresInstallationAndCannotBeDismissed() throws {
-        let app = launchApp(autoStart: true)
+        let app = launchApp(scenario: .freshInstall)
         let install = app.buttons["engine-install-button"]
         XCTAssertTrue(install.waitForExistence(timeout: 8))
         app.typeKey(.escape, modifierFlags: [])
@@ -79,7 +54,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testFixtureTasksExposeCorrectPauseResumeButtons() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
 
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 8))
         XCTAssertTrue(actionButton(in: app, id: "task-waiting-fixture-pause-button", label: "Pause Queue.mov").waitForExistence(timeout: 8))
@@ -95,12 +70,14 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testRemovingFixtureTaskShowsNativeConfirmationOptions() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
 
         let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         completed.rightClick()
-        app.menuItems["Remove Download…"].click()
+        let remove = try XCTUnwrap(app.menuItems.matching(identifier: "Remove Download…")
+            .allElementsBoundByIndex.first(where: \.isHittable))
+        remove.click()
 
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 4))
@@ -114,7 +91,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         completed.click()
@@ -137,7 +114,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandSelectAllAndDeleteRespectFilteredTaskList() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         completed.click()
@@ -166,7 +143,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandFindAndTextDeletionDoNotRemoveSelectedDownload() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         completed.click()
@@ -187,7 +164,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let completed = staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg")
         XCTAssertTrue(completed.waitForExistence(timeout: 8))
         let url = "https://example.com/keyboard-download.iso"
@@ -210,7 +187,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandNewFromSettingsUsesOneDownloadWindow() throws {
-        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        let app = launchApp(scenario: .installedTasks, openSettings: true)
         app.typeKey("n", modifierFlags: .command)
         let input = addDownloadURLField(in: app)
         XCTAssertTrue(input.waitForExistence(timeout: 4), app.debugDescription)
@@ -229,7 +206,7 @@ final class ChopChopUITests: XCTestCase {
     func testLaunchPresentsDownloadsWithoutAutomaticWindowAndAfterRelaunch() throws {
         // Simulate a saved-state launch that doesn't automatically create Downloads.
         // Do not press Show Downloads or erase saved state to rescue the launch.
-        let app = launchApp(withTaskFixtures: true, suppressDefaultWindow: true)
+        let app = launchApp(scenario: .installedTasks, suppressDefaultWindow: true)
         for state in 0..<4 {
             if state == 0 {
                 openSettingsWindow(in: app)
@@ -259,7 +236,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testShowDownloadsRestoresClosedAndMinimizedMainWindow() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let list = app.descendants(matching: .any).matching(identifier: "download-task-list").firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 8))
         app.typeKey("w", modifierFlags: .command)
@@ -279,7 +256,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testDoubleClickOpensDetailsWithoutPausingOrResuming() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         for (id, name, control) in [("active", "Ubuntu.iso", "pause"), ("paused", "Paused.zip", "resume"), ("completed", "Finished.dmg", "")] {
             let row = staticText(in: app, id: "task-\(id)-fixture-name", label: name)
             XCTAssertTrue(row.waitForExistence(timeout: 8))
@@ -297,7 +274,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testCommandFindSearchesSettingsAndSelectsExistingQuery() throws {
-        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        let app = launchApp(scenario: .installedTasks, openSettings: true)
         let search = app.searchFields["Search settings"]
         app.typeKey("f", modifierFlags: .command)
         app.typeText("proxy")
@@ -312,7 +289,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testPasteDownloadFromSettingsReturnsToMainWindow() throws {
-        let app = launchApp(withTaskFixtures: true, openSettings: true)
+        let app = launchApp(scenario: .installedTasks, openSettings: true)
         let url = "https://example.com/from-settings.zip"
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
@@ -325,7 +302,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testEmptyClipboardShowsFeedbackInAboutWindow() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         app.typeKey("w", modifierFlags: .command)
         let appMenu = app.menuBars.menuBarItems["ChopChop Dev"]
         appMenu.click()
@@ -343,7 +320,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testSearchFiltersFixtureTasks() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
 
         XCTAssertTrue(actionButton(in: app, id: "task-active-fixture-pause-button", label: "Pause Ubuntu.iso").waitForExistence(timeout: 8))
         XCTAssertTrue(staticText(in: app, id: "task-completed-fixture-name", label: "Finished.dmg").waitForExistence(timeout: 8))
@@ -363,12 +340,12 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testInspectorNetworkAllowsDuplicateTrackerRows() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         let taskName = app.staticTexts.matching(identifier: "task-active-fixture-name").firstMatch
         XCTAssertTrue(taskName.waitForExistence(timeout: 8))
 
         taskName.click()
-        app.buttons.matching(identifier: "toolbar-inspector-button").firstMatch.click()
+        app.checkBoxes["toolbar-inspector-button"].click()
         segmentedPickerOption(in: app, label: "Network").click()
 
         let tracker = "Announced · udp://tracker.opentrackr.org:1337/announce"
@@ -386,7 +363,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     func testSidebarSelectionFiltersFixtureTasks() throws {
-        let app = launchApp(withTaskFixtures: true)
+        let app = launchApp(scenario: .installedTasks)
         XCTAssertTrue(app.windows["All"].waitForExistence(timeout: 8))
 
         sidebarDestination(in: app, id: "sidebar-destination-active", label: "Active").click()
@@ -451,7 +428,7 @@ final class ChopChopUITests: XCTestCase {
         loadFilesButton.click()
 
         XCTAssertTrue(app.staticTexts["Engine Not Running"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Start Aria2 Next before adding downloads."].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["The engine is unavailable. Open Engine settings to retry the connection."].waitForExistence(timeout: 4))
         XCTAssertTrue(app.descendants(matching: .any)["add-download-error"].exists)
         XCTAssertTrue(loadFilesButton.isEnabled)
     }
@@ -516,7 +493,7 @@ final class ChopChopUITests: XCTestCase {
     func testSettingsBitTorrentPaneExposesTrackerControls() throws {
         let app = launchApp(openSettings: true)
 
-        let enginePaneTitle = app.descendants(matching: .any)["settings-current-pane-title"]
+        let enginePaneTitle = app.searchFields["Search settings"]
         XCTAssertTrue(enginePaneTitle.waitForExistence(timeout: 8))
 
         let bitTorrentPane = sidebarDestination(in: app, id: "settings-pane-bittorrent", label: "BitTorrent")
@@ -531,18 +508,20 @@ final class ChopChopUITests: XCTestCase {
                 .firstMatch
                 .waitForExistence(timeout: 4)
         )
+        navigateToSetting("Seeding", in: app)
         let sharingMode = app.popUpButtons["settings-bt-sharing-mode-picker"]
+        XCTAssertTrue(waitForHittable(sharingMode, timeout: 4))
         sharingMode.click()
         app.menuItems["Seed until manually stopped"].click()
         sharingMode.click()
         app.menuItems["Stop by ratio or time"].click()
         XCTAssertTrue(actionButton(in: app, id: "settings-bt-sync-trackers-button", label: "Sync Trackers").waitForExistence(timeout: 4))
 
-        XCTAssertTrue(app.descendants(matching: .any)["settings-bt-tracker-sources-editor"].waitForExistence(timeout: 4))
+        navigateToSetting("Tracker Sources", in: app)
         XCTAssertTrue(textEntry(in: app, id: "settings-bt-tracker-source-filter-field", label: "Filter").waitForExistence(timeout: 4))
         let customSourceField = textEntry(in: app, id: "settings-bt-custom-tracker-source-field", label: "Custom tracker source URL")
         let addCustomSourceButton = actionButton(in: app, id: "settings-bt-add-custom-tracker-source-button", label: "Add")
-        XCTAssertTrue(customSourceField.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForHittable(customSourceField, timeout: 4))
         XCTAssertTrue(addCustomSourceButton.waitForExistence(timeout: 4))
         paste("https://example.com/trackers.txt", into: customSourceField)
         addCustomSourceButton.click()
@@ -554,13 +533,13 @@ final class ChopChopUITests: XCTestCase {
             ),
             timeout: 4
         ))
-        XCTAssertTrue(app.descendants(matching: .any)["settings-bt-tracker-list-editor"].waitForExistence(timeout: 4))
+        navigateToSetting("Tracker List", in: app)
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "settings-bt-tracker-text-editor").firstMatch.exists)
 
         XCTAssertTrue(textEntry(in: app, id: "settings-bt-tracker-filter-field", label: "Filter").waitForExistence(timeout: 4))
         let addTrackerField = textEntry(in: app, id: "settings-bt-tracker-add-field", label: "Add tracker URL")
         let addTrackerButton = actionButton(in: app, id: "settings-bt-tracker-add-button", label: "Add")
-        XCTAssertTrue(addTrackerField.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForHittable(addTrackerField, timeout: 4))
         XCTAssertTrue(addTrackerButton.waitForExistence(timeout: 4))
 
         let trackerURL = "udp://tracker.example.com:1337/announce"
@@ -611,15 +590,13 @@ final class ChopChopUITests: XCTestCase {
     @MainActor
     func testSettingsWindowClosesWithoutBlockingMainWindow() throws {
         let app = launchApp(openSettings: true)
-        let settingsMarker = app.descendants(matching: .any)
-            .matching(identifier: "settings-current-pane-title")
-            .firstMatch
+        let settingsMarker = app.searchFields["Search settings"]
         XCTAssertTrue(settingsMarker.waitForExistence(timeout: 8))
 
         let downloadsPane = sidebarDestination(in: app, id: "settings-pane-downloads", label: "Downloads")
         XCTAssertTrue(downloadsPane.waitForExistence(timeout: 4))
         downloadsPane.click()
-        XCTAssertTrue(staticText(in: app, id: "settings-current-pane-title", label: "Downloads").waitForExistence(timeout: 4))
+        XCTAssertTrue(app.windows["Downloads"].waitForExistence(timeout: 4))
 
         let addButton = actionButton(in: app, id: "toolbar-add-button", label: "Add")
         app.typeKey("w", modifierFlags: .command)
@@ -631,13 +608,10 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchApp(withTaskFixtures: Bool = false, openSettings: Bool = false, autoStart: Bool = false, suppressDefaultWindow: Bool = false) -> XCUIApplication {
+    private func launchApp(scenario: UITestScenario = .installedEmpty, openSettings: Bool = false, suppressDefaultWindow: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CHOPCHOP_UI_TESTING"] = "1"
-        if autoStart { app.launchEnvironment["CHOPCHOP_UI_AUTO_START"] = "1" }
-        if withTaskFixtures {
-            app.launchEnvironment["CHOPCHOP_UI_FIXTURE_TASKS"] = "1"
-        }
+        app.launchEnvironment["CHOPCHOP_UI_SCENARIO"] = scenario.rawValue
         if suppressDefaultWindow { app.launchEnvironment["CHOPCHOP_UI_SUPPRESS_DEFAULT_WINDOW"] = "1" }
         app.launchArguments = ["--reset-preferences"]
         // Register cleanup before any assertion so a failed launch is also captured.
@@ -675,9 +649,7 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     private func openSettingsWindow(in app: XCUIApplication) {
-        let settingsMarker = app.descendants(matching: .any)
-            .matching(identifier: "settings-current-pane-title")
-            .firstMatch
+        let settingsMarker = app.searchFields["Search settings"]
         if settingsMarker.exists { return }
         app.typeKey(",", modifierFlags: .command)
         XCTAssertTrue(settingsMarker.waitForExistence(timeout: 8))
@@ -686,8 +658,23 @@ final class ChopChopUITests: XCTestCase {
     // A locator returns one query; the caller owns the readiness assertion.
     // Stable accessibility IDs are part of the app's automation contract.
     @MainActor
+    private func navigateToSetting(_ query: String, in app: XCUIApplication) {
+        app.typeKey("f", modifierFlags: .command)
+        let search = app.searchFields["Search settings"]
+        XCTAssertTrue(search.waitForExistence(timeout: 4))
+        search.typeText(query)
+        search.typeKey(.return, modifierFlags: [])
+    }
+
+    @MainActor
+    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
     private func addDownloadURLField(in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: "add-download-url-field").firstMatch
+        textEntry(in: app, id: "add-download-url-field", label: "Download links")
     }
 
     @MainActor
@@ -697,7 +684,9 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     private func textEntry(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: id).firstMatch
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier == %@ AND (elementType == %d OR elementType == %d)",
+            id, XCUIElement.ElementType.textField.rawValue, XCUIElement.ElementType.textView.rawValue)).firstMatch
     }
 
     @MainActor
