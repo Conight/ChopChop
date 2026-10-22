@@ -80,7 +80,7 @@ The engine is managed automatically. Its settings page shows health and version,
 
 The main app and engine use App Sandbox and Hardened Runtime. A private XPC installer service downloads, verifies, and signs official engine releases. The signed app bundle is not modified by an engine update.
 
-Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Engine source is available from the upstream repository. Release downloads contain the ChopChop DMG, its checksum, and a signed update manifest; engine binaries and source archives are obtained from upstream.
+Aria2 Next retains its upstream **GPL-2.0-or-later** license. Its notices are included in the app and in [Vendor/Aria2Next](Vendor/Aria2Next). Engine source is available from the upstream repository. Release downloads contain the ChopChop DMG, its checksum, a signed update manifest, and a separate browser-extension ZIP with its checksum; engine binaries and source archives are obtained from upstream.
 
 ## Build and test
 
@@ -96,7 +96,7 @@ The shared CI/release gate checks localization, Swift/RPC and browser tests, Chi
 
 ## Release packaging
 
-ChopChop publishes a DMG, SHA-256 checksum, and Ed25519-signed update manifest from an annotated version tag. The workflow runs the shared verification gate, builds an arm64 Release app, and verifies the final mounted DMG before signing and publication. The complete tag is embedded for application update comparisons, including prerelease ordering.
+ChopChop publishes a DMG, SHA-256 checksum, Ed25519-signed update manifest, and a source-only browser-extension ZIP with its checksum from an annotated version tag. The workflow runs the shared verification gate, builds an arm64 Release app, and verifies the final mounted DMG before signing and publication. The complete tag is embedded for application update comparisons, including prerelease ordering.
 
 The app, installer and release scripts share the repository, app identifier and public key in [`Configuration/Release.xcconfig`](Configuration/Release.xcconfig). No public Actions variable is required; the release workflow uses the `CHOPCHOP_UPDATE_PRIVATE_KEY` Actions secret only in its signing step. See [release configuration and fork setup](Documentation/ReleaseConfiguration.md). The private key is never bundled. Update signatures do not replace Apple Developer ID signing or notarization. Beta.1 and beta.2 users must install beta.3 manually once to obtain the signed in-app updater.
 
