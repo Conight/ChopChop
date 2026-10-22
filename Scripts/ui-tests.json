@@ -7,7 +7,7 @@
     "ChopChopUITests/testCommandNewFromSettingsUsesOneDownloadWindow",
     "ChopChopUITests/testCommandPasteInTaskListOpensImportAndSheetKeepsTextShortcuts",
     "ChopChopUITests/testCommandDeleteUsesConfirmationAndRemovesOnlySelectedTask",
-    "ChopChopUITests/testSettingsShowsUnavailableEngineBeforeSetup",
+    "ChopChopUITests/testSettingsShowsInstalledEngineAndUpdateControls",
     "ChopChopUITests/testLaunchShowsEmptyReadyLibrary",
     "ChopChopUITests/testAddDownloadMagnetLoadFilesReportsMissingEngine",
     "ChopChopUITests/testPasteDownloadFromSettingsReturnsToMainWindow",

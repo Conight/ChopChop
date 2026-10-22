@@ -6,6 +6,8 @@ nonisolated enum UITestScenario: String {
     case installedEmpty = "installed-empty"
     case installedTasks = "installed-tasks"
 
+    static let installedEngineVersion = "3.0.8"
+
     static func read(from environment: [String: String]) -> Self? {
         guard environment["CHOPCHOP_UI_TESTING"] == "1",
               let value = environment["CHOPCHOP_UI_SCENARIO"] else { return nil }

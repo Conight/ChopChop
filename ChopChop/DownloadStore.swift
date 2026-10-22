@@ -231,9 +231,8 @@ final class DownloadStore {
         powerAssertionController: (any PowerAssertionControlling)? = nil,
         engineInstallationManager: (any EngineInstallationManaging)? = nil,
         notificationCoordinator: DownloadNotificationCoordinator? = nil,
-        initialEngineSetupState: EngineSetupState = .unchecked
+        initialEngineInstallation: EngineInstallation? = nil
     ) {
-        engineSetupState = initialEngineSetupState
         var startupAlerts: [UserFacingAlert] = []
         let resolvedSettingsStore: PersistentSettingsStore?
         do {
@@ -344,6 +343,7 @@ final class DownloadStore {
             catch { self?.postError(error, title: String(localized: "Save History Failed")) }
         }
         mediaDownloads.onSaveError = { [weak self] message in self?.postError(message, title: String(localized: "Media Task")) }
+        if let initialEngineInstallation { useEngine(initialEngineInstallation) }
     }
 
     deinit {

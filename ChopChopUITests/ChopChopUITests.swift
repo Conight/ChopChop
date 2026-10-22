@@ -25,14 +25,14 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsShowsUnavailableEngineBeforeSetup() throws {
+    func testSettingsShowsInstalledEngineAndUpdateControls() throws {
         let app = launchApp(openSettings: true)
         let enginePane = sidebarDestination(in: app, id: "settings-pane-engine", label: "Engine")
         XCTAssertTrue(enginePane.waitForExistence(timeout: 4))
         enginePane.click()
 
         XCTAssertTrue(app.staticTexts["Installed version"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Unavailable"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts[UITestScenario.installedEngineVersion].firstMatch.waitForExistence(timeout: 4))
         let updatesPane = sidebarDestination(in: app, id: "settings-pane-updates", label: "Updates")
         updatesPane.click()
         XCTAssertTrue(app.buttons["settings-check-updates-button"].waitForExistence(timeout: 4))
@@ -459,7 +459,7 @@ final class ChopChopUITests: XCTestCase {
 
         let submitButton = actionButton(in: app, id: "add-download-submit-button", label: "Start Download")
         let cancelButton = actionButton(in: app, id: "add-download-cancel-button", label: "Cancel")
-        let advancedToggle = disclosureControl(in: app, id: "add-download-advanced-toggle", label: "Advanced Options")
+        let advancedToggle = app.disclosureTriangles["Advanced Options"]
 
 
         XCTAssertTrue(submitButton.waitForExistence(timeout: 4))
@@ -513,8 +513,10 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(waitForHittable(sharingMode, timeout: 4))
         sharingMode.click()
         app.menuItems["Seed until manually stopped"].click()
+        XCTAssertTrue(waitForTextValue(sharingMode, "Seed until manually stopped", timeout: 4))
         sharingMode.click()
         app.menuItems["Stop by ratio or time"].click()
+        XCTAssertTrue(waitForTextValue(sharingMode, "Stop by ratio or time", timeout: 4))
         XCTAssertTrue(actionButton(in: app, id: "settings-bt-sync-trackers-button", label: "Sync Trackers").waitForExistence(timeout: 4))
 
         navigateToSetting("Tracker Sources", in: app)
@@ -556,7 +558,10 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(rawToggle.waitForExistence(timeout: 4))
         rawToggle.click()
         XCTAssertTrue(app.buttons["Hide Raw List"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "settings-bt-tracker-raw-editor-label").firstMatch.waitForExistence(timeout: 4))
+        let rawEditor = app.textViews["settings-bt-tracker-text-editor"]
+        XCTAssertTrue(rawEditor.waitForExistence(timeout: 4))
+        XCTAssertTrue((rawEditor.value as? String ?? "").contains(trackerURL),
+                      "Adding a tracker must update the stored list, not merely enable a command")
     }
 
     @MainActor
@@ -577,12 +582,15 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertTrue(actionButton(in: app, id: "settings-ed2k-sync-bootstrap-button", label: "Sync Bootstrap Files").waitForExistence(timeout: 4))
         XCTAssertTrue(textEntry(in: app, id: "settings-ed2k-search-keyword-field", label: "Keyword").waitForExistence(timeout: 4))
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "settings-ed2k-search-file-type-picker").firstMatch.waitForExistence(timeout: 4))
+        navigateToSetting("File type:", in: app)
         let videoType = segmentedPickerOption(in: app, label: "Video")
-        XCTAssertTrue(videoType.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForHittable(videoType, timeout: 4))
         videoType.click()
+        XCTAssertTrue(videoType.isSelected || String(describing: videoType.value ?? "") == "1")
         let audioType = segmentedPickerOption(in: app, label: "Audio")
         XCTAssertTrue(audioType.waitForExistence(timeout: 4))
         audioType.click()
+        XCTAssertTrue(audioType.isSelected || String(describing: audioType.value ?? "") == "1")
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "settings-ed2k-search-timeout-stepper").firstMatch.waitForExistence(timeout: 4))
         XCTAssertTrue(actionButton(in: app, id: "settings-ed2k-search-button", label: "Search").waitForExistence(timeout: 4))
     }
@@ -699,19 +707,15 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
-    private func disclosureControl(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: id).firstMatch
-    }
-
-    @MainActor
     private func toggleControl(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     @MainActor
     private func segmentedPickerOption(in app: XCUIApplication, label: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND (elementType == %d OR elementType == %d)",
-            label, XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.radioButton.rawValue)).firstMatch
+        // AppKit exposes tab-role segments and ordinary segmented pickers using
+        // different AX element types. Their native option names are stable.
+        app.descendants(matching: .any).matching(identifier: label).firstMatch
     }
 
     @MainActor

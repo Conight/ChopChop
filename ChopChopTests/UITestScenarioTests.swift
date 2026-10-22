@@ -14,6 +14,7 @@ final class UITestScenarioTests: XCTestCase {
         let store = UITestScenario.installedEmpty.makeStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         XCTAssertEqual(store.engineSetupState, .ready)
+        XCTAssertEqual(store.installedEngine?.version.description, UITestScenario.installedEngineVersion)
         XCTAssertTrue(store.tasks.isEmpty)
         XCTAssertEqual(store.runtime.phase, .stopped)
         XCTAssertTrue(DownloadInputPresentation().canPresent(in: store))
@@ -24,6 +25,7 @@ final class UITestScenarioTests: XCTestCase {
         let store = UITestScenario.freshInstall.makeStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         XCTAssertEqual(store.engineSetupState, .unchecked)
+        XCTAssertNil(store.installedEngine)
         XCTAssertTrue(store.tasks.isEmpty)
         XCTAssertFalse(DownloadInputPresentation().canPresent(in: store))
         let populated = UITestScenario.installedTasks.makeStore(settingsStore: try PersistentSettingsStore(inMemory: true))

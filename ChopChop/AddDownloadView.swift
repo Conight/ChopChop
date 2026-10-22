@@ -74,7 +74,6 @@ struct AddDownloadPanel: View {
                             .padding(.top, AppLayout.controlSpacing)
                             .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
                     }
-                    .accessibilityIdentifier("add-download-advanced-toggle")
                     if let error = submissionError {
                         VStack(alignment: .leading, spacing: 5) {
                             Label(error.title, systemImage: "exclamationmark.triangle.fill")

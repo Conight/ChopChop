@@ -334,8 +334,10 @@ private final class MenuBarStatusController: NSObject {
 extension UITestScenario {
     @MainActor
     func makeStore(settingsStore: PersistentSettingsStore? = nil) -> DownloadStore {
-        let store = DownloadStore(settingsStore: settingsStore,
-                                  initialEngineSetupState: self == .freshInstall ? .unchecked : .ready)
+        let installation = self == .freshInstall ? nil : EngineInstallation(
+            executableURL: URL(fileURLWithPath: "/tmp/ChopChopFixtures/aria2c"),
+            version: EngineVersion(Self.installedEngineVersion)!)
+        let store = DownloadStore(settingsStore: settingsStore, initialEngineInstallation: installation)
         // Installed scenarios model a stopped engine and never launch a process.
         guard self == .installedTasks else { return store }
         store.selectedDestination = .all
