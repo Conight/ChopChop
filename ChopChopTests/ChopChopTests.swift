@@ -5250,6 +5250,11 @@ final class ChopChopTests: XCTestCase {
             let content = host.view
             content.layoutSubtreeIfNeeded()
             func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+            try await NativeLayout.wait(until: "task speed limits load") {
+                content.layoutSubtreeIfNeeded()
+                return descendants(content).compactMap { $0 as? NSTextField }.filter(\.isEditable).count == 2
+            }
+            await NativeLayout.flush(content)
             let fields = descendants(content).compactMap { $0 as? NSTextField }.filter(\.isEditable)
             XCTAssertEqual(fields.count, 2, "Both reported speed limits must be visible")
             XCTAssertEqual(Set(fields.map(\.stringValue)), ["256", "64"])

@@ -380,7 +380,6 @@ private struct ImportOptionsDisclosureStyle: DisclosureGroupStyle {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("add-download-advanced-toggle")
-            .accessibilityValue(String(localized: configuration.isExpanded ? "Expanded" : "Collapsed"))
             if configuration.isExpanded { configuration.content }
         }
         .stateChangeMotion(configuration.isExpanded)

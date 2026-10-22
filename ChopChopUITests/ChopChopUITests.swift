@@ -459,12 +459,14 @@ final class ChopChopUITests: XCTestCase {
 
         let submitButton = actionButton(in: app, id: "add-download-submit-button", label: "Start Download")
         let cancelButton = actionButton(in: app, id: "add-download-cancel-button", label: "Cancel")
-        let advancedToggle = app.buttons["add-download-advanced-toggle"]
-
+        // DisclosureGroup retains its native disclosure accessibility role even
+        // when its custom style builds the full-row hit target with a Button.
+        let advancedToggle = app.descendants(matching: .any)["add-download-advanced-toggle"]
 
         XCTAssertTrue(submitButton.waitForExistence(timeout: 4))
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 4))
         XCTAssertTrue(advancedToggle.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForExpanded(advancedToggle, false, timeout: 4))
         XCTAssertFalse(app.checkBoxes["add-download-limit-speed-toggle"].exists)
         XCTAssertFalse(app.checkBoxes["Limit speed"].exists)
 
@@ -477,15 +479,18 @@ final class ChopChopUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(advancedToggle.frame.minX, bodyScroll.frame.minX,
                                    "The complete disclosure header must be inside the scroll view's clipping bounds")
         advancedToggle.click()
+        XCTAssertTrue(waitForExpanded(advancedToggle, true, timeout: 4))
         let limitSpeedToggle = toggleControl(in: app, id: "add-download-limit-speed-toggle", label: "Limit speed")
         XCTAssertTrue(limitSpeedToggle.waitForExistence(timeout: 4))
         XCTAssertTrue(submitButton.isHittable)
         XCTAssertTrue(cancelButton.isHittable)
 
         advancedToggle.click()
+        XCTAssertTrue(waitForExpanded(advancedToggle, false, timeout: 4))
         XCTAssertTrue(waitForNonExistence(limitSpeedToggle, timeout: 4))
 
         advancedToggle.click()
+        XCTAssertTrue(waitForExpanded(advancedToggle, true, timeout: 4))
         let reopenedLimitSpeedToggle = toggleControl(in: app, id: "add-download-limit-speed-toggle", label: "Limit speed")
         XCTAssertTrue(reopenedLimitSpeedToggle.waitForExistence(timeout: 4))
         XCTAssertTrue(submitButton.isHittable)
@@ -765,6 +770,14 @@ final class ChopChopUITests: XCTestCase {
     @MainActor
     private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let predicate = NSPredicate(format: "exists == false")
+        let expectation = expectation(for: predicate, evaluatedWith: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForExpanded(_ element: XCUIElement, _ expanded: Bool, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "value == %@ OR value == %@",
+                                    expanded ? "1" : "0", NSNumber(value: expanded))
         let expectation = expectation(for: predicate, evaluatedWith: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
