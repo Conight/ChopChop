@@ -473,16 +473,19 @@ final class ChopChopUITests: XCTestCase {
         paste("https://example.com/file.iso", into: urlField)
         XCTAssertTrue(waitForEnabled(submitButton, timeout: 4))
 
-        advancedToggle.click()
+        let bodyScroll = app.sheets.firstMatch.scrollViews.firstMatch
+        XCTAssertGreaterThanOrEqual(advancedToggle.frame.minX, bodyScroll.frame.minX,
+                                   "The native disclosure arrow must be inside the scroll view's clipping bounds")
+        clickDisclosureArrow(advancedToggle)
         let limitSpeedToggle = toggleControl(in: app, id: "add-download-limit-speed-toggle", label: "Limit speed")
         XCTAssertTrue(limitSpeedToggle.waitForExistence(timeout: 4))
         XCTAssertTrue(submitButton.isHittable)
         XCTAssertTrue(cancelButton.isHittable)
 
-        advancedToggle.click()
+        clickDisclosureArrow(advancedToggle)
         XCTAssertTrue(waitForNonExistence(limitSpeedToggle, timeout: 4))
 
-        advancedToggle.click()
+        clickDisclosureArrow(advancedToggle)
         let reopenedLimitSpeedToggle = toggleControl(in: app, id: "add-download-limit-speed-toggle", label: "Limit speed")
         XCTAssertTrue(reopenedLimitSpeedToggle.waitForExistence(timeout: 4))
         XCTAssertTrue(submitButton.isHittable)
@@ -678,6 +681,13 @@ final class ChopChopUITests: XCTestCase {
     private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let expectation = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func clickDisclosureArrow(_ disclosure: XCUIElement) {
+        // The native AX disclosure frame includes its label. AppKit toggles the
+        // arrow at the leading edge; clicking the frame's center hits the label.
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).click()
     }
 
     @MainActor

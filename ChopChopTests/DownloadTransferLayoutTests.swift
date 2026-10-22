@@ -268,7 +268,12 @@ final class DownloadTransferLayoutTests: XCTestCase {
         }
         XCTAssertTrue(samples.contains { $0 > 0.2 && $0 < 0.79 },
                       "The native indicator must actually show intermediate values, not merely carry an animation modifier")
-        XCTAssertTrue(samples.allSatisfy { $0 >= 0.2 && $0 <= 0.8 + 0.000001 }, "Never overshoot reported progress")
+        for sample in samples {
+            // NSProgressIndicator may return 0.19999999999999996 for 20%.
+            // Apply the same floating-point tolerance at both bounds.
+            XCTAssertGreaterThanOrEqual(sample, 0.2 - 0.000001, "Progress fell below its starting value: \(samples)")
+            XCTAssertLessThanOrEqual(sample, 0.8 + 0.000001, "Progress exceeded the engine report: \(samples)")
+        }
         for (old, new) in zip(samples, samples.dropFirst()) { XCTAssertGreaterThanOrEqual(new + 0.000001, old) }
         XCTAssertEqual(try read().0, 0.8, accuracy: 0.001)
         try await Task.sleep(for: .milliseconds(100))

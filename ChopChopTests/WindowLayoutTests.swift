@@ -67,13 +67,16 @@ final class WindowLayoutTests: XCTestCase {
         let proposal = NSSize(width: 188, height: 180)
         let before = host.sizeThatFits(in: proposal)
         let check = Task { await updates.checkAll(using: store) }
-        try await NativeLayout.wait(until: "update check starts") { updates.isChecking(using: store) }
+        try await NativeLayout.wait(until: "both update checks start") {
+            updates.isChecking(using: store) && store.isCheckingEngineUpdate
+        }
         await NativeLayout.flush(host.view)
         let during = host.sizeThatFits(in: proposal)
         XCTAssertEqual(during.height, before.height, accuracy: 0.5)
         XCTAssertEqual(during.width, before.width, accuracy: 0.5)
         await probe.finishEngine()
-        try await NativeLayout.wait(until: "update check starts") { updates.isChecking(using: store) }
+        try await NativeLayout.wait(until: "engine check completes") { !store.isCheckingEngineUpdate }
+        XCTAssertTrue(updates.isChecking(using: store), "The remaining app check must keep the footer busy")
         await NativeLayout.flush(host.view)
         XCTAssertEqual(host.sizeThatFits(in: proposal).height, before.height, accuracy: 0.5)
         await probe.finishApp()

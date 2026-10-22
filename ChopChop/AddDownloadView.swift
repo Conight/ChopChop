@@ -74,6 +74,7 @@ struct AddDownloadPanel: View {
                             .padding(.top, AppLayout.controlSpacing)
                             .disabled(isSubmitting || store.bitTorrentSelectionSession != nil || mediaCoordinator.isPresented)
                     }
+                    .padding(.leading, AppLayout.disclosureLeadingInset)
                     if let error = submissionError {
                         VStack(alignment: .leading, spacing: 5) {
                             Label(error.title, systemImage: "exclamationmark.triangle.fill")

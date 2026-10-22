@@ -202,6 +202,9 @@ nonisolated enum AppLayout {
     static let rowSpacing: CGFloat = 12
     static let controlSpacing: CGFloat = 8
     static let focusClearance: CGFloat = 4
+    // macOS places the native disclosure triangle before its label. A disclosure
+    // in a ScrollView must reserve that space inside the scroll clipping bounds.
+    static let disclosureLeadingInset: CGFloat = 24
     static let settingsWidth: CGFloat = 760
     static let settingsInset: CGFloat = 28
     static let detailInset: CGFloat = 24
