@@ -47,14 +47,7 @@ final class SettingsAndTablesTests: XCTestCase {
         window.toolbarStyle = .unified
         window.contentViewController = host; window.setContentSize(NSSize(width: 860, height: 560)); window.orderBack(nil)
         defer { window.close() }
-        try await Task.sleep(for: .milliseconds(650))
-        func renderLayout() throws {
-            host.view.layoutSubtreeIfNeeded()
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-        }
-        try renderLayout()
-        try await Task.sleep(for: .milliseconds(100))
+        await NativeLayout.flush(host.view)
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         func searchFields() -> [NSSearchField] {
             descendants(window.contentView!.superview!).compactMap { $0 as? NSSearchField }
@@ -78,10 +71,9 @@ final class SettingsAndTablesTests: XCTestCase {
         }
         let originalWindowFrame = window.frame
         search.select(try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "network.transfer-timeout" }))
-        try await Task.sleep(for: .milliseconds(450))
-        try renderLayout()
-        try await Task.sleep(for: .milliseconds(100))
-        try renderLayout()
+        await NativeLayout.flush(host.view)
+        try await NativeLayout.wait(until: "settings navigation completes") { search.navigationRequest == nil }
+        await NativeLayout.flush(host.view)
         let scrolls = descendants(host.view).compactMap { $0 as? NSScrollView }
         XCTAssertEqual(sidebar.viewController.view.convert(sidebar.viewController.view.bounds, to: frameView), sidebarFrame,
                        "Long settings and search navigation must not stretch or displace the sidebar")
@@ -90,35 +82,28 @@ final class SettingsAndTablesTests: XCTestCase {
         XCTAssertEqual(searchFields().count, 1)
         XCTAssertTrue(searchFields().first === initialField, "Changing panes must retain the same search control")
         XCTAssertEqual(window.frame, originalWindowFrame)
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        let bitmap = try XCTUnwrap(frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds))
-        frameView.cacheDisplay(in: frameView.bounds, to: bitmap)
-        try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("settings-search-target.png"))
+
         search.select(try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "engine.rpc-port" }))
-        try await Task.sleep(for: .milliseconds(350))
+        await NativeLayout.flush(host.view)
+        try await NativeLayout.wait(until: "advanced engine control navigation completes") { search.navigationRequest == nil }
         search.query = "upload"
-        try await Task.sleep(for: .milliseconds(100))
+        await NativeLayout.flush(host.view)
         XCTAssertEqual(searchFields().count, 1)
         XCTAssertTrue(searchFields().first === initialField)
         XCTAssertEqual(initialField.stringValue, "upload")
         XCTAssertEqual(window.frame, originalWindowFrame, "Search results must not expand the window")
         for size in [NSSize(width: 940, height: 640), NSSize(width: 860, height: 560)] {
             window.setContentSize(size)
-            try await Task.sleep(for: .milliseconds(100))
-            try renderLayout()
+            await NativeLayout.flush(host.view)
             let currentSidebar = sidebar.viewController.view.convert(sidebar.viewController.view.bounds, to: frameView)
             XCTAssertEqual(currentSidebar.maxY, frameView.bounds.maxY, accuracy: 1)
             XCTAssertEqual(currentSidebar.width, 210, accuracy: 1)
             XCTAssertFalse(sidebar.isCollapsed)
             XCTAssertTrue(searchFields().first === initialField)
         }
-        print("SETTINGS_SEARCH_PREVIEW=\(output.path)")
     }
 
     @MainActor func testSearchResultsLeaveThePopoverBackgroundVisible() async throws {
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let model = SettingsSearchModel()
             model.query = "update"
@@ -135,10 +120,9 @@ final class SettingsAndTablesTests: XCTestCase {
             window.setContentSize(size)
             window.orderBack(nil)
             defer { window.close() }
-            try await Task.sleep(for: .milliseconds(350))
+            await NativeLayout.flush(host.view)
             host.view.layoutSubtreeIfNeeded()
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+
             func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
             let table = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSTableView }.first)
             XCTAssertEqual(table.effectiveStyle, .inset, "Native inset selection must not form a square band against the rounded popover")
@@ -149,9 +133,7 @@ final class SettingsAndTablesTests: XCTestCase {
             XCTAssertFalse(scroll.contentView.drawsBackground)
             XCTAssertEqual(table.selectedRow, 0)
             XCTAssertEqual(host.view.bounds.size, size)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("settings-results-\(appearance.rawValue).png"))
         }
-        print("SETTINGS_RESULTS_PREVIEW=\(output.path)")
     }
 
     @MainActor func testSettingsSearchKeyboardNavigationPreservesIMEComposition() {
@@ -224,7 +206,7 @@ final class SettingsAndTablesTests: XCTestCase {
         window.isReleasedWhenClosed = false; window.alphaValue = 0
         window.contentViewController = host; window.setContentSize(NSSize(width: 440, height: 560)); window.orderBack(nil)
         defer { window.close() }
-        try await Task.sleep(for: .milliseconds(450))
+        await NativeLayout.flush(host.view)
         let content = try XCTUnwrap(window.contentView)
         content.layoutSubtreeIfNeeded()
         func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }

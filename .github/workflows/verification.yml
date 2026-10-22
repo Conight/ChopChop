@@ -3,6 +3,9 @@ name: Shared verification
 on:
   workflow_call:
     inputs:
+      suite:
+        type: string
+        default: verification
       source-ref:
         type: string
         default: ''
@@ -38,7 +41,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        lane: [native, keyboard-a, keyboard-b, integration]
+        lane: ${{ inputs.suite == 'ui' && fromJSON('["ui"]') || fromJSON('["native", "keyboard-a", "keyboard-b", "integration"]') }}
     env:
       CHOPCHOP_TEST_RESULTS_DIR: build/test-results
       CHOPCHOP_RELEASE_VERSION: ${{ inputs.release-version }}

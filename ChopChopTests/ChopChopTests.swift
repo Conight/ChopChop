@@ -3529,7 +3529,6 @@ final class ChopChopTests: XCTestCase {
         XCTAssertEqual(store.runtime.phase, .stopped)
     }
 
-
     func testFileSafetyOnlyRequiresCompletedSelectedPayloads() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -5235,8 +5234,7 @@ final class ChopChopTests: XCTestCase {
         task.destination = "/Users/example/Downloads/这是一个很长的下载文件夹名称 Example Torrent"
         store.tasks = [task]
         store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 1))
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+
         for width: CGFloat in [400, 600] {
             let host = NSHostingController(rootView: TaskBandwidthView(task: task)
                 .padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -5248,7 +5246,7 @@ final class ChopChopTests: XCTestCase {
             window.isReleasedWhenClosed = false; window.alphaValue = 0
             window.contentViewController = host; window.orderBack(nil)
             defer { window.close() }
-            try await Task.sleep(for: .milliseconds(350))
+            await NativeLayout.flush(host.view)
             let content = host.view
             content.layoutSubtreeIfNeeded()
             func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
@@ -5259,12 +5257,8 @@ final class ChopChopTests: XCTestCase {
                 let rect = field.convert(field.bounds, to: content).insetBy(dx: -3, dy: -3)
                 XCTAssertTrue(content.bounds.contains(rect), "Native fields and focus rings must fit: \(rect)")
             }
-            let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
-            content.cacheDisplay(in: content.bounds, to: bitmap)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("summary-config-\(Int(width)).png"))
         }
         XCTAssertEqual(calls.value(), ["aria2.getOption", "aria2.getOption"])
-        print("SUMMARY_PREVIEW_OUTPUT=\(output.path)")
     }
 
     @MainActor
@@ -5911,7 +5905,6 @@ private actor StartupEngineManager: EngineInstallationManaging {
         return EngineInstallation(executableURL: URL(fileURLWithPath: "/unused"), version: release.version)
     }
 }
-
 
 /// Deterministic filesystem errors without touching the user's Trash or requiring root permissions.
 private final class FileSafetyTestManager: FileManager, @unchecked Sendable {

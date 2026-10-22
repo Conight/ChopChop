@@ -4,6 +4,18 @@ import XCTest
 
 final class MacIntegrationTests: XCTestCase {
     @MainActor
+    func testLastWindowCloseRespectsBackgroundDownloadPreference() throws {
+        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
+        defer { store.shutdown() }
+        let delegate = ChopChopAppDelegate()
+        delegate.configureMenuBar(store: store)
+        store.preferences.keepRunningAfterClose = true
+        XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
+        store.preferences.keepRunningAfterClose = false
+        XCTAssertTrue(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
+    }
+
+    @MainActor
     func testDockKeepsNativeIconAndProgressViewsAcrossUpdates() {
         let view = DockDownloadProgressView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
         let icon = view.iconView, bar = view.progressIndicator

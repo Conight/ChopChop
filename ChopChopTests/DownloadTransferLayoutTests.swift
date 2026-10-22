@@ -7,8 +7,6 @@ import XCTest
 final class DownloadTransferLayoutTests: XCTestCase {
     @MainActor
     func testMetricEnvelopesStayFixedAcrossDigitsUnitsAndPercentages() async throws {
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for font in [Font.caption, .headline] {
             var task = fixture()
             let host = NSHostingController(rootView: MetricEnvelopeFixture(task: task).font(font))
@@ -22,9 +20,9 @@ final class DownloadTransferLayoutTests: XCTestCase {
             defer { window.close() }
             var expected: NSSize?
             var expectedFrames: [String: NSRect]?
-            for (index, bytes) in [Int64(0), 9, 999, 1_000, 9_990, 99_900, 999_900,
+            for bytes in [Int64(0), 9, 999, 1_000, 9_990, 99_900, 999_900,
                                    1_000_000, 999_990_000_000, Int64.max / 100 * 9,
-                                   Int64.max / 10, Int64.max / 100 * 99, Int64.max].enumerated() {
+                                   Int64.max / 10, Int64.max / 100 * 99, Int64.max] {
                 task.downloadSpeed = bytes
                 task.uploadSpeed = bytes / 10
                 task.completedLength = bytes
@@ -54,15 +52,8 @@ final class DownloadTransferLayoutTests: XCTestCase {
                         XCTAssertEqual(frame.height, expected.height, accuracy: 0.1, id)
                     }
                 } else { expectedFrames = frames }
-                if font == .caption, [0, 2, 4, 6, 8, 12].contains(index) {
-                    let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-                    host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-                    try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-                        .write(to: output.appendingPathComponent("stable-metrics-\(index).png"))
-                }
             }
         }
-        print("STABLE_METRICS_OUTPUT=\(output.path)")
     }
 
     @MainActor
@@ -71,12 +62,10 @@ final class DownloadTransferLayoutTests: XCTestCase {
         defer { store.shutdown() }
         store.tasks = [fixture()]
         store.selectedTaskID = store.tasks.first?.id
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        for (name, appearance, dark, contrast) in [
-            ("light", NSAppearance.Name.aqua, false, false),
-            ("dark", .darkAqua, true, false),
-            ("contrast", .accessibilityHighContrastAqua, false, true)
+        for (appearance, dark, contrast) in [
+            (NSAppearance.Name.aqua, false, false),
+            (.darkAqua, true, false),
+            (.accessibilityHighContrastAqua, false, true)
         ] {
             let host = NSHostingController(rootView:
                 DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
@@ -95,8 +84,6 @@ final class DownloadTransferLayoutTests: XCTestCase {
             try await settle(host.view)
             let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
             host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-                .write(to: output.appendingPathComponent("workspace-backdrop-\(name).png"))
             // Sample the open working area; the native List background must not
             // erase the decorative folds below its rows.
             if !contrast {
@@ -105,19 +92,15 @@ final class DownloadTransferLayoutTests: XCTestCase {
                 XCTAssertGreaterThan(abs(upper.blueComponent - lower.blueComponent) + abs(upper.redComponent - lower.redComponent), 0.015)
             }
         }
-        print("WORKSPACE_BACKDROP_OUTPUT=\(output.path)")
     }
 
-    /// Verify native row geometry and export actual offscreen renders without
-    /// activating a window, sending input events or connecting to the engine.
+    /// Check geometry across reported data boundaries without UI automation.
     @MainActor
     func testTorrentTransferLayoutKeepsRowGeometryStableDuringPolling() async throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         store.runtime.phase = .running(pid: 1)
         let presentation = TaskDetailsPresentation()
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         for width: CGFloat in [579, 719, 720, 840] {
             var task = fixture()
@@ -142,12 +125,6 @@ final class DownloadTransferLayoutTests: XCTestCase {
                 store.tasks = [task]
                 try await settle(host.view)
                 geometry = try verifyLayout(in: host.view, width: width, expected: geometry)
-                if speed > 0 {
-                    let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-                    host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-                    let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-                    try png.write(to: output.appendingPathComponent("transfer-list-\(Int(width)).png"))
-                }
             }
 
             task.isSharing = true
@@ -189,7 +166,6 @@ final class DownloadTransferLayoutTests: XCTestCase {
                 try verifyLayout(in: host.view, width: width, expected: geometry)
             }
         }
-        print("TRANSFER_LIST_PREVIEW_OUTPUT=\(output.path)")
     }
 
     @MainActor
@@ -230,9 +206,6 @@ final class DownloadTransferLayoutTests: XCTestCase {
         let staticText = try pixels()
         var replacements = 0
         var changedFrames = 0
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        try staticText.write(to: output.appendingPathComponent("selection-before.png"))
         for tick in 1...8 {
             task.downloadSpeed += 173_000
             task.completedLength += 262_144
@@ -252,48 +225,14 @@ final class DownloadTransferLayoutTests: XCTestCase {
                 XCTAssertEqual(currentRow.alphaValue, 1)
                 let frame = try pixels()
                 if frame != staticText {
-                    if changedFrames == 0 { try frame.write(to: output.appendingPathComponent("selection-flash.png")) }
                     changedFrames += 1
                 }
             }
         }
         XCTAssertEqual(replacements, 0, "Polling must not replace native selected row/cell views")
         XCTAssertEqual(changedFrames, 0, "Offscreen static row content must not change when rates change")
-        print("SELECTION_FLASH_OUTPUT=\(output.path) changedFrames=\(changedFrames)")
     }
 
-    @MainActor
-    func testNetworkAndListRenderSharedTransferSamples() async throws {
-        let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
-        defer { store.shutdown() }
-        var task = fixture()
-        store.tasks = [task]
-        let host = NSHostingController(rootView: TransferConsistencyFixture(store: store)
-            .environment(store).environmentObject(TaskDetailsPresentation())
-            .environment(\.scenePhase, .inactive))
-        host.sizingOptions = []
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1500, height: 750),
-            styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentViewController = host
-        window.setContentSize(NSSize(width: 1500, height: 750))
-        window.alphaValue = 0
-        window.orderBack(nil)
-        defer { window.close() }
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        for (down, up) in [(Int64(1_234_567), Int64(20_000)), (Int64(765_432), Int64(0))] {
-            task.downloadSpeed = down; task.uploadSpeed = up
-            store.tasks = [task]
-            try await settle(host.view)
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: output.appendingPathComponent("shared-transfer-\(down).png"))
-
-        }
-        print("SHARED_TRANSFER_PREVIEW_OUTPUT=\(output.path)")
-    }
 
     @MainActor
     func testNativeProgressInterpolatesOnlyReportedForwardAdvancement() async throws {
@@ -373,10 +312,7 @@ final class DownloadTransferLayoutTests: XCTestCase {
 
     @MainActor
     private func settle(_ view: NSView) async throws {
-        try await Task.sleep(for: .milliseconds(150))
-        view.layoutSubtreeIfNeeded()
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
+        await NativeLayout.flush(view)
     }
 
     @MainActor
@@ -442,18 +378,6 @@ private struct ProgressFixtureView: View {
                 TaskProgressIndicator(task: model.task)
             }
         }.padding(20)
-    }
-}
-
-private struct TransferConsistencyFixture: View {
-    let store: DownloadStore
-    var body: some View {
-        HStack {
-            DownloadCanvas(destination: .all, onPaste: {}, onOpenFile: {}, showDetails: {}, toggleDetails: {})
-                .frame(width: 850)
-            TaskInspectorView(task: store.tasks[0], initialTab: .network)
-                .frame(width: 600)
-        }
     }
 }
 

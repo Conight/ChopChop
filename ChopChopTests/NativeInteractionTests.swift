@@ -371,12 +371,7 @@ final class NativeInteractionTests: XCTestCase {
         XCTAssertEqual(field.delegate?.control?(field, textView: composition, doCommandBy: #selector(NSResponder.insertNewline(_:))), false,
                        "Return must confirm the input method candidate before executing a command")
         XCTAssertEqual(field.delegate?.control?(field, textView: composition, doCommandBy: #selector(NSResponder.moveDown(_:))), false)
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
-        content.cacheDisplay(in: content.bounds, to: bitmap)
-        try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("command-search.png"))
-        print("COMMAND_SEARCH_PREVIEW_OUTPUT=\(output.path)")
+
         owner.close()
         XCTAssertNil(presentation.panel)
     }

@@ -56,11 +56,8 @@ final class DownloadArtworkTests: XCTestCase {
 
     @MainActor
     func testFlowRendersOpaqueDistinctPalettesAndMotion() throws {
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Artwork Previews")
-        let exporting = ProcessInfo.processInfo.environment["CHOPCHOP_DESIGN_RENDER"] == "1"
-        if exporting { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true) }
         var rendered = Set<Data>()
-        for (name, accent) in [("blue", Color.blue), ("purple", .purple), ("orange", .orange), ("graphite", .gray)] {
+        for accent in [Color.blue, .purple, .orange, .gray] {
             for dark in [false, true] {
                 for contrast in [false, true] {
                     let flow = DownloadFlowScene(elapsed: 0, accent: accent, dark: dark, increasedContrast: contrast)
@@ -74,16 +71,12 @@ final class DownloadArtworkTests: XCTestCase {
                     }
                     let png = try XCTUnwrap(image.representation(using: .png, properties: [:]))
                     XCTAssertTrue(rendered.insert(png).inserted, "Every palette/appearance should resolve independently")
-                    if exporting {
-                        try png.write(to: output.appendingPathComponent("\(name)-\(dark ? "dark" : "light")\(contrast ? "-contrast" : "").png"))
-                    }
                 }
             }
         }
         let first = try bitmap(DownloadFlowScene(elapsed: 0, accent: .blue, dark: false))
         let later = try bitmap(DownloadFlowScene(elapsed: 7, accent: .blue, dark: false))
         XCTAssertNotEqual(first.representation(using: .png, properties: [:]), later.representation(using: .png, properties: [:]))
-        if exporting { print("ARTWORK_PREVIEW_OUTPUT=\(output.path)") }
     }
 
     @MainActor

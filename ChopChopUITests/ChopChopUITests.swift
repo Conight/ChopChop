@@ -678,76 +678,26 @@ final class ChopChopUITests: XCTestCase {
         let settingsMarker = app.descendants(matching: .any)
             .matching(identifier: "settings-current-pane-title")
             .firstMatch
-        if settingsMarker.waitForExistence(timeout: 2) {
-            return
-        }
-
-        openSettingsWindowFromAppMenu(in: app)
-        if settingsMarker.waitForExistence(timeout: 4) {
-            return
-        }
-
+        if settingsMarker.exists { return }
         app.typeKey(",", modifierFlags: .command)
         XCTAssertTrue(settingsMarker.waitForExistence(timeout: 8))
     }
 
-    @MainActor
-    private func openSettingsWindowFromAppMenu(in app: XCUIApplication) {
-        let appMenu = app.menuBars.menuBarItems["ChopChop Dev"]
-        guard appMenu.waitForExistence(timeout: 4) else { return }
-        appMenu.click()
-
-        let settingsItems = [
-            app.menuItems["Settings…"],
-            app.menuItems["Settings..."]
-        ]
-        for settingsItem in settingsItems where settingsItem.waitForExistence(timeout: 2) {
-            settingsItem.click()
-            return
-        }
-    }
-
+    // A locator returns one query; the caller owns the readiness assertion.
+    // Stable accessibility IDs are part of the app's automation contract.
     @MainActor
     private func addDownloadURLField(in app: XCUIApplication) -> XCUIElement {
-        let candidates = [
-            app.textFields["add-download-url-field"],
-            app.textViews["add-download-url-field"],
-            app.textFields["URL, Magnet, ED2K, torrent, or metalink"],
-            app.textViews["URL, Magnet, ED2K, torrent, or metalink"]
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.textFields["add-download-url-field"]
+        app.descendants(matching: .any).matching(identifier: "add-download-url-field").firstMatch
     }
 
     @MainActor
     private func searchField(in app: XCUIApplication) -> XCUIElement {
-        let candidates = [
-            app.searchFields["Search downloads"],
-            app.searchFields.firstMatch,
-            app.textFields["Search downloads"],
-            app.textFields["search-field"]
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.searchFields["Search downloads"]
+        app.searchFields["Search downloads"]
     }
 
     @MainActor
     private func textEntry(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        let candidates = [
-            app.textFields.matching(identifier: id).firstMatch,
-            app.textViews.matching(identifier: id).firstMatch,
-            app.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.textFields[label],
-            app.textViews[label]
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.descendants(matching: .any).matching(identifier: id).firstMatch
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     @MainActor
@@ -761,66 +711,23 @@ final class ChopChopUITests: XCTestCase {
 
     @MainActor
     private func disclosureControl(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        let candidates = [
-            app.buttons.matching(identifier: id).firstMatch,
-            app.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.buttons[label],
-            app.staticTexts[label]
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.buttons[label]
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     @MainActor
     private func toggleControl(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        let candidates = [
-            app.checkBoxes.matching(identifier: id).firstMatch,
-            app.buttons.matching(identifier: id).firstMatch,
-            app.switches.matching(identifier: id).firstMatch,
-            app.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.checkBoxes[label],
-            app.buttons[label],
-            app.switches[label],
-            app.descendants(matching: .any).matching(identifier: label).firstMatch
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.descendants(matching: .any).matching(identifier: id).firstMatch
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     @MainActor
     private func segmentedPickerOption(in app: XCUIApplication, label: String) -> XCUIElement {
-        let candidates = [
-            app.buttons[label],
-            app.radioButtons[label],
-            app.staticTexts[label],
-            app.descendants(matching: .any).matching(identifier: label).firstMatch
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.descendants(matching: .any).matching(identifier: label).firstMatch
+        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND (elementType == %d OR elementType == %d)",
+            label, XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.radioButton.rawValue)).firstMatch
     }
 
     @MainActor
     private func sidebarDestination(in app: XCUIApplication, id: String, label: String) -> XCUIElement {
-        let candidates = [
-            app.cells.matching(identifier: id).firstMatch,
-            app.buttons.matching(identifier: id).firstMatch,
-            app.groups.matching(identifier: id).firstMatch,
-            app.outlines.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.collectionViews.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.descendants(matching: .any).matching(identifier: id).firstMatch,
-            app.staticTexts.matching(identifier: id).firstMatch,
-            app.staticTexts[label]
-        ]
-        for candidate in candidates where candidate.waitForExistence(timeout: 1) {
-            return candidate
-        }
-        return app.staticTexts[label]
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     @MainActor

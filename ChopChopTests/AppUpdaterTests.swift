@@ -297,30 +297,6 @@ final class AppUpdaterTests: XCTestCase {
         await check.value
         XCTAssertEqual(coordinator.state, .idle, "A pending beta request must not overwrite a stable-channel selection")
     }
-    @MainActor func testUpdateWindowRendersLongNotesAtMinimumSizeInBothAppearances() async throws {
-        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-            let suite = "updater-layout-\(UUID())"
-            let isolated = UserDefaults(suiteName: suite)!
-            defer { isolated.removePersistentDomain(forName: suite) }
-            let coordinator = AppUpdateCoordinator(build: .init(version: "1.0.0-beta.1"), client: UpdateReleaseFixture(), defaults: isolated, signingConfigured: true)
-            await coordinator.check()
-            let host = NSHostingController(rootView: AppUpdateWindow(updates: coordinator))
-            let size = NSSize(width: 480, height: 400)
-            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false; window.alphaValue = 0; window.appearance = NSAppearance(named: appearance)
-            window.contentViewController = host; window.setContentSize(size); window.orderBack(nil)
-            defer { window.close() }
-            try await Task.sleep(for: .milliseconds(300))
-            host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(window.contentLayoutRect.size, size)
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-            let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("app-update-\(appearance.rawValue).png"))
-            print("APP_UPDATE_PREVIEW=\(output.path)")
-        }
-    }
 
     @MainActor func testLastReleaseParagraphIsVisibleAtScrollEndAfterResizing() async throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "AppUpdateReleaseNotes", withExtension: "md"))
@@ -341,7 +317,7 @@ final class AppUpdaterTests: XCTestCase {
             for size in [NSSize(width: 540, height: 500), NSSize(width: 480, height: 400),
                          NSSize(width: 800, height: 550), NSSize(width: 540, height: 500)] {
                 window.setContentSize(size)
-                try await Task.sleep(for: .milliseconds(200))
+                await NativeLayout.flush(host.view)
                 host.view.layoutSubtreeIfNeeded()
                 let scroll = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSScrollView }.first)
                 let document = try XCTUnwrap(scroll.documentView)
@@ -366,14 +342,7 @@ final class AppUpdaterTests: XCTestCase {
                 text.setSelectedRange(end)
                 XCTAssertEqual(text.selectedRange(), end)
                 text.setSelectedRange(NSRange(location: 0, length: 0))
-                if size.width == 480 {
-                    let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-                    host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-                    let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-                    try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-                    try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("app-update-scroll-end-\(appearance.rawValue).png"))
-                    print("UPDATE_SCROLL_END_PREVIEW=\(output.path)")
-                }
+
             }
         }
     }
@@ -394,7 +363,7 @@ final class AppUpdaterTests: XCTestCase {
             window.isReleasedWhenClosed = false; window.alphaValue = 0; window.appearance = NSAppearance(named: appearance)
             window.contentViewController = host; window.setContentSize(size); window.orderBack(nil)
             defer { window.close() }
-            try await Task.sleep(for: .milliseconds(200))
+            await NativeLayout.flush(host.view)
             host.view.layoutSubtreeIfNeeded()
             let notes = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSScrollView }.first)
             let document = try XCTUnwrap(notes.documentView)
@@ -422,10 +391,10 @@ final class AppUpdaterTests: XCTestCase {
                 .init(stage: .checkingApplication), .init(stage: .copyingApplication),
                 .init(stage: .closingInstaller), .init(stage: .checkingApplication)
             ]
-            for (index, sample) in samples.enumerated() {
+            for sample in samples {
                 installer.report(sample)
                 await wait { if case .preparing(_, let value) = coordinator.state { return value == sample }; return false }
-                try await Task.sleep(for: .milliseconds(200))
+                await NativeLayout.flush(host.view)
                 host.view.layoutSubtreeIfNeeded()
                 let indicator = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSProgressIndicator }.first)
                 let hasFraction = sample.stage == .downloading && sample.fraction != nil
@@ -443,13 +412,12 @@ final class AppUpdaterTests: XCTestCase {
                 if let fraction = sample.fraction {
                     XCTAssertEqual((indicator.doubleValue - indicator.minValue) / (indicator.maxValue - indicator.minValue), fraction, accuracy: 0.01)
                 }
-                try saveProgressPreview(host.view, name: "\(index)-\(appearance.rawValue)")
             }
             installer.finishPrepare()
             await wait { if case .ready = coordinator.state { return true }; return false }
             coordinator.installAndRestart()
             await wait { installer.isInstalling }
-            try await Task.sleep(for: .milliseconds(200))
+            await NativeLayout.flush(host.view)
             host.view.layoutSubtreeIfNeeded()
             let installing = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSProgressIndicator }.first)
             XCTAssertEqual(installing.style, .spinning); XCTAssertTrue(installing.isIndeterminate)
@@ -471,43 +439,6 @@ final class AppUpdaterTests: XCTestCase {
 
     @MainActor private func descendants(of view: NSView) -> [NSView] {
         [view] + view.subviews.flatMap { descendants(of: $0) }
-    }
-
-    @MainActor private func saveProgressPreview(_ view: NSView, name: String) throws {
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("app-update-progress-\(name).png"))
-        print("UPDATE_PROGRESS_PREVIEW=\(output.path)")
-    }
-
-    @MainActor func testDownloadedInstallerLayoutFitsMinimumWindow() async throws {
-        let suite = "updater-installer-layout-\(UUID())"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let archive = DownloadedAppUpdateArchive(url: URL(fileURLWithPath: "/unused-fixture.dmg"), size: 17, sha256: String(repeating: "a", count: 64))
-        let coordinator = AppUpdateCoordinator(build: .init(version: "0.9.0"), client: LegacyUpdateReleaseFixture(), defaults: defaults,
-            signingConfigured: false, archiveDownloader: DirectArchiveFixture(archive: archive))
-        await coordinator.check(); coordinator.download()
-        await wait { if case .downloaded = coordinator.state { return true }; return false }
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-            let host = NSHostingController(rootView: AppUpdateWindow(updates: coordinator))
-            let size = NSSize(width: 480, height: 400)
-            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false; window.alphaValue = 0; window.appearance = NSAppearance(named: appearance)
-            window.contentViewController = host; window.setContentSize(size); window.orderBack(nil)
-            defer { window.close() }
-            try await Task.sleep(for: .milliseconds(200))
-            host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(window.contentLayoutRect.size, size)
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("app-update-installer-\(appearance.rawValue).png"))
-        }
-        print("DIRECT_UPDATE_PREVIEW=\(output.path)")
     }
 
     @MainActor func testDownloadedPackageRestoresFromDiskWithoutNetworkAndRejectsChangedFiles() async throws {

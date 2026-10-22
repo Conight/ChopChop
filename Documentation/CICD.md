@@ -24,16 +24,44 @@ The tag's [release run](https://github.com/Conight/ChopChop/actions/runs/3977588
 `.github/workflows/verification.yml` provides one reusable gate. A small Ubuntu policy job validates workflows with checksum-pinned actionlint and exercises the release gate's trust/coverage rules. Four independent `xcode-27` jobs then run:
 
 - `native`: localization/boundary/domain/fixture/browser checks, the complete English Swift suite, and Chinese layouts.
-- `keyboard-a` and `keyboard-b`: complementary sets of the existing 11 keyboard/window regressions. Each still runs **twice**, with native parallel testing disabled. The two sets run on different macOS hosts, so they do not compete for window focus or the pasteboard.
+- `keyboard-a` and `keyboard-b`: complementary sets of 11 keyboard/window regressions, each run once with native parallel testing disabled. The two sets run on different macOS hosts, so they do not compete for window focus or the pasteboard.
 - `integration`: real HTTP/BitTorrent and HLS/DASH downloads, hardened Dev Release verification, and real updater/termination fixtures.
 
-`Scripts/keyboard-tests.json` contains the shared selections. They were balanced using both iterations' measured durations: 256 seconds and 253 seconds of UI execution on the baseline runner. A regression test checks that their union is exactly the original selection, without duplicates. This splits execution across hosts rather than reducing coverage or repetitions.
+`Scripts/keyboard-tests.json` contains the shared selections. They were initially balanced using the baseline durations. A regression test checks that their union contains every selected scenario, without duplicates. Repetition is now an explicit diagnostic option; state-transition coverage belongs inside the regression itself.
 
 `CI / test` remains the final check. It fails when any verification job fails, is cancelled, or is skipped. Superseded main/PR runs are still cancelled. A matrix failure does not cancel its siblings, preserving their diagnostics and allowing selective reruns.
 
 Each lane installs only its required tools. Node is needed by `native`; FFmpeg is needed by `integration`. Test/tool versions and engine checksums remain pinned. No persistent DerivedData or executable cache is introduced. Each host starts with a clean build, and `-showBuildTimingSummary` supplies evidence for later compiler optimization.
 
-`Scripts/verify.sh --lane NAME` exposes the same lanes on disposable hosts. Without `--lane`, it runs all coverage sequentially as before; `--package` still requires the full gate. The personal-Mac test-host policy and fixed local Dev build identity remain enforced.
+`Scripts/verify.sh --lane NAME` exposes the same lanes on disposable hosts. The separate `ui` lane runs the complete UI suite and is available through `gh workflow run ci.yml --ref main -f suite=ui`. Manual runs cannot be used as release proof; normal push/PR and release fallback always use the complete four-lane verification gate. Without `--lane`, it runs all coverage sequentially as before; `--package` still requires the full gate. The personal-Mac test-host policy and fixed local Dev build identity remain enforced.
+
+## Test design audit
+
+The first CI optimization changed scheduling. A subsequent audit inspected the native/UI test sources and per-case execution times, including [run 39792531102](https://github.com/Conight/ChopChop/actions/runs/39792531102). Its native lane took 7m10s, and UI lanes took 7m03s / 6m31s. The English suite itself took 183.3 seconds; Chinese layouts took 113.7 seconds. The tests, not tool installation, contained avoidable work:
+
+| Design problem | Evidence | Replacement |
+| --- | --- | --- |
+| Screenshot export mixed with geometry assertions | Settings case took 44.1s English / 42.8s Chinese, recreated each pane separately for top/bottom, slept 650ms, and encoded multiple PNGs with no baseline comparison | Explicit geometry contracts, one mounted pane for both scroll positions, AppKit layout, no PNG output |
+| Frame sampling used to infer that a window never moved | Screen-edge case took about 27.5s per language, sampling 30 frames on opening and 30 on closing for every permutation | Observe all move/resize notifications throughout presentation and dismissal; retain final sidebar/panel geometry assertions |
+| Expensive rendering used as synchronization | Transfer-row case took 14.1s; every data sample slept 150ms and rasterized the view | Drain observation work and request layout; retain every rate, size, protocol and phase boundary assertion |
+| Preview output presented as regression coverage | Hover/discovery/shared-transfer previews had no relevant behavioral assertion; two update-view cases only checked the assigned window size | Remove these cases and the opt-in full preview exporter; retain actual hover hit-testing, discovery state, transfer formatting, update progress/control and final-paragraph assertions |
+| Broad UI repetition substituted for a specific failure contract | All 11 scenarios ran twice; the launch case already performs four explicit exit/relaunch transitions inside each execution | One execution per scenario, with repetitions available for diagnosis and existing state transitions intact |
+| Locator fallback delays and hidden selector failures | Helpers tried several element types/labels with one-second waits; Settings opening first waited two seconds for a window expected to be absent | One accessibility-ID query with a readiness assertion at the call site; use the Settings shortcut directly |
+
+The audit covers the entire native suite, the UI harness and the real integration scripts. Fast domain, persistence, RPC-envelope, retry, privacy, cancellation and service tests retain their assertions. Most already use injected clients, fixed dates or controlled continuations. There is no evidence that replacing the download engine, migrating every test framework, or splitting production modules would fix the measured cost, so those changes are not justified by this investigation.
+
+The removed cases are `testExportDesignPreviews`, `testPieceGridHoverEdgesAndIdleAppearance`, `testTorrentDiscoveryShowsConnectionsAndKeepsRetryVisibleInCompactSheet`, `testNetworkAndListRenderSharedTransferSamples`, `testUpdateWindowRendersLongNotesAtMinimumSizeInBothAppearances`, `testDownloadedInstallerLayoutFitsMinimumWindow`, `testEngineVersionPickerFitsCompactSetupAndSettings`, and `testManagedEngineSettingsFitRunningPendingRestartAndFailureStates`. The last two repeated generic fixture checks without asserting the state named by the test. Picker size stability remains tested through refresh; release-list selection, settings application, update failure and retry remain covered by dedicated service tests. The background-download termination preference check moved to `MacIntegrationTests` so it isn't repeated for localization. The empty UI launch test class was removed.
+
+All native tests were inventoried by their assertions and the slowest cases were inspected against the logs. The layout synchronization infrastructure has regressions of its own: changed model widths must be visible before geometry is read, and a move followed immediately by restoration must still be observed. These protect against replacing a slow test with a fast false positive. Actual progress-animation sampling and pixel assertions remain where elapsed time or pixels are the behavior being checked.
+
+Validation and measured timings are recorded after the refactored suite runs on disposable CI. A smaller test count is not itself a performance or quality claim; removed weak checks and retained behavior are documented above.
+
+Current Apple documentation recommends removing the smallest relevant coupling to enable focused tests, rather than broad speculative rewrites. Apple's test-architecture guidance separates fast rules, subsystem integration and a small end-to-end layer. Its reliability guidance prefers awaited work to guessed delays and treats repetition as a deliberate reliability/diagnostic choice. AppKit explicitly supports requesting layout before examining geometry:
+
+- [Apple: updating an existing codebase to accommodate unit tests](https://developer.apple.com/documentation/xcode/updating-your-existing-codebase-to-accommodate-unit-tests)
+- [Apple: Testing Tips & Tricks](https://developer.apple.com/videos/play/wwdc2018/417/)
+- [Apple: author fast and reliable tests](https://developer.apple.com/videos/play/wwdc2022/110361/)
+- [Apple: NSView.layoutSubtreeIfNeeded](https://developer.apple.com/documentation/appkit/nsview/layoutsubtreeifneeded())
 
 ## Release promotion
 

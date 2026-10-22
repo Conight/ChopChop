@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The same coverage runs sequentially on a VM or in four isolated CI lanes.
+# The gate runs sequentially on a VM or in four isolated CI lanes.
+# The complete UI suite is also selectable for targeted validation/diagnosis.
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -12,10 +13,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --lane) [[ $# -ge 2 ]] || exit 2; lane="$2"; shift 2 ;;
         --package) [[ $# -ge 3 ]] || exit 2; package_dir="$2"; dmg_name="$3"; shift 3 ;;
-        *) echo 'Usage: Scripts/verify.sh [--lane native|keyboard-a|keyboard-b|integration] [--package OUTPUT_DIRECTORY DMG_NAME]' >&2; exit 2 ;;
+        *) echo 'Usage: Scripts/verify.sh [--lane native|keyboard-a|keyboard-b|integration|ui] [--package OUTPUT_DIRECTORY DMG_NAME]' >&2; exit 2 ;;
     esac
 done
-case "$lane" in all|native|keyboard-a|keyboard-b|integration) ;; *) echo 'Invalid verification lane' >&2; exit 2 ;; esac
+case "$lane" in all|native|keyboard-a|keyboard-b|integration|ui) ;; *) echo 'Invalid verification lane' >&2; exit 2 ;; esac
 [[ -z "$package_dir" || "$lane" == all ]] || { echo '--package requires the complete verification gate' >&2; exit 2; }
 export PYTHON="${PYTHON:-$(command -v python3.14 || command -v python3)}"
 owns_validation_root=false
@@ -90,11 +91,12 @@ if [[ "$lane" == all || "$lane" == native ]]; then
     CHOPCHOP_DERIVED_DATA="$test_derived_data" stage unit Scripts/check.sh unit -testLanguage en -testRegion US -resultBundlePath "$test_results/unit.xcresult" 2>&1 | tee "$validation_root/unit.log" "$test_results/unit.log"
     CHOPCHOP_DERIVED_DATA="$test_derived_data" stage layout Scripts/check.sh layout -testLanguage zh-Hans -testRegion CN -resultBundlePath "$test_results/layout.xcresult" 2>&1 | tee "$validation_root/layout.log" "$test_results/layout.log"
 fi
-if [[ "$lane" == all || "$lane" == keyboard-* ]]; then
+if [[ "$lane" == all || "$lane" == keyboard-* || "$lane" == ui ]]; then
     keyboard_mode="$lane"
     if [[ "$lane" == all ]]; then keyboard_mode=keyboard; fi
-    # Each shard keeps both iterations. Separate hosts avoid macOS focus races.
-    CHOPCHOP_DERIVED_DATA="$test_derived_data" stage "$keyboard_mode" Scripts/check.sh "$keyboard_mode" -testLanguage en -testRegion US -parallel-testing-enabled NO -test-iterations 2 -resultBundlePath "$test_results/keyboard.xcresult" 2>&1 | tee "$validation_root/keyboard.log" "$test_results/keyboard.log"
+    # State transitions belong in each regression, rather than blindly rerunning
+    # every fresh-launch fixture. Repetitions remain available for diagnosis.
+    CHOPCHOP_DERIVED_DATA="$test_derived_data" stage "$keyboard_mode" Scripts/check.sh "$keyboard_mode" -testLanguage en -testRegion US -parallel-testing-enabled NO -resultBundlePath "$test_results/keyboard.xcresult" 2>&1 | tee "$validation_root/keyboard.log" "$test_results/keyboard.log"
 fi
 if [[ "$lane" == all || "$lane" == integration ]]; then
     stage http-bittorrent "$PYTHON" -u Scripts/smoke-aria2-next.py

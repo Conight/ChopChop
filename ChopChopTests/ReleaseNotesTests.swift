@@ -125,7 +125,7 @@ import XCTest
             var previousHeight: CGFloat = 0
             for width in [480, 400] {
                 window.setContentSize(NSSize(width: width, height: 650))
-                try await Task.sleep(for: .milliseconds(150))
+                await NativeLayout.flush(host.view)
                 host.view.layoutSubtreeIfNeeded()
                 let view = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSTextView }.first)
                 XCTAssertTrue(view.isSelectable)
@@ -138,12 +138,7 @@ import XCTest
                 XCTAssertLessThanOrEqual(used.maxY, view.bounds.height + 1, "The final paragraph must be reachable")
                 XCTAssertGreaterThanOrEqual(view.bounds.height, previousHeight)
                 previousHeight = view.bounds.height
-                let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-                host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-                let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-                try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-                try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("release-notes-\(appearance.rawValue)-\(width).png"))
-                print("RELEASE_NOTES_PREVIEW=\(output.path)")
+
             }
         }
     }

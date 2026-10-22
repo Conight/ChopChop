@@ -5,17 +5,25 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Verification gate or the complete UI suite
+        type: choice
+        default: verification
+        options: [verification, ui]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.suite || 'verification' }}
   cancel-in-progress: true
 
 jobs:
   verification:
     uses: ./.github/workflows/verification.yml
+    with:
+      suite: ${{ inputs.suite || 'verification' }}
   # Keep the existing required-check name and fail closed on cancelled/skipped lanes.
   test:
     if: always()

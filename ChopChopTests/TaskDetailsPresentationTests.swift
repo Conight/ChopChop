@@ -107,8 +107,7 @@ final class TaskDetailsPresentationTests: XCTestCase {
         XCTAssertTrue(panel.titlebarAppearsTransparent)
         XCTAssertEqual(panel.titlebarSeparatorStyle, .none)
         XCTAssertTrue(panel.isMovableByWindowBackground)
-        let output = try Aria2NextPaths.supportDirectory().appendingPathComponent("Design Previews")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+
         for size in [NSSize(width: 600, height: 680), panel.contentMinSize] {
             panel.setContentSize(size)
             try await Task.sleep(for: .milliseconds(300))
@@ -127,12 +126,7 @@ final class TaskDetailsPresentationTests: XCTestCase {
             let scroll = try XCTUnwrap(descendants(content).compactMap { $0 as? NSScrollView }.first)
             XCTAssertGreaterThanOrEqual(scroll.contentView.bounds.height, 140,
                                         "The full-size titlebar must leave usable content at the minimum size")
-            let frame = try XCTUnwrap(content.superview)
-            let bitmap = try XCTUnwrap(frame.bitmapImageRepForCachingDisplay(in: frame.bounds))
-            frame.cacheDisplay(in: frame.bounds, to: bitmap)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent("unified-details-\(Int(size.width)).png"))
         }
-        print("UNIFIED_DETAILS_PREVIEW_OUTPUT=\(output.path)")
     }
 
     @MainActor

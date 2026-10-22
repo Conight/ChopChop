@@ -38,7 +38,7 @@ for argument in "$@"; do
 done
 case "$mode" in
     unit) set -- test -only-testing:ChopChopTests "$@" ;;
-    layout) set -- test -only-testing:ChopChopTests/DesignPreviewTests "$@" ;;
+    layout) set -- test -only-testing:ChopChopTests/WindowLayoutTests "$@" ;;
     release-unit) set -- test -configuration Release -only-testing:ChopChopTests \
         ENABLE_TESTABILITY=YES CODE_SIGN_INJECT_BASE_ENTITLEMENTS=YES ENABLE_HARDENED_RUNTIME=NO "$@" ;;
     ui) set -- test -only-testing:ChopChopUITests "$@" ;;
