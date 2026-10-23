@@ -1,6 +1,32 @@
 import AppKit
-import Observation
+import CoreText
 import SwiftUI
+
+/// Keep menu bar presentation in a system scene, independently of ordinary app
+/// windows and their Spaces. No private popover windows or activation switching.
+struct ChopChopMenuBarScene: Scene {
+    let store: DownloadStore
+
+    var body: some Scene {
+        MenuBarExtra(isInserted: AppLaunchConfiguration.isTestAutomation ? .constant(false) : isInserted) {
+            MenuBarPanel().environment(store)
+        } label: {
+            MenuBarStatusLabel(store: store)
+        }
+        .menuBarExtraStyle(.window)
+    }
+
+    var isInserted: Binding<Bool> {
+        Binding {
+            store.preferences.showMenuBar
+        } set: { isInserted in
+            // SwiftUI can write back the current insertion value during scene
+            // updates. Avoid invalidating the graph and saving it again.
+            guard store.preferences.showMenuBar != isInserted else { return }
+            store.preferences.showMenuBar = isInserted
+        }
+    }
+}
 
 nonisolated struct MenuBarTransferRates: Equatable, Sendable {
     let download: Int64
@@ -30,10 +56,6 @@ nonisolated struct MenuBarStatusSnapshot: Equatable, Sendable {
         rates = MenuBarTransferRates(download: store.activeSpeed, upload: store.uploadSpeed)
     }
 
-    var speedTitle: String {
-        "↓\t\(rates.map { ByteFormat.speed($0.download) } ?? "—")\n↑\t\(rates.map { ByteFormat.speed($0.upload) } ?? "—")"
-    }
-
     var accessibilityValue: String? {
         guard mode.showsSpeed else { return nil }
         guard let rates else { return String(localized: "Transfer speeds unavailable") }
@@ -46,158 +68,132 @@ nonisolated struct MenuBarStatusSnapshot: Equatable, Sendable {
     }
 }
 
-/// Follow the same observable source as the in-app metrics. No independent timer
-/// or RPC client is needed, and a failed connection immediately clears old rates.
-@MainActor
-final class MenuBarStatusObservation {
-    private weak var store: DownloadStore?
-    private var generation = 0
-    private var lastSnapshot: MenuBarStatusSnapshot?
-    private let onUpdate: (MenuBarStatusSnapshot) -> Void
+/// SwiftUI observes only the properties read by the snapshot, so hidden and
+/// icon-only modes don't subscribe to continuously changing speed samples.
+struct MenuBarStatusLabel: View {
+    let store: DownloadStore
 
-    init(onUpdate: @escaping (MenuBarStatusSnapshot) -> Void) { self.onUpdate = onUpdate }
-
-    func configure(store: DownloadStore) {
-        guard self.store !== store else { return }
-        stop()
-        self.store = store
-        observe(generation: generation)
-    }
-
-    func stop() {
-        generation += 1
-        store = nil
-        lastSnapshot = nil
-    }
-
-    private func observe(generation: Int) {
-        guard let store, self.generation == generation else { return }
-        let snapshot = withObservationTracking {
-            MenuBarStatusSnapshot(store: store)
-        } onChange: { [weak self] in
-            // Observation calls before mutation. Read the committed values on
-            // the next main-actor turn, coalescing changes from one engine poll.
-            Task { @MainActor [weak self] in self?.observe(generation: generation) }
+    var body: some View {
+        let snapshot = MenuBarStatusSnapshot(store: store)
+        Group {
+            if let image = MenuBarStatusAppearance.image(for: snapshot) {
+                Image(nsImage: image).renderingMode(.template)
+            }
         }
-        guard snapshot != lastSnapshot else { return }
-        lastSnapshot = snapshot
-        onUpdate(snapshot)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AppIdentity.displayName)
+        .accessibilityValue(snapshot.accessibilityValue ?? "")
+        .accessibilityIdentifier("menu-bar-status")
+        .help(snapshot.toolTip)
     }
 }
 
-/// Preserve the system status button's highlighting, click and keyboard behavior.
-/// Reserve one compact two-line width across digit and byte-unit transitions.
+/// One template image centers the icon and both rows as a single system label.
 @MainActor
 enum MenuBarStatusAppearance {
-    static let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-    static let lineHeight: CGFloat = 11
-    static let textWidth: CGFloat = {
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+    private static let unitFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
+    private static let imageHeight: CGFloat = 20
+    private static let formatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        let count = formatter.string(from: 888.88) ?? "888.88"
-        return ceil(ByteFormat.displayUnits.flatMap { unit in
-            ["↓", "↑"].map { arrow in
-                ("\(arrow) \(count) \(unit)/s" as NSString).size(withAttributes: [.font: font]).width
-            }
-        }.max() ?? 80)
+        formatter.usesGroupingSeparator = false
+        formatter.usesSignificantDigits = true
+        formatter.minimumSignificantDigits = 1
+        formatter.maximumSignificantDigits = 3
+        return formatter
     }()
+    private static let countWidth = ceil([888, 88.8, 8.88].map {
+        (formatter.string(from: NSNumber(value: $0))! as NSString).size(withAttributes: [.font: font]).width
+    }.max()!)
+    private static let unitWidth = ceil(ByteFormat.displayUnits.map {
+        ("\($0)/s" as NSString).size(withAttributes: [.font: unitFont]).width
+    }.max()!)
 
-    static func length(for mode: MenuBarDisplayMode) -> CGFloat {
-        mode.showsSpeed ? textWidth + 12 + (mode.showsIcon ? 24 : 0) : NSStatusItem.squareLength
+    private static func imageWidth(for mode: MenuBarDisplayMode) -> CGFloat {
+        (mode.showsIcon ? 22 : 0) + 8 + countWidth + 2 + unitWidth + 1
     }
 
-    static func title(_ text: String) -> NSAttributedString {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.minimumLineHeight = lineHeight
-        paragraph.maximumLineHeight = lineHeight
-        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: textWidth)]
-        paragraph.lineBreakMode = .byClipping
-        return NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: paragraph])
-    }
-
-    static func apply(_ snapshot: MenuBarStatusSnapshot, to button: NSButton) {
-        if snapshot.mode.showsIcon {
-            if button.image == nil { button.image = AppBrand.menuBarImage }
-        } else {
-            button.image = nil
+    /// Three significant digits keep the visual columns compact. Spoken and
+    /// tooltip values retain the app's full localized ByteFormat output.
+    static func speedText(_ bytes: Int64?) -> ByteFormat.DisplayParts {
+        guard let bytes else { return .init(count: "—", unit: "") }
+        var value = Double(max(0, bytes))
+        var unit = value == 0 ? 1 : 0
+        while value >= 1_000, unit < ByteFormat.displayUnits.count - 1 {
+            value /= 1_000
+            unit += 1
         }
-        button.imagePosition = snapshot.mode.showsSpeed ? (snapshot.mode.showsIcon ? .imageLeft : .noImage) : .imageOnly
-        button.alignment = .left
-        button.cell?.usesSingleLineMode = false
-        button.cell?.wraps = false
-        button.cell?.lineBreakMode = .byClipping
-        button.attributedTitle = snapshot.mode.showsSpeed ? title(snapshot.speedTitle) : NSAttributedString(string: "")
-        button.toolTip = snapshot.toolTip
-        button.setAccessibilityLabel(AppIdentity.displayName)
-        button.setAccessibilityValue(snapshot.accessibilityValue)
-        button.setAccessibilityIdentifier("menu-bar-status")
-    }
-}
-
-@MainActor
-final class MenuBarStatusController: NSObject {
-    private weak var store: DownloadStore?
-    private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
-    private lazy var observation = MenuBarStatusObservation { [weak self] in self?.update($0) }
-
-    func configure(store: DownloadStore) {
-        guard !AppLaunchConfiguration.isTestAutomation else { remove(); return }
-        if self.store !== store {
-            popover?.performClose(nil)
-            popover = nil
-            self.store = store
+        // Promote before rounding, avoiding a misleading 1,000 KB/s column.
+        if value >= 999.5, unit < ByteFormat.displayUnits.count - 1 {
+            value /= 1_000
+            unit += 1
         }
-        observation.configure(store: store)
+        return .init(count: formatter.string(from: NSNumber(value: value)) ?? "—",
+                     unit: "\(ByteFormat.displayUnits[unit])/s")
     }
 
-    func remove() {
-        observation.stop()
-        removeStatusItem()
-    }
+    private struct Row {
+        let count: CTLine
+        let unit: CTLine
+        let countAdvance: CGFloat
+        let inkBounds: CGRect
 
-    private func removeStatusItem() {
-        popover?.performClose(nil)
-        popover = nil
-        if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
-        statusItem = nil
-    }
-
-    private func update(_ snapshot: MenuBarStatusSnapshot) {
-        guard snapshot.isVisible else { removeStatusItem(); return }
-        if statusItem == nil {
-            let item = NSStatusBar.system.statusItem(withLength: MenuBarStatusAppearance.length(for: snapshot.mode))
-            item.autosaveName = "ChopChopMenuBar"
-            item.button?.target = self
-            item.button?.action = #selector(togglePopover(_:))
-            statusItem = item
-        }
-        guard let statusItem, let button = statusItem.button else { return }
-        let length = MenuBarStatusAppearance.length(for: snapshot.mode)
-        if statusItem.length != length { statusItem.length = length }
-        MenuBarStatusAppearance.apply(snapshot, to: button)
-    }
-
-    private func ensurePopover() -> NSPopover? {
-        guard let store else { return nil }
-        if popover == nil {
-            let popover = NSPopover()
-            popover.behavior = .transient
-            popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            popover.contentSize = NSSize(width: 376, height: 520)
-            popover.contentViewController = NSHostingController(rootView: MenuBarPanel().environment(store))
-            self.popover = popover
-        }
-        return popover
-    }
-
-    @objc private func togglePopover(_ sender: Any?) {
-        guard let button = statusItem?.button, let popover = ensurePopover() else { return }
-        if popover.isShown { popover.performClose(sender) }
-        else {
-            NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        init(_ bytes: Int64?) {
+            let text = speedText(bytes)
+            count = CTLineCreateWithAttributedString(NSAttributedString(
+                string: text.count, attributes: [.font: font, .foregroundColor: NSColor.black]))
+            unit = CTLineCreateWithAttributedString(NSAttributedString(
+                string: text.unit, attributes: [.font: unitFont, .foregroundColor: NSColor.black.withAlphaComponent(0.85)]))
+            countAdvance = CTLineGetTypographicBounds(count, nil, nil, nil)
+            let countBounds = CTLineGetBoundsWithOptions(count, .useGlyphPathBounds)
+            inkBounds = text.unit.isEmpty ? countBounds : countBounds.union(CTLineGetBoundsWithOptions(unit, .useGlyphPathBounds))
         }
     }
+
+    static func image(for snapshot: MenuBarStatusSnapshot) -> NSImage? {
+        let icon = snapshot.mode.showsIcon ? AppBrand.menuBarImage : nil
+        guard snapshot.mode.showsSpeed else { return icon }
+        let rows = [Row(snapshot.rates?.download), Row(snapshot.rates?.upload)]
+        let speedX: CGFloat = snapshot.mode.showsIcon ? 22 : 0
+        let countRight = speedX + 8 + countWidth
+        let unitX = countRight + 2
+        let size = NSSize(width: imageWidth(for: snapshot.mode), height: imageHeight)
+        let image = NSImage(size: size, flipped: false) { _ in
+            icon?.draw(in: NSRect(x: 0, y: 2, width: 16, height: 16))
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.saveGState()
+            defer { context.restoreGState() }
+            context.textMatrix = .identity
+            context.setStrokeColor(CGColor(gray: 0, alpha: 0.8))
+            context.setLineWidth(1)
+            context.setLineCap(.round)
+            context.setLineJoin(.round)
+            for (index, row) in rows.enumerated() {
+                let centerY: CGFloat = index == 0 ? 15 : 5
+                let baseline = centerY - row.inkBounds.midY
+                context.textPosition = CGPoint(x: countRight - row.countAdvance, y: baseline)
+                CTLineDraw(row.count, context)
+                context.textPosition = CGPoint(x: unitX, y: baseline)
+                CTLineDraw(row.unit, context)
+
+                // Small direction marks share the visual center of each row.
+                let x = speedX + 4
+                let tipY = centerY + (index == 0 ? -3 : 3)
+                let tailY = centerY + (index == 0 ? 3 : -3)
+                let shoulderY = tipY + (index == 0 ? 2 : -2)
+                context.move(to: CGPoint(x: x, y: tailY))
+                context.addLine(to: CGPoint(x: x, y: tipY))
+                context.move(to: CGPoint(x: x - 2, y: shoulderY))
+                context.addLine(to: CGPoint(x: x, y: tipY))
+                context.addLine(to: CGPoint(x: x + 2, y: shoulderY))
+                context.strokePath()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
 }

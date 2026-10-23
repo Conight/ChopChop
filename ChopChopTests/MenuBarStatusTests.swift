@@ -1,8 +1,31 @@
 import AppKit
+import Observation
+import Synchronization
+import SwiftUI
 import XCTest
 @testable import ChopChop
 
 final class MenuBarStatusTests: XCTestCase {
+    @MainActor
+    func testSystemInsertionWritebackDoesNotInvalidateAnUnchangedPreference() throws {
+        let store = try makeStore()
+        defer { store.shutdown() }
+        let binding = ChopChopMenuBarScene(store: store).isInserted
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = store.preferences.showMenuBar
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        binding.wrappedValue = true
+        XCTAssertFalse(changed.withLock { $0 }, "System writeback of the same value must not re-enter the scene update graph")
+        binding.wrappedValue = false
+        XCTAssertTrue(changed.withLock { $0 })
+        XCTAssertFalse(store.preferences.showMenuBar)
+        store.preferences.showMenuBar = true
+        XCTAssertTrue(binding.wrappedValue, "Settings changes must flow back to the system scene")
+    }
+
     @MainActor
     func testDisplayModeSurvivesDiskReopenAndHidingTheItem() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -42,12 +65,12 @@ final class MenuBarStatusTests: XCTestCase {
         XCTAssertEqual(MenuBarStatusSnapshot(store: store).rates, MenuBarTransferRates(download: 1_250_000, upload: 320_000))
         store.recordSpeed(download: 0, upload: 64_000)
         let sharing = MenuBarStatusSnapshot(store: store)
-        XCTAssertTrue(sharing.speedTitle.contains(ByteFormat.speed(64_000)), "Uploading remains visible without an active download")
+        XCTAssertEqual(sharing.rates?.upload, 64_000, "Uploading remains visible without an active download")
         XCTAssertTrue(try XCTUnwrap(sharing.accessibilityValue).contains(String(localized: "Upload speed: \(ByteFormat.speed(64_000))")))
         store.connectionIssue = "RPC unavailable"
         let unavailable = MenuBarStatusSnapshot(store: store)
         XCTAssertNil(unavailable.rates)
-        XCTAssertEqual(unavailable.speedTitle, "↓\t—\n↑\t—")
+        XCTAssertEqual(unavailable.accessibilityValue, String(localized: "Transfer speeds unavailable"))
         XCTAssertFalse(unavailable.toolTip.contains(ByteFormat.speed(64_000)))
         store.connectionIssue = nil
         store.recordSpeed(download: -1, upload: -2)
@@ -57,98 +80,84 @@ final class MenuBarStatusTests: XCTestCase {
     }
 
     @MainActor
-    func testObservationFollowsCommittedRatesPreferencesAndConnectionRecovery() async throws {
+    func testOnlyVisibleSpeedModesReadTransferSamples() throws {
         let store = try makeStore()
         defer { store.shutdown() }
-        var snapshots: [MenuBarStatusSnapshot] = []
-        let observation = MenuBarStatusObservation { snapshots.append($0) }
-        observation.configure(store: store)
-        XCTAssertEqual(snapshots.count, 1)
-        store.preferences.menuBarDisplayMode = .iconAndSpeed
         store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 123))
         store.recordSpeed(download: 5_000, upload: 7_000)
-        try await NativeLayout.wait(until: "menu bar receives committed rates") {
-            snapshots.last?.rates == MenuBarTransferRates(download: 5_000, upload: 7_000)
+        for mode in MenuBarDisplayMode.allCases {
+            store.preferences.menuBarDisplayMode = mode
+            store.preferences.showMenuBar = true
+            XCTAssertEqual(MenuBarStatusSnapshot(store: store).rates != nil, mode.showsSpeed)
+            store.preferences.showMenuBar = false
+            let hidden = MenuBarStatusSnapshot(store: store)
+            XCTAssertFalse(hidden.isVisible)
+            XCTAssertNil(hidden.rates)
         }
-        store.recordSpeed(download: 9_000, upload: 11_000)
-        try await NativeLayout.wait(until: "menu bar receives a subsequent sample") {
-            snapshots.last?.rates?.upload == 11_000
-        }
-        store.connectionIssue = "offline"
-        try await NativeLayout.wait(until: "menu bar clears disconnected rates") { snapshots.last?.rates == nil }
-        store.recordSpeed(download: 15_000, upload: 17_000)
-        store.connectionIssue = nil
-        try await NativeLayout.wait(until: "menu bar follows reconnection") { snapshots.last?.rates?.upload == 17_000 }
-        store.preferences.showMenuBar = false
-        try await NativeLayout.wait(until: "menu bar follows hide preference") { snapshots.last?.isVisible == false }
-        store.preferences.showMenuBar = true
-        try await NativeLayout.wait(until: "menu bar restores the selected mode") {
-            snapshots.last?.isVisible == true && snapshots.last?.mode == .iconAndSpeed && snapshots.last?.rates?.upload == 17_000
-        }
-        observation.stop()
-        let count = snapshots.count
-        store.recordSpeed(download: 19_000, upload: 23_000)
-        await drainMainQueue()
-        XCTAssertEqual(snapshots.count, count, "Removed observations must not keep updating the menu bar")
     }
 
     @MainActor
-    func testSwitchingStoresDiscardsQueuedChangesFromThePreviousStore() async throws {
-        let first = try makeStore(), second = try makeStore()
-        defer { first.shutdown(); second.shutdown() }
-        var snapshots: [MenuBarStatusSnapshot] = []
-        let observation = MenuBarStatusObservation { snapshots.append($0) }
-        defer { observation.stop() }
-        observation.configure(store: first)
-        first.preferences.menuBarDisplayMode = .speedOnly
-        second.preferences.showMenuBar = false
-        observation.configure(store: second)
-        await drainMainQueue()
-        XCTAssertFalse(try XCTUnwrap(snapshots.last).isVisible)
-        XCTAssertEqual(snapshots.last?.mode, .iconOnly)
-        XCTAssertEqual(snapshots.count, 2, "An old queued callback must not resurrect the previous item")
-    }
-
-    @MainActor
-    func testNativeStatusButtonSwitchesAllModesWithoutClippingOrLosingAccessibility() async throws {
+    func testMenuBarImagesStayCenteredAndFitTheSystemWorkingAreaAcrossModesAndRates() throws {
         let store = try makeStore()
         defer { store.shutdown() }
         store.runtime = EngineRuntimeSnapshot(phase: .running(pid: 123))
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        defer { NSStatusBar.system.removeStatusItem(item) }
-        let button = try XCTUnwrap(item.button)
         for mode in [MenuBarDisplayMode.iconOnly, .speedOnly, .iconAndSpeed, .iconOnly] {
             store.preferences.menuBarDisplayMode = mode
-            item.length = MenuBarStatusAppearance.length(for: mode)
-            var initialButtonWidth: CGFloat?
-            for speed: Int64 in [0, 1, 999, 999_949, 1_000_000, 999_949_000, 1_000_000_000, Int64.max] {
-                store.recordSpeed(download: speed, upload: speed / 2)
+            var initialImageWidth: CGFloat?
+            for speed: Int64? in [nil, 0, 1, 999, 999_499, 999_500, 999_949, 1_000_000, 999_949_000, 1_000_000_000, Int64.max] {
+                store.connectionIssue = speed == nil ? "offline" : nil
+                store.recordSpeed(download: speed ?? 0, upload: (speed ?? 0) / 2)
                 let snapshot = MenuBarStatusSnapshot(store: store)
-                MenuBarStatusAppearance.apply(snapshot, to: button)
-                await NativeLayout.flush(button)
-                XCTAssertEqual(button.image != nil, mode.showsIcon)
-                if let image = button.image { XCTAssertTrue(image.isTemplate) }
-                XCTAssertEqual(button.attributedTitle.string, mode.showsSpeed ? snapshot.speedTitle : "")
-                XCTAssertEqual(button.accessibilityLabel(), AppIdentity.displayName)
-                XCTAssertEqual(button.accessibilityValue() as? String, snapshot.accessibilityValue)
-                XCTAssertEqual(button.toolTip, snapshot.toolTip)
+                let image = try XCTUnwrap(MenuBarStatusAppearance.image(for: snapshot))
+                XCTAssertTrue(image.isTemplate, "All content must follow the native light, dark and selected tint")
+                XCTAssertLessThanOrEqual(image.size.height, 22, "Artwork must fit the system menu bar working area")
                 if mode.showsSpeed {
-                    let textBounds = button.attributedTitle.boundingRect(
-                        with: NSSize(width: 10_000, height: 1000),
-                        options: [.usesLineFragmentOrigin, .usesFontLeading])
-                    XCTAssertLessThanOrEqual(textBounds.width, MenuBarStatusAppearance.textWidth + 0.5)
-                    let titleRect = try XCTUnwrap(button.cell).titleRect(forBounds: button.bounds)
-                    XCTAssertLessThanOrEqual(textBounds.height, titleRect.height + 0.5,
-                                             "Both speed rows must fit the actual system status button")
-                    XCTAssertLessThanOrEqual(textBounds.width, titleRect.width + 0.5,
-                                             "Full byte units and counts must fit without truncation")
-                    if let initialButtonWidth {
-                        XCTAssertEqual(button.bounds.width, initialButtonWidth, accuracy: 0.5,
-                                       "Changing speed digits and units must not resize the native button")
-                    } else { initialButtonWidth = button.bounds.width }
+                    for scale in [1, 2] {
+                        let ink = try inkBounds(of: image, scale: scale)
+                        XCTAssertEqual(ink.midY, image.size.height / 2, accuracy: 0.75,
+                                       "Actual glyphs, not just their line boxes, must be vertically centered")
+                        XCTAssertGreaterThan(ink.minY, 0)
+                        XCTAssertLessThan(ink.maxY, image.size.height)
+                        XCTAssertGreaterThan(ink.minX, 0)
+                        XCTAssertLessThan(ink.maxX, image.size.width)
+                    }
+                    if let initialImageWidth {
+                        XCTAssertEqual(image.size.width, initialImageWidth, accuracy: 0.5,
+                                       "Changing speed digits and units must not resize the label")
+                    } else { initialImageWidth = image.size.width }
                 }
             }
         }
+        XCTAssertEqual(MenuBarStatusAppearance.speedText(999_500).unit, "\(ByteFormat.displayUnits[2])/s",
+                       "Rounding at a unit boundary must promote the unit instead of overflowing the number column")
+    }
+
+    /// Inspect rendered alpha in memory. No screenshot files or app windows.
+    @MainActor
+    private func inkBounds(of image: NSImage, scale: Int) throws -> CGRect {
+        let width = Int(image.size.width) * scale
+        let height = Int(image.size.height) * scale
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height,
+                                             bitsPerComponent: 8, bytesPerRow: width * 4,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+        image.draw(in: CGRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        var minX = width, minY = height, maxX = -1, maxY = -1
+        for y in 0..<height {
+            for x in 0..<width where pixels[y * context.bytesPerRow + x * 4 + 3] > 16 {
+                minX = min(minX, x); minY = min(minY, y)
+                maxX = max(maxX, x); maxY = max(maxY, y)
+            }
+        }
+        XCTAssertGreaterThanOrEqual(maxX, minX, "The template must contain visible artwork")
+        let factor = CGFloat(scale)
+        return CGRect(x: CGFloat(minX) / factor, y: CGFloat(minY) / factor,
+                      width: CGFloat(maxX - minX + 1) / factor, height: CGFloat(maxY - minY + 1) / factor)
     }
 
     func testSpeedDisplayKeepsBackgroundTransfersCurrentWithoutChangingIdleOrFailureBackoff() {
@@ -164,12 +173,4 @@ final class MenuBarStatusTests: XCTestCase {
         DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
     }
 
-    @MainActor
-    private func drainMainQueue() async {
-        for _ in 0..<2 {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
-        }
-    }
 }

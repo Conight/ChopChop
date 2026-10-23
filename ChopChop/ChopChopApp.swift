@@ -48,7 +48,7 @@ struct ChopChopApp: App {
         .restorationBehavior(.disabled)
         .onChange(of: scenePhase, initial: true) { _, _ in
             // Register from the app, even when restoration did not create a window.
-            appDelegate.configureMenuBar(store: store)
+            appDelegate.configureApplicationServices(store: store)
             appDelegate.registerDownloadWindowOpener {
                 openWindow(id: AppWindowID.downloads, value: AppWindowID.downloads)
             }
@@ -57,6 +57,8 @@ struct ChopChopApp: App {
             DownloadCommands(store: store, inputPresentation: inputPresentation)
             AppSupportCommands(updates: updates, store: store, navigation: supportNavigation)
         }
+
+        ChopChopMenuBarScene(store: store)
 
         Window(String(localized: "About \(AppIdentity.displayName)"), id: AppWindowID.about) {
             AppAboutView(updates: updates).environment(store)
@@ -109,6 +111,7 @@ struct ChopChopApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
     }
+
 }
 
 enum AppLaunchConfiguration {
@@ -149,7 +152,6 @@ enum AppLaunchConfiguration {
 
 final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     private let downloadWindowPresentation = DownloadWindowPresentation()
-    private let menuBarController = MenuBarStatusController()
     private let dockProgressController = DockDownloadProgressController()
     private weak var store: DownloadStore?
     private let termination = AppTermination.shared
@@ -162,16 +164,11 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
         revealDownloadWindow()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        removeMenuBarStatusItem()
-    }
-
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !AppLaunchConfiguration.isTestAutomation else { return .terminateNow }
         guard let store else { return .terminateNow }
-        return termination.shouldTerminate(sender) { [weak self] in
+        return termination.shouldTerminate(sender) {
             await store.prepareForAppTermination()
-            self?.removeMenuBarStatusItem()
         }
     }
 
@@ -195,7 +192,7 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
         revealDownloadWindow()
     }
 
-    func configureMenuBar(store: DownloadStore) {
+    func configureApplicationServices(store: DownloadStore) {
         if self.store !== store {
             self.store = store
             downloadNavigation = store.downloadWindowRequests.sink { [weak self] in self?.revealDownloadWindow() }
@@ -204,7 +201,6 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
                 self?.revealDownloadWindow()
             }
         }
-        menuBarController.configure(store: store)
         dockProgressController.configure(store: store)
         if !pendingOpenURLs.isEmpty {
             let urls = pendingOpenURLs
@@ -233,11 +229,6 @@ final class ChopChopAppDelegate: NSObject, NSApplicationDelegate {
     private func revealDownloadWindow() {
         downloadWindowPresentation.request()
     }
-
-    func removeMenuBarStatusItem() {
-        menuBarController.remove()
-    }
-
 
 }
 

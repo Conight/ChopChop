@@ -66,6 +66,7 @@ struct MenuBarPanel: View {
             HStack {
                 Button(String(localized: "Settings")) {
                     openSettings()
+                    NSApp.activate()
                 }
                 .buttonStyle(.bordered)
                 Spacer()

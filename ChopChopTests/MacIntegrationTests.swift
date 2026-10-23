@@ -8,7 +8,7 @@ final class MacIntegrationTests: XCTestCase {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
         let delegate = ChopChopAppDelegate()
-        delegate.configureMenuBar(store: store)
+        delegate.configureApplicationServices(store: store)
         store.preferences.keepRunningAfterClose = true
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
         store.preferences.keepRunningAfterClose = false

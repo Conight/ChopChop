@@ -121,7 +121,7 @@ final class DownloadImportTests: XCTestCase {
         store.addDraft.rawInput = "https://example.com/manual"
         let delegate = ChopChopAppDelegate()
         delegate.application(NSApplication.shared, open: [URL(string: "magnet:?xt=urn:btih:abcd")!])
-        delegate.configureMenuBar(store: store)
+        delegate.configureApplicationServices(store: store)
         for _ in 0..<100 where store.inputCoordinator.pending.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(store.inputCoordinator.pending.count, 1)
         XCTAssertFalse(store.beginImportedDownload(owner: UUID())) // Engine setup has not finished.
