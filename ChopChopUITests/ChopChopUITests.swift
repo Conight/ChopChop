@@ -607,7 +607,7 @@ final class ChopChopUITests: XCTestCase {
     func testMenuBarDisplaySettingsRetainModeWhenHidden() throws {
         let app = launchApp(openSettings: true)
         let picker = app.popUpButtons["settings-menu-bar-display"]
-        let visibility = app.checkBoxes["settings-show-menu-bar"]
+        let visibility = toggleControl(in: app, id: "settings-show-menu-bar", label: "Show in menu bar")
         XCTAssertTrue(picker.waitForExistence(timeout: 8))
         XCTAssertTrue(visibility.waitForExistence(timeout: 4))
         XCTAssertTrue(waitForTextValue(picker, "Icon only", timeout: 4))

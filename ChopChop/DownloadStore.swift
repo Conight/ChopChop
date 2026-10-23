@@ -61,7 +61,6 @@ final class DownloadStore {
     var preferences: AppPreferences {
         didSet {
             persistAppPreferences()
-            if oldValue != preferences { preferenceChanges.send(preferences) }
             if oldValue.showMenuBar != preferences.showMenuBar || oldValue.menuBarDisplayMode != preferences.menuBarDisplayMode {
                 pollWakeContinuation?.yield(())
             }
@@ -82,7 +81,6 @@ final class DownloadStore {
     let trackerDiagnostics: TrackerDiagnostics
     // Explicit event streams for AppKit integrations; SwiftUI observes properties.
     let taskSnapshots = CurrentValueSubject<[DownloadTask], Never>([])
-    let preferenceChanges = PassthroughSubject<AppPreferences, Never>()
     let notificationNavigationRequests = PassthroughSubject<Void, Never>()
     let downloadWindowRequests = PassthroughSubject<Void, Never>()
     @ObservationIgnored var inputTask: Task<Void, Never>?

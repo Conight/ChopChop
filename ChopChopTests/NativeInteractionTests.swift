@@ -72,22 +72,16 @@ final class NativeInteractionTests: XCTestCase {
     func testAppKitEventStreamsObserveCommittedStateAfterObservationMigration() throws {
         let store = DownloadStore(settingsStore: try PersistentSettingsStore(inMemory: true))
         defer { store.shutdown() }
-        var snapshots = 0, preferences = 0, navigation = 0
+        var snapshots = 0, navigation = 0
         let taskEvents = store.taskSnapshots.dropFirst().sink { tasks in
             snapshots += 1
             XCTAssertEqual(tasks.map(\.id), store.listPresentation.orderedRows.map(\.id))
         }
-        let preferenceEvents = store.preferenceChanges.sink { value in
-            preferences += 1
-            XCTAssertEqual(store.preferences, value)
-        }
         let navigationEvents = store.notificationNavigationRequests.sink { navigation += 1 }
-        defer { taskEvents.cancel(); preferenceEvents.cancel(); navigationEvents.cancel() }
+        defer { taskEvents.cancel(); navigationEvents.cancel() }
         store.tasks = [try fixture("event")]
-        store.preferences.showMenuBar.toggle()
         store.notifications.onOpenDownloads?(["event"])
         XCTAssertEqual(snapshots, 1)
-        XCTAssertEqual(preferences, 1)
         XCTAssertEqual(navigation, 1)
     }
 
