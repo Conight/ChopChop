@@ -37,6 +37,8 @@ Keep a stable Apple-issued signing identity for local builds that will be launch
 
 The UI gate runs every scenario once across two isolated hosts, with native parallel testing disabled. State-leak regressions express their own transitions: the launch regression suppresses SwiftUI's automatic default window and relaunches after Settings, a closed/minimized workspace, and an interrupted sheet. The UI harness waits for the actual Downloads toolbar before issuing commands. Stable accessibility identifiers select controls directly; locating a control does not wait through a list of fallback queries. CI preserves `.xcresult` bundles, failure screenshots/accessibility trees, and suite logs for seven days. To diagnose intermittent failures on a disposable host, explicitly use `Scripts/check.sh keyboard -test-iterations 10`; repetition is a diagnostic tool, not the ordinary gate.
 
+Menu bar display modes and their sampling, persistence and accessibility contracts are documented in [MenuBar.md](MenuBar.md).
+
 ### Test responsibilities
 
 Tests must have an automatic pass/fail contract. Generating preview PNGs, checking that an NSWindow retained the size just assigned to it, or rendering arbitrary state combinations does not establish behavior. The former design-preview exporter and write-only PNG paths have been removed. No regular native test writes preview images. Pixel data remains only where a test actually asserts it, such as opacity or unchanged selected-row content. UI failure screenshots are diagnostic attachments for a developer investigating a failure.

@@ -23,6 +23,7 @@ enum SettingsSearchIndex {
         .init(id: "bitTorrent.tracker-list", pane: .bitTorrent, title: "Tracker List"),
         .init(id: "ed2k.servers", pane: .ed2k, title: "ED2K Servers"),
         .init(id: "general.show-in-menu-bar", pane: .general, title: "Show in menu bar"),
+        .init(id: "general.menu-bar-display", pane: .general, title: "Menu bar display"),
         .init(id: "general.keep-running-after-window-closes", pane: .general, title: "Keep running after window closes"),
         .init(id: "general.prevent-sleep-while-downloads-are-active", pane: .general, title: "Prevent sleep while downloads are active"),
         .init(id: "updates.at-launch", pane: .updates, title: "Check for updates at launch"),
@@ -93,6 +94,7 @@ enum SettingsSearchIndex {
         return bundle.localizedString(forKey: title, value: title, table: "Localizable")
     }
     static let aliases: [String: String] = [
+        "general.menu-bar-display": "status menu bar icon download upload speed 状态栏 菜单栏 图标 上传 下载 网速 速度",
         "network.global-upload-limit": "upload speed bandwidth 上传 速度 限速 带宽",
         "network.global-download-limit": "download speed bandwidth 下载 速度 限速 带宽",
         "network.proxy-url": "proxy 代理",

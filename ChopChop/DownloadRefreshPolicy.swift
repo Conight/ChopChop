@@ -1,9 +1,10 @@
 import Foundation
 
 nonisolated enum DownloadRefreshPolicy {
-    static func interval(foreground: Bool, hasTransfers: Bool, failures: Int, receivesEvents: Bool = false) -> Duration {
+    static func interval(foreground: Bool, hasTransfers: Bool, failures: Int, receivesEvents: Bool = false, showsMenuBarSpeeds: Bool = false) -> Duration {
         if failures > 0 { return .seconds(min(60, 5 * (1 << min(failures, 4)))) }
         if receivesEvents && !hasTransfers { return .seconds(60) }
+        if hasTransfers && showsMenuBarSpeeds { return .seconds(1) }
         if foreground { return .seconds(hasTransfers ? 1 : 8) }
         return .seconds(hasTransfers ? 5 : 30)
     }

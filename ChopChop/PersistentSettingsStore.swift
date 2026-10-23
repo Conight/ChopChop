@@ -230,6 +230,7 @@ final class PersistentAppConfiguration {
     @Attribute(.unique) var key: String
     var launchAtLogin: Bool
     var showMenuBar: Bool
+    var menuBarDisplayModeRawValue: String?
     var notifyOnDownloadCompletion: Bool = false
     var bandwidthScheduleData: Data?
     var temporaryBandwidthData: Data?
@@ -257,6 +258,7 @@ final class PersistentAppConfiguration {
         self.key = key
         self.launchAtLogin = preferences.launchAtLogin
         self.showMenuBar = preferences.showMenuBar
+        self.menuBarDisplayModeRawValue = preferences.menuBarDisplayMode.rawValue
         self.notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
         self.temporaryBandwidthData = try? JSONEncoder().encode(preferences.temporaryBandwidth)
         self.browserCaptureEnabled = preferences.browserCaptureEnabled
@@ -283,6 +285,7 @@ final class PersistentAppConfiguration {
         var preferences = AppPreferences()
         preferences.launchAtLogin = launchAtLogin
         preferences.showMenuBar = showMenuBar
+        preferences.menuBarDisplayMode = menuBarDisplayModeRawValue.flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .iconOnly
         preferences.notifyOnDownloadCompletion = notifyOnDownloadCompletion
         preferences.bandwidthSchedule = bandwidthScheduleData.flatMap { try? JSONDecoder().decode(BandwidthSchedule.self, from: $0) } ?? BandwidthSchedule()
         preferences.temporaryBandwidth = temporaryBandwidthData.flatMap { try? JSONDecoder().decode(TemporaryBandwidthLimit.self, from: $0) } ?? TemporaryBandwidthLimit()
@@ -310,6 +313,7 @@ final class PersistentAppConfiguration {
     func update(from preferences: AppPreferences) {
         launchAtLogin = preferences.launchAtLogin
         showMenuBar = preferences.showMenuBar
+        menuBarDisplayModeRawValue = preferences.menuBarDisplayMode.rawValue
         notifyOnDownloadCompletion = preferences.notifyOnDownloadCompletion
         bandwidthScheduleData = try? JSONEncoder().encode(preferences.bandwidthSchedule)
         temporaryBandwidthData = try? JSONEncoder().encode(preferences.temporaryBandwidth)

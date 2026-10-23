@@ -125,9 +125,27 @@ nonisolated enum PreferencesStore {
     }
 }
 
+nonisolated enum MenuBarDisplayMode: String, CaseIterable, Identifiable, Sendable {
+    case iconOnly
+    case speedOnly
+    case iconAndSpeed
+
+    var id: Self { self }
+    var showsIcon: Bool { self != .speedOnly }
+    var showsSpeed: Bool { self != .iconOnly }
+    var localizedTitle: String {
+        switch self {
+        case .iconOnly: String(localized: "Icon only")
+        case .speedOnly: String(localized: "Speed only")
+        case .iconAndSpeed: String(localized: "Icon and speed")
+        }
+    }
+}
+
 nonisolated struct AppPreferences: Equatable, Sendable {
     var launchAtLogin = false
     var showMenuBar = true
+    var menuBarDisplayMode = MenuBarDisplayMode.iconOnly
     var notifyOnDownloadCompletion = false
     var bandwidthSchedule = BandwidthSchedule()
     var temporaryBandwidth = TemporaryBandwidthLimit()

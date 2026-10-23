@@ -125,6 +125,7 @@ final class PublicBetaTests: XCTestCase {
             XCTAssertEqual(settings.downloadDirectoryPath, "/tmp/existing-downloads")
             XCTAssertEqual(settings.rpcToken, "saved-token")
             XCTAssertFalse(try migrated.loadAppPreferences().keepRunningAfterClose)
+            XCTAssertEqual(try migrated.loadAppPreferences().menuBarDisplayMode, .iconOnly)
             let history = try migrated.makeHistoryStore()
             let tasks = try history.load()
             XCTAssertEqual(tasks.count, 1)

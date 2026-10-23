@@ -238,7 +238,8 @@ extension DownloadStore {
         let foreground = NSApp.isActive && NSApp.windows.contains { $0.isVisible && !$0.isMiniaturized && $0.occlusionState.contains(.visible) }
         return DownloadRefreshPolicy.interval(foreground: foreground,
             hasTransfers: tasks.contains { $0.status == .active || $0.status == .waiting || $0.isSharing }, failures: failures,
-            receivesEvents: engineEventsConnected)
+            receivesEvents: engineEventsConnected,
+            showsMenuBarSpeeds: preferences.showMenuBar && preferences.menuBarDisplayMode.showsSpeed)
     }
 
     func startEngineEvents() {

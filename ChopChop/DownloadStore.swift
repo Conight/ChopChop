@@ -62,6 +62,9 @@ final class DownloadStore {
         didSet {
             persistAppPreferences()
             if oldValue != preferences { preferenceChanges.send(preferences) }
+            if oldValue.showMenuBar != preferences.showMenuBar || oldValue.menuBarDisplayMode != preferences.menuBarDisplayMode {
+                pollWakeContinuation?.yield(())
+            }
             if oldValue.notifyOnDownloadCompletion != preferences.notifyOnDownloadCompletion {
                 notifications.setEnabled(preferences.notifyOnDownloadCompletion)
             }

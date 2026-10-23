@@ -604,6 +604,31 @@ final class ChopChopUITests: XCTestCase {
     }
 
     @MainActor
+    func testMenuBarDisplaySettingsRetainModeWhenHidden() throws {
+        let app = launchApp(openSettings: true)
+        let picker = app.popUpButtons["settings-menu-bar-display"]
+        let visibility = app.checkBoxes["settings-show-menu-bar"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 8))
+        XCTAssertTrue(visibility.waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForTextValue(picker, "Icon only", timeout: 4))
+        picker.click()
+        app.menuItems["Icon and speed"].click()
+        XCTAssertTrue(waitForTextValue(picker, "Icon and speed", timeout: 4))
+        visibility.click()
+        let disabled = expectation(for: NSPredicate(format: "enabled == false"), evaluatedWith: picker)
+        XCTAssertEqual(XCTWaiter.wait(for: [disabled], timeout: 4), .completed)
+        visibility.click()
+        XCTAssertTrue(waitForEnabled(picker, timeout: 4))
+        XCTAssertTrue(waitForTextValue(picker, "Icon and speed", timeout: 4))
+        picker.click()
+        app.menuItems["Speed only"].click()
+        XCTAssertTrue(waitForTextValue(picker, "Speed only", timeout: 4))
+        picker.click()
+        app.menuItems["Icon only"].click()
+        XCTAssertTrue(waitForTextValue(picker, "Icon only", timeout: 4))
+    }
+
+    @MainActor
     func testSettingsWindowClosesWithoutBlockingMainWindow() throws {
         let app = launchApp(openSettings: true)
         let settingsMarker = app.searchFields["Search settings"]

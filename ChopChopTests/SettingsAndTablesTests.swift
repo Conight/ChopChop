@@ -14,6 +14,7 @@ final class SettingsAndTablesTests: XCTestCase {
         XCTAssertTrue(SettingsSearchIndex.results(for: "RPC token").isEmpty)
         XCTAssertFalse(entries.contains { $0.id == "engine.start-engine" })
         XCTAssertEqual(SettingsSearchIndex.results(for: "重启").map(\.id), ["engine.advanced"])
+        XCTAssertEqual(SettingsSearchIndex.results(for: "状态栏 网速").map(\.id), ["general.menu-bar-display"])
         XCTAssertTrue(SettingsSearchIndex.results(for: "nothing matches this").isEmpty)
         let model = SettingsSearchModel()
         model.query = "Global upload limit"

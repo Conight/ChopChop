@@ -27,6 +27,7 @@
     "ChopChopUITests/testPasteToolbarOpensAddPanelWithClipboardLink",
     "ChopChopUITests/testFixtureTasksExposeCorrectPauseResumeButtons",
     "ChopChopUITests/testAddDownloadPanelValidatesURLBeforeSubmit",
-    "ChopChopUITests/testRemovingFixtureTaskShowsNativeConfirmationOptions"
+    "ChopChopUITests/testRemovingFixtureTaskShowsNativeConfirmationOptions",
+    "ChopChopUITests/testMenuBarDisplaySettingsRetainModeWhenHidden"
   ]
 }
