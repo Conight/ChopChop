@@ -124,6 +124,8 @@ struct PieceMapView: View {
             }
             .help(inspectionDescription)
             .focusable()
+            // Suppress the Canvas-sized focus overlay while retaining keyboard inspection.
+            .focusEffectDisabled()
             .onMoveCommand { direction in
                 let index = inspection.detailIndex ?? inspection.navigationIndex
                 switch direction {
