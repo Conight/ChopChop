@@ -114,12 +114,13 @@ final class MenuBarStatusTests: XCTestCase {
                 if mode.showsSpeed {
                     for scale in [1, 2] {
                         let ink = try inkBounds(of: image, scale: scale)
+                        let context = "\(mode.rawValue), \(speed.map { String($0) } ?? "offline"), \(scale)×"
                         XCTAssertEqual(ink.midY, image.size.height / 2, accuracy: 0.75,
-                                       "Actual glyphs, not just their line boxes, must be vertically centered")
-                        XCTAssertGreaterThan(ink.minY, 0)
-                        XCTAssertLessThan(ink.maxY, image.size.height)
-                        XCTAssertGreaterThan(ink.minX, 0)
-                        XCTAssertLessThan(ink.maxX, image.size.width)
+                                       "Actual glyphs, not just their line boxes, must be vertically centered: \(context)")
+                        XCTAssertGreaterThan(ink.minY, 0, context)
+                        XCTAssertLessThan(ink.maxY, image.size.height, context)
+                        XCTAssertGreaterThan(ink.minX, 0, context)
+                        XCTAssertLessThan(ink.maxX, image.size.width, context)
                     }
                     if let initialImageWidth {
                         XCTAssertEqual(image.size.width, initialImageWidth, accuracy: 0.5,

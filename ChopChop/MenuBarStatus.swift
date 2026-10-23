@@ -94,7 +94,9 @@ struct MenuBarStatusLabel: View {
 enum MenuBarStatusAppearance {
     private static let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
     private static let unitFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
-    private static let imageHeight: CGFloat = 20
+    // Use the full system working area so small-font rasterization has a gutter
+    // at both 1× and 2× without changing the centered artwork's visual position.
+    private static let imageHeight: CGFloat = 22
     private static let formatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -161,7 +163,7 @@ enum MenuBarStatusAppearance {
         let unitX = countRight + 2
         let size = NSSize(width: imageWidth(for: snapshot.mode), height: imageHeight)
         let image = NSImage(size: size, flipped: false) { _ in
-            icon?.draw(in: NSRect(x: 0, y: 2, width: 16, height: 16))
+            icon?.draw(in: NSRect(x: 0, y: (size.height - 16) / 2, width: 16, height: 16))
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
             context.saveGState()
             defer { context.restoreGState() }
@@ -171,7 +173,7 @@ enum MenuBarStatusAppearance {
             context.setLineCap(.round)
             context.setLineJoin(.round)
             for (index, row) in rows.enumerated() {
-                let centerY: CGFloat = index == 0 ? 15 : 5
+                let centerY = size.height / 2 + (index == 0 ? 5 : -5)
                 let baseline = centerY - row.inkBounds.midY
                 context.textPosition = CGPoint(x: countRight - row.countAdvance, y: baseline)
                 CTLineDraw(row.count, context)
